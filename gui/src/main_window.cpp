@@ -1,5 +1,6 @@
 #include "main_window.h"
 #include "image_viewer.h"
+#include <functional>
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QDesktopServices>

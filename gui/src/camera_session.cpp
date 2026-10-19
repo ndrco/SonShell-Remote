@@ -69,6 +69,12 @@ void CameraSession::launch() {
   process_.setArguments({"--gui", "--auth-env", "--host", options_.host,
       "--model", options_.model, "--sync-dir", options_.folder, "--liveview-file", liveview_path()});
   auto environment = QProcessEnvironment::systemEnvironment();
+  // Sony's dlopen-loaded monitor library has no RUNPATH for its own sibling.
+  // Restrict the loader adjustment to this child; never modify global ld config.
+  const QString backend_directory = QFileInfo(options_.binary).absolutePath();
+  QString loader_path = backend_directory + ':' + backend_directory + "/CrAdapter";
+  if (!environment.value("LD_LIBRARY_PATH").isEmpty()) loader_path += ':' + environment.value("LD_LIBRARY_PATH");
+  environment.insert("LD_LIBRARY_PATH", loader_path);
   environment.insert("SONSHELL_CAMERA_USER", options_.user);
   environment.insert("SONSHELL_CAMERA_PASSWORD", options_.password);
   process_.setProcessEnvironment(environment);

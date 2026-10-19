@@ -12,7 +12,7 @@ args = sys.argv[1:]
 record = os.environ.get('REMOTE_TEST_RECORD')
 if record:
     with open(record, 'a', encoding='utf-8') as output:
-        output.write(json.dumps({'argv': args, 'has_password': bool(os.environ.get('SONSHELL_CAMERA_PASSWORD'))}) + '\n')
+        output.write(json.dumps({'argv': args, 'has_password': bool(os.environ.get('SONSHELL_CAMERA_PASSWORD')), 'private_loader_path': os.environ.get('LD_LIBRARY_PATH', '').startswith(str(Path(sys.argv[0]).resolve().parent) + ':')}) + '\n')
 mode = os.environ.get('REMOTE_TEST_MODE', 'normal')
 if mode == 'hang':
     signal.signal(signal.SIGTERM, signal.SIG_IGN)

@@ -1,4 +1,5 @@
 #include "settings_store.h"
+#include <utility>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>

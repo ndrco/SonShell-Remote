@@ -34,3 +34,8 @@ Qt platform/image plugins указаны отдельно. Install RUNPATH ис�
 и ARM требуют собственных пакетов и матрицы проверок. Перед первым соединением
 GUI показывает условия Sony SDK, включая требуемые Sony согласия; полный HTML
 и OSS notices устанавливаются с приложением.
+
+SDK libmonitor_protocol.so загружает соседнюю libmonitor_protocol_pf.so и не имеет
+собственного RUNPATH. CameraSession задаёт LD_LIBRARY_PATH только дочернему backend
+(его каталог и CrAdapter), затем сохраняет пользовательскую часть пути. Это также
+покрывает transitive dlopen без изменения vendor binaries и /etc/ld.so.conf.

@@ -105,6 +105,7 @@ class RemoteTests : public QObject {
     QFile file(record); QVERIFY(file.open(QIODevice::ReadOnly)); const auto data = file.readAll();
     QVERIFY(data.contains("shoot")); QVERIFY(data.contains("--auth-env"));
     QVERIFY(data.contains("\"has_password\": true"));
+    QVERIFY(data.contains("\"private_loader_path\": true"));
     QVERIFY(!data.contains("test-secret")); QVERIFY(!data.contains("--pass"));
   }
   void reconnect_after_disconnect_and_manual_cancel() {

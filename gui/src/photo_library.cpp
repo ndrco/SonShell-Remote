@@ -1,6 +1,7 @@
 #include "photo_library.h"
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QFile>
 #include <QImageReader>
 #include <QSet>
 

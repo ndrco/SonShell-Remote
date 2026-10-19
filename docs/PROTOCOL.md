@@ -8,6 +8,8 @@ sonshell --gui --auth-env --host <IPv4> --model <alias> --sync-dir <directory> -
 
 `--gui` использует построчный ввод с poll, сохраняя обычный интерактивный libedit
 режим CLI. Все старые команды сохраняются. `--version` не инициализирует SDK.
+GUI добавляет каталоги backend и CrAdapter в LD_LIBRARY_PATH только дочернего
+процесса: это нужно для transitive dlopen библиотек Sony.
 GUI не использует `--keepalive`: повторные подключения принадлежат CameraSession.
 
 Имя и пароль передаются переменными `SONSHELL_CAMERA_USER` и
