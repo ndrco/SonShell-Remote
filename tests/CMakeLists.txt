@@ -1,0 +1,6 @@
+find_package(Qt6 REQUIRED COMPONENTS Test)
+add_executable(remote-tests test_remote.cpp)
+target_link_libraries(remote-tests PRIVATE sonshell_gui_core Qt6::Test)
+target_compile_definitions(remote-tests PRIVATE FAKE_BACKEND_PATH="${CMAKE_CURRENT_SOURCE_DIR}/fake_backend.py")
+add_test(NAME remote-tests COMMAND remote-tests)
+set_tests_properties(remote-tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

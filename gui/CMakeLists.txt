@@ -1,9 +1,14 @@
-cmake_minimum_required(VERSION 3.22)
-project(sonshell_gui VERSION 0.1.0 LANGUAGES CXX)
-
-find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
-
-add_executable(sonshell-gui main.cpp)
-target_compile_features(sonshell-gui PRIVATE cxx_std_17)
-target_link_libraries(sonshell-gui PRIVATE Qt6::Widgets util)
-target_compile_options(sonshell-gui PRIVATE -Wall -Wextra -Wpedantic)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets Network)
+add_library(sonshell_gui_core STATIC
+  src/camera_session.cpp src/camera_session.h
+  src/settings_store.cpp src/settings_store.h
+  src/image_viewer.cpp src/image_viewer.h
+  src/photo_library.cpp src/photo_library.h
+  src/main_window.cpp src/main_window.h)
+target_include_directories(sonshell_gui_core PUBLIC src)
+target_link_libraries(sonshell_gui_core PUBLIC Qt6::Widgets Qt6::Network)
+target_compile_options(sonshell_gui_core PRIVATE -Wall -Wextra -Wpedantic)
+add_executable(sonshell-remote main.cpp)
+target_link_libraries(sonshell-remote PRIVATE sonshell_gui_core)
+target_compile_definitions(sonshell-remote PRIVATE SONSHELL_REMOTE_VERSION="${PROJECT_VERSION}")
+install(TARGETS sonshell-remote RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

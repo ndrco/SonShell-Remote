@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.16)
-project(sonshell LANGUAGES CXX)
 
 option(SONSHELL_HEADLESS "Disable OpenCV/GTK live view support" OFF)
 
@@ -70,14 +68,15 @@ add_custom_target(sonshell_generate_sdk_maps
   DEPENDS "${PROP_GENERATED}" "${ERROR_GENERATED}"
 )
 
-add_executable(sonshell src/main.cpp)
+add_executable(sonshell src/main.cpp src/live_view_stream.cpp)
 add_dependencies(sonshell sonshell_generate_sdk_maps)
+target_compile_definitions(sonshell PRIVATE SONSHELL_REMOTE_VERSION="${PROJECT_VERSION}")
 
 # --- RPATH / RUNPATH configuration ------------------------------------------
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
 
 # Keep runtime search paths relative to the executable
 set(_rpaths
@@ -85,6 +84,7 @@ set(_rpaths
   "$ORIGIN/CrAdapter"
 )
 set_target_properties(sonshell PROPERTIES
+  AUTOMOC OFF
   CXX_STANDARD 17
   CXX_STANDARD_REQUIRED YES
   CXX_EXTENSIONS NO
@@ -105,7 +105,7 @@ find_library(NCURSES_LIB ncurses REQUIRED)  # libedit depends on curses
 
 if(SONSHELL_HEADLESS)
   target_compile_definitions(sonshell PRIVATE SONSHELL_HEADLESS=1)
-  message(STATUS "Building SonShell in headless mode: live view disabled")
+  message(STATUS "Building SonShell in headless mode: standalone OpenCV disabled; GUI stream enabled")
 else()
   pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
   target_include_directories(sonshell PRIVATE ${GTK3_INCLUDE_DIRS})
@@ -180,3 +180,14 @@ if(NOT SONSHELL_HEADLESS)
 endif()
 
 message(STATUS "Configured with SONY_SDK_DIR=${SONY_SDK_DIR}")
+
+# Keep the SDK private next to the backend. No headers or archives are installed.
+install(TARGETS sonshell RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}/sonshell-remote)
+install(DIRECTORY "${CRSDK_ADAPTER}/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/sonshell-remote/CrAdapter
+  FILES_MATCHING PATTERN "*.so*")
+file(GLOB CRSDK_RUNTIME "${CRSDK_ROOT}/*.so*")
+install(FILES ${CRSDK_RUNTIME} DESTINATION ${CMAKE_INSTALL_LIBDIR}/sonshell-remote)
+if(NOT SONSHELL_HEADLESS)
+  install(FILES ${OPENCV_ALL_SO} DESTINATION ${CMAKE_INSTALL_LIBDIR}/sonshell-remote)
+endif()
+install(FILES "${SONY_SDK_DIR}/README.md" DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/sonshell-remote RENAME sdk-oss-notices.md)

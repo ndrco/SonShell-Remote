@@ -54,6 +54,7 @@
 #include <opencv2/highgui/highgui_c.h>
 #endif
 
+#include "live_view_stream.h"
 #include "prop_names_generated.h"
 #include "error_names_generated.h"
 
@@ -64,6 +65,9 @@ namespace SDK = SCRSDK;
 // ----------------------------
 static std::vector<std::thread> g_downloadThreads;
 static std::string g_download_dir;
+static bool g_gui_mode = false;
+static std::string g_liveview_file;
+static LiveViewStream g_liveview_stream;
 static std::atomic<bool> g_stop{false};
 static std::atomic<bool> g_shutting_down{false};
 static std::atomic<bool> g_reconnect{false};
@@ -2129,7 +2133,7 @@ static void monitor_thread_main(SDK::CrDeviceHandle handle, bool verbose) {
   LOGI("[monitor] stopped");
 }
 
-static bool monitor_start(SDK::CrDeviceHandle handle, bool verbose) {
+static bool opencv_monitor_start(SDK::CrDeviceHandle handle, bool verbose) {
   monitor_join_stale_thread();
 
   if (!handle) {
@@ -2172,7 +2176,7 @@ static bool monitor_start(SDK::CrDeviceHandle handle, bool verbose) {
   return true;
 }
 
-static void monitor_stop() {
+static void opencv_monitor_stop() {
   std::thread local;
   {
     std::lock_guard<std::mutex> lk(g_monitor_mtx);
@@ -2200,19 +2204,57 @@ static void monitor_stop() {
 }
 #else
 // Headless build stubs -------------------------------------------------------
-static bool monitor_start(SDK::CrDeviceHandle handle, bool verbose) {
+static bool opencv_monitor_start(SDK::CrDeviceHandle handle, bool verbose) {
   (void)handle;
   (void)verbose;
   LOGW("[monitor] Live view disabled in headless build (rebuild without -DSONSHELL_HEADLESS=ON)");
   return false;
 }
 
-static void monitor_stop() {
+static void opencv_monitor_stop() {
   monitor_join_stale_thread();
   g_monitor_running.store(false, std::memory_order_release);
   g_monitor_stop_flag.store(false, std::memory_order_release);
 }
 #endif
+
+static bool monitor_start(SDK::CrDeviceHandle handle, bool verbose) {
+  if (!g_liveview_file.empty()) {
+    const bool started = g_liveview_stream.start(handle, g_liveview_file);
+    if (g_gui_mode) LOGI((started ? "REMOTE/1 liveview-started" : "REMOTE/1 liveview-failed"));
+    return started;
+  }
+  return opencv_monitor_start(handle, verbose);
+}
+
+static void monitor_stop() {
+  g_liveview_stream.stop();
+  opencv_monitor_stop();
+  if (g_gui_mode) LOGI("REMOTE/1 liveview-stopped");
+}
+
+// Pipe input for the GUI. Polling stays interruptible on SDK disconnect/shutdown.
+static bool read_gui_line(std::string& line) {
+  while (!g_stop.load() && !g_reconnect.load()) {
+    (void)drain_logs_and_refresh(nullptr);
+    pollfd input{STDIN_FILENO, POLLIN, 0};
+    const int ready = poll(&input, 1, 100);
+    if (ready < 0 && errno == EINTR) continue;
+    if (ready < 0) return false;
+    if (ready == 0) continue;
+    if (input.revents & POLLIN) {
+      char c = 0;
+      if (read(STDIN_FILENO, &c, 1) != 1) { g_stop.store(true); return false; }
+      if (c == '\n') return true;
+      if (c != '\r') line.push_back(c);
+      if (line.size() > 4096) { g_stop.store(true); return false; }
+    } else if (input.revents & (POLLHUP | POLLERR | POLLNVAL)) {
+      g_stop.store(true);
+      return false;
+    }
+  }
+  return false;
+}
 
 // poll()-based getchar so logs can wake the REPL
 static int my_getc(EditLine* el, char* c) {
@@ -2703,6 +2745,7 @@ public:
 
   void OnDisconnected(CrInt32u error) override {
     if (g_shutting_down.load()) return;
+    if (g_gui_mode) LOGI("REMOTE/1 disconnected");
     if (verbose) {
       LOGI( "[CB] OnDisconnected: 0x" << std::hex << error << std::dec << " (" << crsdk_err::error_to_name(error) << ")" );
     }
@@ -3705,6 +3748,7 @@ static bool try_connect_once(const std::string &explicit_host,
   }
 
   cb.device_handle = handle;
+  if (g_gui_mode) LOGI("REMOTE/1 connected");
     if (verbose) {
       LOGI("Connected. Ctrl+D to stop.");
     } else {
@@ -4174,7 +4218,19 @@ int main(int argc, char **argv) {
 
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
-    if (a == "--host" && i + 1 < argc) explicit_host = argv[++i];
+    if (a == "--version") {
+      std::cout << "SonShell Remote backend " << SONSHELL_REMOTE_VERSION << " (REMOTE/1)\n";
+      return 0;
+    }
+    else if (a == "--gui") g_gui_mode = true;
+    else if (a == "--liveview-file" && i + 1 < argc) g_liveview_file = argv[++i];
+    else if (a == "--auth-env") {
+      if (const char* value = std::getenv("SONSHELL_CAMERA_USER")) auth_user = value;
+      if (const char* value = std::getenv("SONSHELL_CAMERA_PASSWORD")) auth_pass = value;
+      unsetenv("SONSHELL_CAMERA_USER");
+      unsetenv("SONSHELL_CAMERA_PASSWORD");
+    }
+    else if (a == "--host" && i + 1 < argc) explicit_host = argv[++i];
     else if (a == "--mac" && i + 1 < argc) explicit_mac = argv[++i];
     else if (a == "--sync-dir" && i + 1 < argc) download_dir = argv[++i];
     else if (a == "--verbose" || a == "-v") verbose = true;
@@ -4200,7 +4256,7 @@ int main(int argc, char **argv) {
   const bool sync_dir_configured = !download_dir.empty();
 
 #ifdef SONSHELL_HEADLESS
-  LOGW("Live view disabled: SonShell built with -DSONSHELL_HEADLESS=ON (OpenCV omitted)");
+  if (g_liveview_file.empty()) LOGW("Standalone live view disabled (OpenCV omitted); GUI JPEG stream available");
 #endif
 
   std::string resolved_input_map;
@@ -4260,6 +4316,7 @@ int main(int argc, char **argv) {
     cb.last_error_code = 0;
     g_reconnect.store(false);
 
+    if (g_gui_mode) LOGI("REMOTE/1 connecting");
     bool ok = try_connect_once(explicit_host, explicit_mac, explicit_model, download_dir, verbose, auth_user, auth_pass, cb, handle, selected, enum_list, created);
     
     if (!ok) {
@@ -4789,11 +4846,6 @@ int main(int argc, char **argv) {
           }
         }},
 	{"monitor", [&](auto const& args)->int {
-	#ifdef SONSHELL_HEADLESS
-	  (void)args;
-	  LOGW("monitor command disabled in headless builds (rebuild without -DSONSHELL_HEADLESS=ON)");
-	  return 2;
-	#else
 	  if (args.size() < 2) {
 	    LOGE("usage: monitor start|stop");
 	    return 2;
@@ -4810,7 +4862,6 @@ int main(int argc, char **argv) {
 	  }
 	  LOGE("usage: monitor start|stop");
 	  return 2;
-	#endif
 	}},
 	{"power", [&](auto const& args)->int {
 	  if (args.size() < 2) {
@@ -4904,7 +4955,15 @@ int main(int argc, char **argv) {
 
 	int count = 0;
 	errno = 0;
-	const char* s = el_gets(el, &count);
+	std::string gui_line;
+        const char* s = nullptr;
+        if (g_gui_mode) {
+          if (!read_gui_line(gui_line)) break;
+          s = gui_line.c_str();
+          count = static_cast<int>(gui_line.size());
+        } else {
+          s = el_gets(el, &count);
+        }
 
 	if (!s) {
 	  if (g_stop.load()) break;
