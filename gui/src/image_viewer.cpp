@@ -61,8 +61,10 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   auto* bar = new QHBoxLayout;
   caption_ = new QLabel(this);
   caption_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  caption_->setTextFormat(Qt::PlainText);
+  caption_->setWordWrap(true);
   caption_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-  bar->addWidget(caption_, 1);
+  layout->addWidget(caption_);
   auto add = [this, bar](const QString& label, auto action) {
     auto* button = new QPushButton(label, this);
     connect(button, &QPushButton::clicked, this, action);
