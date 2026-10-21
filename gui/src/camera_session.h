@@ -29,6 +29,8 @@ class CameraSession final : public QObject {
   void connected();
   void log_received(const QString& line);
   void liveview_changed(bool running);
+  void download_completed(const QString& path, bool new_capture);
+  void transfer_progress(const QString& path, int percent);
  private:
   void launch();
   void consume_output();

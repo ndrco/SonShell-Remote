@@ -30,6 +30,8 @@ CameraSession::CameraSession(QObject* parent) : QObject(parent) {
   });
 }
 CameraSession::~CameraSession() {
+  // waitForFinished emits QProcess signals synchronously during destruction.
+  QObject::disconnect(&process_, nullptr, this, nullptr);
   desired_ = false;
   retry_.stop();
   if (process_.state() != QProcess::NotRunning) {
@@ -99,8 +101,35 @@ void CameraSession::handle_line(const QByteArray& bytes) {
   line.remove('\r');
   QString sanitized = line;
   if (!options_.password.isEmpty()) sanitized.replace(options_.password, "[скрыто]");
-  if (!sanitized.trimmed().isEmpty()) emit log_received(sanitized);
+  const bool file_event = line.startsWith("INFO  | [INFO] REMOTE/1 download-complete ") ||
+      line.startsWith("INFO  | [INFO] REMOTE/1 transfer-progress ");
+  if (!file_event && !sanitized.trimmed().isEmpty()) emit log_received(sanitized);
   if (!desired_) return;
+  const QString event_prefix = "INFO  | [INFO] REMOTE/1 ";
+  if (line.startsWith(event_prefix + "download-complete ") || line.startsWith(event_prefix + "transfer-progress ")) {
+    const auto parts = line.mid(event_prefix.size()).split(' ');
+    static const QRegularExpression hex("^(?:[0-9a-f]{2})+$");
+    if (parts.size() == 3 && parts[2].size() <= 32768 && hex.match(parts[2]).hasMatch()) {
+      const QString path = QString::fromUtf8(QByteArray::fromHex(parts[2].toLatin1()));
+      const auto relative = QDir(options_.folder).relativeFilePath(path);
+      if (QFileInfo(path).isAbsolute() && relative != ".." && !relative.startsWith("../")) {
+        QString filename = QFileInfo(path).fileName();
+        if (!options_.password.isEmpty()) filename.replace(options_.password, "[скрыто]");
+        if (parts[0] == "download-complete" && (parts[1] == "new" || parts[1] == "sync")) {
+          emit log_received("Получен файл: " + filename);
+          emit download_completed(path, parts[1] == "new");
+        }
+        else if (parts[0] == "transfer-progress") {
+          bool ok = false; const int percent = parts[1].toInt(&ok);
+          if (ok && percent >= 0 && percent <= 100) {
+            emit log_received(QString("Передача: %1 · %2%").arg(filename).arg(percent));
+            emit transfer_progress(path, percent);
+          }
+        }
+      }
+    }
+    return;
+  }
   // Only complete, versioned event lines can change camera state.
   if (line == QString("INFO  | [INFO] REMOTE/1 connected")) {
     connection_timeout_.stop();

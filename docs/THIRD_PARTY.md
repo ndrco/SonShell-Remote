@@ -15,3 +15,8 @@
   ограничения использования и положения о гарантии устройств.
 
 Перед публичным выпуском проверить актуальные условия Sony и полноту OSS notices.
+
+- ExifTool (Phil Harvey): https://github.com/exiftool/exiftool, системный пакет
+  libimage-exiftool-perl. Вызывается отдельным процессом только для чтения;
+  лицензии/авторы находятся в /usr/share/doc/libimage-exiftool-perl/copyright.
+  Исходники ExifTool не копируются и не связываются с GUI.

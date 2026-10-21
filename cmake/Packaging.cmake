@@ -18,7 +18,7 @@ if(SONSHELL_BUILD_BACKEND)
   set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
   set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS "${CRSDK_ROOT};${CRSDK_ADAPTER}")
   # Qt platform plugins and JPEG are runtime-loaded and do not appear in ELF deps.
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-qpa-plugins, qt6-image-formats-plugins")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-qpa-plugins, qt6-image-formats-plugins, libimage-exiftool-perl")
   set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "qt6-gtk-platformtheme")
   set(CPACK_DEBIAN_COMPRESSION_TYPE xz)
   include(CPack)

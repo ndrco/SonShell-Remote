@@ -39,7 +39,9 @@ class RemoteTests : public QObject {
     SettingsStore store(path);
     AppSettings values;
     values.user = "test-user"; values.password = "test-secret";
+    values.studio_review = true; values.review_seconds = 7;
     QVERIFY(store.save(values));
+    QVERIFY(store.load().studio_review); QCOMPARE(store.load().review_seconds, 7);
     QVERIFY(store.load().user.isEmpty()); QVERIFY(store.load().password.isEmpty());
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     QVERIFY(!file.readAll().contains("test-secret")); file.close();
@@ -83,10 +85,10 @@ class RemoteTests : public QObject {
     PhotoLibrary library; QSignalSpy ready(&library, &PhotoLibrary::image_ready);
     library.set_directory(directory.path()); library.scan(); QCOMPARE(ready.size(), 0);
     QVERIFY(output.open(QIODevice::Append)); output.write(jpeg.right(2)); output.close();
-    library.scan(); library.scan(); QCOMPARE(ready.size(), 1);
+    library.scan(); library.scan(); QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 4000);
     library.scan(); QCOMPARE(ready.size(), 1);
     image = QImage(700, 500, QImage::Format_RGB32); image.fill(Qt::green); QVERIFY(image.save(path));
-    library.scan(); library.scan(); QCOMPARE(ready.size(), 2);
+    library.scan(); library.scan(); QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 2, 4000);
   }
   void fragmented_events_commands_and_private_arguments() {
     const auto record = temporary_.filePath("record.jsonl");

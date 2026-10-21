@@ -55,6 +55,7 @@
 #endif
 
 #include "live_view_stream.h"
+#include "transfer_file.h"
 #include "prop_names_generated.h"
 #include "error_names_generated.h"
 
@@ -64,6 +65,7 @@ namespace SDK = SCRSDK;
 // Globals
 // ----------------------------
 static std::vector<std::thread> g_downloadThreads;
+static std::mutex g_camera_download_mtx;
 static std::string g_download_dir;
 static bool g_gui_mode = false;
 static std::string g_liveview_file;
@@ -1413,6 +1415,13 @@ static inline void log_enqueue(LogLevel lvl, std::string msg) {
 #define LOGE(expr) do { std::ostringstream _oss; _oss << expr; log_enqueue(LogLevel::Error, _oss.str()); } while(0)
 #define LOGD(expr) do { std::ostringstream _oss; _oss << expr; log_enqueue(LogLevel::Debug, _oss.str()); } while(0)
 
+static std::string protocol_hex(const std::string& text) {
+  static constexpr char digits[] = "0123456789abcdef";
+  std::string output; output.reserve(text.size() * 2);
+  for (unsigned char c : text) { output.push_back(digits[c >> 4]); output.push_back(digits[c & 15]); }
+  return output;
+}
+
 static inline void wake_repl_loop() {
   if (g_wake_pipe[1] != -1) {
     char x = 0;
@@ -2725,6 +2734,7 @@ public:
   CrInt32u dl_notify_code = 0;
   CrInt32u dl_progress = 0;
   std::string last_downloaded_file;
+  TransferFile dl_file;
   // inside class QuietCallback (near other dl_* fields)
   CrInt32u dl_last_log_per = 101; // 0..100; 101 = "unset"
   std::chrono::steady_clock::time_point dl_last_log_tp{};
@@ -2843,6 +2853,8 @@ public:
                                     const SDK::CrContentsFile &file,
                                     std::string &local_path,
                                     bool skip_existing) {
+    std::unique_lock<std::mutex> transfer_guard(g_camera_download_mtx);
+    if (g_stop.load()) return false;
     std::string orig = basename_from_path(file.filePath);
     if (orig.empty()) {
       std::ostringstream o;
@@ -2873,6 +2885,11 @@ public:
       }
     }
 
+    std::string prepare_error;
+    if (!dl_file.prepare(destDir, finalName, prepare_error)) { LOGE("Transfer staging: " << prepare_error); return false; }
+    const std::string staging_dir = dl_file.staging_directory();
+    if (g_gui_mode) LOGI("REMOTE/1 transfer-progress 0 " << protocol_hex(dl_file.target()));
+    dl_current_operation = "sync";
     dl_waiting = true;
     dl_current_label = join_path(relDir, finalName);
     dl_last_log_per = 101;
@@ -2880,9 +2897,7 @@ public:
     dl_start_tp = dl_last_log_tp;
     dl_any_progress = false;
 
-    CrChar *saveDir = destDir.empty()
-                        ? nullptr
-                        : const_cast<CrChar *>(reinterpret_cast<const CrChar *>(destDir.c_str()));
+    CrChar *saveDir = const_cast<CrChar *>(reinterpret_cast<const CrChar *>(staging_dir.c_str()));
     CrChar *fileName = const_cast<CrChar *>(reinterpret_cast<const CrChar *>(finalName.c_str()));
 
     SDK::CrError err = SDK::GetRemoteTransferContentsDataFile(
@@ -2890,6 +2905,7 @@ public:
         saveDir, fileName);
     if (err != SDK::CrError_None) {
       dl_waiting = false;
+      dl_file.discard();
       LOGE("GetRemoteTransferContentsDataFile failed: "
            << crsdk_err::error_to_name(err) << " (0x" << std::hex << err << std::dec << ")");
       return false;
@@ -2902,9 +2918,8 @@ public:
 
     if (g_stop.load(std::memory_order_relaxed)) return false;
 
-    if (!last_downloaded_file.empty()) {
-      local_path = last_downloaded_file;
-    }
+    if (dl_notify_code != SDK::CrNotify_RemoteTransfer_Result_OK) return false;
+    if (!last_downloaded_file.empty()) local_path = last_downloaded_file;
     return true;
   }
 
@@ -3274,6 +3289,8 @@ public:
 	      }
 	      
 	      if (g_stop.load(std::memory_order_relaxed)) break;
+      std::unique_lock<std::mutex> transfer_guard(g_camera_download_mtx);
+      if (g_stop.load() || (is_sync && g_sync_abort.load())) break;
       dl_waiting = true;
       CrInt32u fileId = target.files[fi].fileId;
 
@@ -3307,8 +3324,13 @@ public:
 		finalName = unique_name(destDir, orig);
 	      }
 
-	      CrChar *saveDir = destDir.empty() ? nullptr
-		: const_cast<CrChar *>(reinterpret_cast<const CrChar *>(destDir.c_str()));
+          std::string prepare_error;
+          if (!dl_file.prepare(destDir, finalName, prepare_error)) {
+            dl_waiting = false; LOGE("Transfer staging: " << prepare_error); continue;
+          }
+          const std::string staging_dir = dl_file.staging_directory();
+          if (g_gui_mode) LOGI("REMOTE/1 transfer-progress 0 " << protocol_hex(dl_file.target()));
+          CrChar *saveDir = const_cast<CrChar *>(reinterpret_cast<const CrChar *>(staging_dir.c_str()));
 	      if (g_stop.load(std::memory_order_relaxed)) { dl_waiting = false; break; }
 	      
 	      // progress label before SDK gives us the final path
@@ -3330,6 +3352,7 @@ public:
 								 saveDir, const_cast<CrChar *>(finalName.c_str()));
 	      if (dres != SDK::CrError_None) {
 		dl_waiting = false;
+                dl_file.discard();
 		if (sync_transfer_id != 0) unregister_sync_transfer(sync_transfer_id);
 		LOGE("GetRemoteTransferContentsDataFile failed: "
 		     << crsdk_err::error_to_name(dres) << " (0x" << std::hex << dres << std::dec << ")");
@@ -3397,9 +3420,22 @@ public:
     std::unique_lock<std::mutex> lk(dl_mtx);
 
     if (filename) last_downloaded_file = filename; else last_downloaded_file.clear();
+    if (notify == SDK::CrNotify_RemoteTransfer_Result_OK) {
+      std::string publication_error;
+      if (dl_file.publish(publication_error)) {
+        last_downloaded_file = dl_file.target();
+        if (g_gui_mode) LOGI("REMOTE/1 download-complete "
+            << (dl_current_operation == "new" ? "new" : "sync") << " " << protocol_hex(last_downloaded_file));
+      } else {
+        LOGE("Transfer publication failed: " << publication_error);
+        notify = 0xffffffffu;
+        last_downloaded_file.clear();
+        dl_file.discard();
+      }
+    } else if (notify != SDK::CrNotify_RemoteTransfer_InProgress) dl_file.discard();
     dl_notify_code = notify; dl_progress = per;
 
-    bool sync_aborted = g_sync_abort.load(std::memory_order_acquire);
+    bool sync_aborted = dl_current_operation == "sync" && g_sync_abort.load(std::memory_order_acquire);
 
     // Choose a human label: prefer filename from SDK, else the precomputed label.
     std::string label = last_downloaded_file.empty() ? dl_current_label : last_downloaded_file;
@@ -3421,6 +3457,7 @@ public:
       bool perc_ok = (dl_last_log_per == 101) || (per >= dl_last_log_per + 5);
 
       if (time_ok || perc_ok) {
+        if (g_gui_mode) LOGI("REMOTE/1 transfer-progress " << std::min<CrInt32u>(per, 100) << " " << protocol_hex(dl_file.target()));
 	  if (verbose) LOGI("[DL] " << (label.empty() ? "(unknown file)" : label) << " — " << per << "%");
 	dl_last_log_per = per;
 	dl_last_log_tp = now;
@@ -4505,11 +4542,8 @@ int main(int argc, char **argv) {
 	        }
 	      }
 
-	      {
-	        std::lock_guard<std::mutex> lk(cb.dl_mtx);
-	        cb.dl_waiting = false;
-	      }
-	      cb.dl_cv.notify_all();
+              // The active transfer remains owned until its terminal SDK callback.
+              // Without immediate cancel support it finishes before queued work exits.
 
 	      if (cancel_sent) {
 	        LOGI("Sync: stopping (cancel requested; waiting for workers to exit).");

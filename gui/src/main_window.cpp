@@ -1,5 +1,9 @@
 #include "main_window.h"
 #include "image_viewer.h"
+#include "gallery_widget.h"
+#include <QSpinBox>
+#include <QProgressBar>
+#include <QSignalBlocker>
 #include <functional>
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -35,21 +39,26 @@ QPushButton* button(const QString& text, QWidget* parent, const std::function<vo
 }
 }
 MainWindow::MainWindow(QString binary, QWidget* parent)
-    : QMainWindow(parent), binary_(std::move(binary)), session_(this), photos_(this) {
+    : QMainWindow(parent), binary_(std::move(binary)), session_(this), photos_(this), review_(this) {
   setWindowTitle("SonShell Remote");
   resize(1280, 870);
   create_ui();
   load_settings();
+  photos_.set_auto_preview(false);
+  review_.setObjectName("studio_review");
+  review_.configure(studio_->isChecked(), review_seconds_->value());
   connect(&session_, &CameraSession::state_changed, this, [this](auto state, const QString& message) {
     state_->setText(message);
     const bool connected = state == CameraSession::State::Connected;
     for (auto* action : camera_actions_) action->setEnabled(connected);
     connect_button_->setText(session_.active() ? "Отключить" : "Подключить");
     connect_button_->setEnabled(state != CameraSession::State::Stopping);
+    browse_->setEnabled(!session_.active());
     for (auto* input : {host_, model_, user_, password_, folder_}) input->setEnabled(!session_.active());
     statusBar()->showMessage(message);
     if (!connected) {
-      liveview_running_ = false;
+      review_.cancel();
+      liveview_running_ = false; last_live_image_ = {};
       live_view_->set_caption("Live View · " + message);
     }
   });
@@ -61,21 +70,59 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   });
   connect(&session_, &CameraSession::liveview_changed, this, [this](bool running) {
     liveview_running_ = running;
+    if (!running) review_.cancel();
     last_frame_ = {};
     live_view_->set_caption(running ? "Live View · ожидаем кадр…" : "Live View · остановлен");
   });
-  connect(&photos_, &PhotoLibrary::image_ready, this, [this](const QString& path, const QImage& image) {
-    photo_ = image;
-    photo_path_ = path;
-    const auto caption = QFileInfo(path).fileName() + QString(" · %1 × %2").arg(image.width()).arg(image.height());
-    photo_view_->set_image(image, caption);
-    if (photo_window_) photo_window_->set_image(image, caption);
-    statusBar()->showMessage("Получено фото: " + QFileInfo(path).fileName(), 5000);
+  connect(&photos_, &PhotoLibrary::items_changed, this, [this](const MediaItems& items) {
+    gallery_->set_items(items);
+    if (photo_path_.isEmpty() && !decode_pending_ && !items.isEmpty()) load_photo(items.first().path());
   });
-  photos_.set_directory(folder_->text());
+  connect(gallery_, &GalleryWidget::photo_selected, this, [this](const QString& path) { load_photo(path); });
+  connect(gallery_, &GalleryWidget::open_requested, this, [this](const QString& path) { load_photo(path, true); });
+  connect(&photos_, &PhotoLibrary::photo_loaded, this, [this](const MediaResult& result, bool new_capture) {
+    decode_pending_ = false;
+    photo_ = result.image; photo_path_ = result.path;
+    gallery_->select_path(result.path);
+    photo_caption_ = QFileInfo(result.path).fileName() + " · " + result.source;
+    gallery_->show_photo(result);
+    if (photo_window_ && !result.image.isNull()) photo_window_->set_image(photo_, photo_caption_);
+    if (open_after_load_ && !photo_.isNull()) open_photo();
+    open_after_load_ = false;
+    if (new_capture && liveview_running_ && session_.state() == CameraSession::State::Connected) review_.present(result);
+    statusBar()->showMessage(result.error.isEmpty() ? "Готово: " + QFileInfo(result.path).fileName() : result.error, 5000);
+  });
+  connect(&session_, &CameraSession::download_completed, this, [this](const QString& path, bool new_capture) {
+    transfer_progress_->setValue(100); transfer_label_->setText("Получено: " + QFileInfo(path).fileName());
+    if (MediaReader::is_supported(path)) {
+      open_after_load_ = false;
+      decode_pending_ = photos_.completed_download(path, new_capture);
+    }
+  });
+  connect(&session_, &CameraSession::transfer_progress, this, [this](const QString& path, int percent) {
+    transfer_progress_->setValue(percent); transfer_label_->setText(QFileInfo(path).fileName());
+  });
+  connect(&review_, &StudioReview::photo_presented, this, [this](const MediaResult& result) {
+    live_view_->set_image(result.image, "Снимок · " + QFileInfo(result.path).fileName() + " · " + result.source);
+    tabs_->setCurrentIndex(0);
+    hold_->setEnabled(true);
+  });
+  connect(&review_, &StudioReview::returned_to_liveview, this, [this] {
+    { QSignalBlocker guard(hold_); hold_->setChecked(false); }
+    hold_->setEnabled(false);
+    live_view_->set_image(last_live_image_, last_live_image_.isNull() ? "Live View · ожидаем кадр…" : "Live View");
+  });
+  set_photo_directory();
   frames_timer_.setInterval(70);
   connect(&frames_timer_, &QTimer::timeout, this, &MainWindow::update_frame);
   frames_timer_.start();
+}
+
+MainWindow::~MainWindow() {
+  // QObject children outlive C++ value members. No child may call back into
+  // PhotoLibrary/StudioReview after those members begin destruction.
+  for (auto* child : findChildren<QObject*>()) QObject::disconnect(child, nullptr, this, nullptr);
+  frames_timer_.stop(); review_.cancel(); session_.stop();
 }
 
 void MainWindow::create_ui() {
@@ -105,11 +152,12 @@ void MainWindow::create_ui() {
   connection->addWidget(new QLabel("Имя"), 0, 4); connection->addWidget(user_, 0, 5);
   connection->addWidget(new QLabel("Пароль"), 0, 6); connection->addWidget(password_, 0, 7);
   connection->addWidget(new QLabel("Каталог фото"), 1, 0); connection->addWidget(folder_, 1, 1, 1, 6);
-  connection->addWidget(button("Обзор…", connection_box, [this] {
+  browse_ = button("Обзор…", connection_box, [this] {
     if (session_.active()) return;
     const auto path = QFileDialog::getExistingDirectory(this, "Каталог снимков", folder_->text());
-    if (!path.isEmpty()) { folder_->setText(path); photos_.set_directory(path); save_settings(); }
-  }), 1, 7);
+    if (!path.isEmpty()) { folder_->setText(path); set_photo_directory(); save_settings(); }
+  });
+  connection->addWidget(browse_, 1, 7);
   connection->addWidget(remember_, 2, 0, 1, 2);
   connection->addWidget(auto_sync_, 2, 2);
   connection->addWidget(auto_liveview_, 2, 3, 1, 2);
@@ -136,26 +184,34 @@ void MainWindow::create_ui() {
   auto* transfer = new QGroupBox("Передача и Live View", controls); auto* transfer_layout = new QVBoxLayout(transfer);
   transfer_layout->addWidget(command_button("Sync · новые файлы", "sync", transfer));
   transfer_layout->addWidget(command_button("Sync All · скачать всё", "sync all", transfer));
+  transfer_layout->addWidget(command_button("Остановить Sync", "sync stop", transfer));
+  transfer_label_ = new QLabel("Нет активной передачи", transfer); transfer_label_->setWordWrap(true);
+  transfer_progress_ = new QProgressBar(transfer); transfer_progress_->setRange(0, 100); transfer_progress_->setValue(0);
+  transfer_layout->addWidget(transfer_label_); transfer_layout->addWidget(transfer_progress_);
   transfer_layout->addWidget(command_button("Live View · включить", "monitor start", transfer));
   transfer_layout->addWidget(command_button("Live View · выключить", "monitor stop", transfer));
   transfer_layout->addWidget(button("Открыть каталог фото", transfer, [this] {
     QDesktopServices::openUrl(QUrl::fromLocalFile(folder_->text()));
   }));
   controls_layout->addWidget(transfer);
-  auto* info = new QLabel("JPEG: оригинал и 100%.\nRAW передаётся SonShell; просмотр RAW,\nгалерея и EXIF — следующие этапы.", controls);
-  info->setWordWrap(true); controls_layout->addWidget(info);
+  auto* studio_box = new QGroupBox("Студийная съёмка", controls);
+  auto* studio_layout = new QVBoxLayout(studio_box);
+  studio_ = new QCheckBox("Показывать полученный снимок", studio_box); studio_->setObjectName("studio_enabled");
+  review_seconds_ = new QSpinBox(studio_box); review_seconds_->setObjectName("review_seconds");
+  review_seconds_->setRange(2, 10); review_seconds_->setSuffix(" с");
+  hold_ = new QCheckBox("Удерживать кадр", studio_box); hold_->setObjectName("review_hold"); hold_->setEnabled(false);
+  studio_layout->addWidget(studio_); studio_layout->addWidget(review_seconds_); studio_layout->addWidget(hold_);
+  controls_layout->addWidget(studio_box);
   controls_layout->addStretch(); scroll->setWidget(controls);
   auto* right = new QWidget(split); auto* right_layout = new QVBoxLayout(right);
   right_layout->setContentsMargins(0, 0, 0, 0);
-  auto* tabs = new QTabWidget(right);
+  tabs_ = new QTabWidget(right); tabs_->setObjectName("main_tabs");
+  auto* tabs = tabs_;
   auto* live_host = new QWidget(tabs); auto* live_layout = new QVBoxLayout(live_host);
   live_view_ = new ImageViewer(live_host); live_view_->setObjectName("live_view");
   live_view_->set_caption("Live View · подключи камеру"); live_layout->addWidget(live_view_, 1);
-  auto* photo_host = new QWidget(tabs); auto* photo_layout = new QVBoxLayout(photo_host);
-  photo_layout->addWidget(button("Открыть фотографию в отдельном окне · 100%", photo_host, [this] { open_photo(); }));
-  photo_view_ = new ImageViewer(photo_host); photo_view_->set_caption("Ожидаем JPEG в выбранном каталоге…");
-  photo_layout->addWidget(photo_view_, 1);
-  tabs->addTab(live_host, "Live View"); tabs->addTab(photo_host, "Последняя фотография");
+  gallery_ = new GalleryWidget(tabs); photo_view_ = gallery_->viewer();
+  tabs->addTab(live_host, "Live View"); tabs->addTab(gallery_, "Галерея и EXIF");
   right_layout->addWidget(tabs, 4);
   log_ = new QPlainTextEdit(right); log_->setReadOnly(true); log_->setMaximumBlockCount(1500);
   log_->setPlaceholderText("Журнал соединения и передачи файлов"); log_->setMaximumHeight(180);
@@ -164,7 +220,7 @@ void MainWindow::create_ui() {
   layout->addWidget(split, 1); setCentralWidget(root);
   for (auto* action : camera_actions_) action->setEnabled(false);
   for (auto* editor : {host_, model_, user_, password_, folder_}) connect(editor, &QLineEdit::editingFinished, this, [this, editor] {
-    save_settings(); if (editor == folder_) photos_.set_directory(folder_->text());
+    save_settings(); if (editor == folder_) set_photo_directory();
   });
   connect(remember_, &QCheckBox::toggled, this, [this](bool remember) {
     if (loading_) return;
@@ -175,12 +231,20 @@ void MainWindow::create_ui() {
     if (!loading_) { send(on ? "sync on" : "sync off"); save_settings(); }
   });
   connect(auto_liveview_, &QCheckBox::toggled, this, [this] { if (!loading_) save_settings(); });
+  auto configure_review = [this] {
+    if (loading_) return;
+    review_.configure(studio_->isChecked(), review_seconds_->value()); save_settings();
+  };
+  connect(studio_, &QCheckBox::toggled, this, configure_review);
+  connect(review_seconds_, qOverload<int>(&QSpinBox::valueChanged), this, configure_review);
+  connect(hold_, &QCheckBox::toggled, &review_, &StudioReview::hold);
   connect(auto_reconnect_, &QCheckBox::toggled, this, [this](bool on) {
     if (!loading_) { session_.set_auto_reconnect(on); save_settings(); }
   });
 }
 QPushButton* MainWindow::command_button(const QString& label, const QString& command, QWidget* parent) {
   auto* action = button(label, parent, [this, command] { send(command); });
+  action->setObjectName("command_" + QString(command).replace(' ', '_'));
   camera_actions_.append(action); return action;
 }
 QWidget* MainWindow::setting_row(const QString& initial, const QString& command, QWidget* parent) {
@@ -195,6 +259,7 @@ AppSettings MainWindow::values() const {
   v.user = user_->text(); v.password = password_->text(); v.folder = folder_->text().trimmed();
   v.remember_credentials = remember_->isChecked(); v.auto_sync = auto_sync_->isChecked();
   v.auto_liveview = auto_liveview_->isChecked(); v.auto_reconnect = auto_reconnect_->isChecked();
+  v.studio_review = studio_->isChecked(); v.review_seconds = review_seconds_->value();
   v.geometry = saveGeometry(); v.sdk_terms_accepted = settings_.load().sdk_terms_accepted; return v;
 }
 void MainWindow::load_settings() {
@@ -203,6 +268,7 @@ void MainWindow::load_settings() {
   host_->setText(v.host); model_->setText(v.model); user_->setText(v.user); password_->setText(v.password);
   folder_->setText(v.folder); remember_->setChecked(v.remember_credentials); auto_sync_->setChecked(v.auto_sync);
   auto_liveview_->setChecked(v.auto_liveview); auto_reconnect_->setChecked(v.auto_reconnect);
+  studio_->setChecked(v.studio_review); review_seconds_->setValue(v.review_seconds);
   if (!v.geometry.isEmpty()) restoreGeometry(v.geometry);
   loading_ = false;
 }
@@ -238,14 +304,14 @@ void MainWindow::connect_camera() {
     auto accepted = values(); accepted.sdk_terms_accepted = true;
     if (!settings_.save(accepted)) { statusBar()->showMessage("Не удалось сохранить принятие условий"); return; }
   }
-  save_settings(); photos_.set_directory(v.folder);
+  save_settings(); set_photo_directory();
   session_.start({QFileInfo(binary_).absoluteFilePath(), v.host, v.model, v.user, v.password, QDir(v.folder).absolutePath(), v.auto_reconnect});
 }
 void MainWindow::send(const QString& command) {
   if (!session_.send_command(command)) statusBar()->showMessage("Команда не отправлена: камера не подключена", 3000);
 }
 void MainWindow::open_photo() {
-  if (photo_.isNull()) { statusBar()->showMessage("В каталоге пока нет готового JPEG", 3000); return; }
+  if (photo_.isNull()) { statusBar()->showMessage("Выбери готовый снимок в галерее", 3000); return; }
   if (!photo_window_) {
     photo_window_ = new ImageViewer(this);
     photo_window_->setWindowFlags(Qt::Window);
@@ -253,7 +319,7 @@ void MainWindow::open_photo() {
     photo_window_->setWindowTitle("Фотография · SonShell Remote");
     photo_window_->resize(1100, 800);
   }
-  photo_window_->set_image(photo_, QFileInfo(photo_path_).fileName());
+  photo_window_->set_image(photo_, photo_caption_);
   photo_window_->show(); photo_window_->view()->actual_size(); photo_window_->raise(); photo_window_->activateWindow();
 }
 void MainWindow::update_frame() {
@@ -262,10 +328,23 @@ void MainWindow::update_frame() {
   if (!info.exists() || info.lastModified() == last_frame_) return;
   QImageReader reader(info.absoluteFilePath()); const auto image = reader.read();
   if (image.isNull()) return;
-  last_frame_ = info.lastModified();
-  live_view_->set_image(image, QString("Live View · %1 × %2").arg(image.width()).arg(image.height()));
+  last_frame_ = info.lastModified(); last_live_image_ = image;
+  if (!review_.active()) live_view_->set_image(image, QString("Live View · %1 × %2").arg(image.width()).arg(image.height()));
+}
+void MainWindow::set_photo_directory() {
+  const auto path = folder_->text().trimmed();
+  if (QDir(path).absolutePath() != photos_.directory()) {
+    review_.cancel(); photo_ = {}; photo_path_.clear(); decode_pending_ = false;
+    MediaResult empty; empty.source = "Выбери снимок в галерее"; gallery_->show_photo(empty);
+    if (photo_window_) photo_window_->close();
+  }
+  photos_.set_directory(path);
+}
+void MainWindow::load_photo(const QString& path, bool open) {
+  decode_pending_ = true; open_after_load_ = open; photos_.load(path);
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
+  review_.cancel();
   live_view_->leave_fullscreen(); photo_view_->leave_fullscreen();
   if (photo_window_) photo_window_->close();
   save_settings(); session_.stop(); QMainWindow::closeEvent(event);

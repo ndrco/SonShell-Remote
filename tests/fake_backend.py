@@ -35,6 +35,14 @@ for line in sys.stdin:
             output.write(json.dumps({'command': command}) + '\n')
     if command == 'quit':
         break
+    if command in ('shoot', 'sync all') and os.environ.get('REMOTE_TEST_CAPTURE'):
+        folder = Path(args[args.index('--sync-dir') + 1])
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / 'снимок 1.jpg'
+        print('INFO  | [INFO] REMOTE/1 transfer-progress 50 ' + str(target).encode().hex(), flush=True)
+        target.write_bytes(Path(os.environ['REMOTE_TEST_CAPTURE']).read_bytes())
+        operation = 'new' if command == 'shoot' else 'sync'
+        print('INFO  | [INFO] REMOTE/1 download-complete ' + operation + ' ' + str(target).encode().hex(), flush=True)
     if command == 'monitor start':
         if '--liveview-file' in args and os.environ.get('REMOTE_TEST_JPEG'):
             target = Path(args[args.index('--liveview-file') + 1])
