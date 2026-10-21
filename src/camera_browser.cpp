@@ -43,14 +43,31 @@ std::string sdk_error(unsigned code) {
   std::ostringstream out; out << "Ошибка Sony SDK: 0x" << std::hex << code; return out.str();
 }
 std::filesystem::path relative_path(std::string path) {
+  if (path.find('\0') != std::string::npos) throw std::runtime_error("Неверный путь на карте");
   std::replace(path.begin(), path.end(), '\\', '/');
+  const std::filesystem::path remote(path);
+  if (remote.filename().empty()) throw std::runtime_error("Пустое имя файла на карте");
   std::filesystem::path out;
-  for (const auto& part : std::filesystem::path(path)) {
+  bool first = true;
+  for (const auto& part : remote) {
+    auto name = part.string();
     if (part == "/" || part == "." || part.empty()) continue;
-    if (part == ".." || part.string().find(':') != std::string::npos) throw std::runtime_error("Небезопасный путь на карте");
-    out /= part;
+    if (part == "..") throw std::runtime_error("Небезопасный путь на карте: переход в родительский каталог");
+    // Sony paths can contain a camera volume namespace (e.g. C:/DCIM/...).
+    // It is not a host drive or a directory to recreate under the selected root.
+    if (first && name.find(':') != std::string::npos && part != remote.filename()) {
+      first = false; continue;
+    }
+    first = false;
+    std::string local;
+    for (unsigned char ch : name) {
+      if (ch == ':') local += "%3A";
+      else if (ch == '%') local += "%25";
+      else local += char(ch);
+    }
+    out /= local;
   }
-  if (out.empty() || out.filename().empty()) throw std::runtime_error("Пустое имя файла на карте");
+  if (out.empty() || out.filename() == ".") throw std::runtime_error("Пустое имя файла на карте");
   return out;
 }
 }
@@ -112,6 +129,21 @@ bool CameraBrowser::enabled(unsigned code) {
   if (properties) sdk::ReleaseDeviceProperties(handle_, properties);
   return result;
 }
+bool CameraBrowser::slot_supported(unsigned slot) {
+  sdk::CrDeviceProperty* properties = nullptr; CrInt32 count = 0;
+  const auto err = sdk::GetDeviceProperties(handle_, &properties, &count);
+  bool supported = slot == 1;
+  if (err == sdk::CrError_None && properties) for (CrInt32 i = 0; i < count; ++i) {
+    const auto code = properties[i].GetCode();
+    const auto status = slot == 1 ? sdk::CrDeviceProperty_MediaSLOT1_Status : sdk::CrDeviceProperty_MediaSLOT2_Status;
+    const auto list = slot == 1 ? sdk::CrDeviceProperty_MediaSLOT1_ContentsInfoListEnableStatus : sdk::CrDeviceProperty_MediaSLOT2_ContentsInfoListEnableStatus;
+    if ((code == status && properties[i].IsGetEnableCurrentValue()) ||
+        (code == list && properties[i].GetCurrentValue() == 1)) supported = true;
+  }
+  if (properties) sdk::ReleaseDeviceProperties(handle_, properties);
+  if (err != sdk::CrError_None) throw std::runtime_error(sdk_error(err));
+  return supported;
+}
 std::vector<CameraBrowser::Content> CameraBrowser::read_slot(unsigned slot) {
   const bool deletable = enabled(slot == 1 ? sdk::CrDeviceProperty_DeleteContentOperationEnableStatusSLOT1 : sdk::CrDeviceProperty_DeleteContentOperationEnableStatusSLOT2);
   if (!enabled(slot == 1 ? sdk::CrDeviceProperty_MediaSLOT1_ContentsInfoListEnableStatus : sdk::CrDeviceProperty_MediaSLOT2_ContentsInfoListEnableStatus))
@@ -147,6 +179,7 @@ void CameraBrowser::list(const std::string& request) {
   event("begin", request, "\"epoch\":" + json(epoch_));
   for (unsigned slot : {1u, 2u}) {
     try {
+      if (!slot_supported(slot)) continue;
       for (auto& c : read_slot(slot)) {
         std::string files = "[";
         for (const auto& f : c.files) {

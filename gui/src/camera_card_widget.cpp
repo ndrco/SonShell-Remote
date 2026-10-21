@@ -12,6 +12,56 @@
 #include <QSignalBlocker>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QPainterPath>
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QShortcut>
+#include <QTimer>
+#include <algorithm>
+
+namespace {
+class CardCheckDelegate final : public QStyledItemDelegate {
+ public:
+  explicit CardCheckDelegate(QObject* parent) : QStyledItemDelegate(parent) {}
+  static QRect indicator(const QRect& cell) { return QRect(cell.center() - QPoint(11, 11), QSize(22, 22)); }
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    QStyleOptionViewItem background(option); initStyleOption(&background, index);
+    background.features &= ~QStyleOptionViewItem::HasCheckIndicator;
+    option.widget->style()->drawControl(QStyle::CE_ItemViewItem, &background, painter, option.widget);
+    if (!index.data(Qt::CheckStateRole).isValid()) return;
+    painter->save(); painter->setRenderHint(QPainter::Antialiasing);
+    const bool checked = index.data(Qt::CheckStateRole).toInt() == Qt::Checked;
+    const QColor color(index.column() == 1 ? "#b42318" : "#0869b0");
+    painter->setPen(QPen(QColor("#111827"), 2));
+    painter->setBrush(checked ? color : QColor("#ffffff"));
+    const auto rect = indicator(option.rect).adjusted(1, 1, -1, -1);
+    painter->drawRoundedRect(rect, 3, 3);
+    if (checked) {
+      QPainterPath check; check.moveTo(rect.left() + 4, rect.center().y());
+      check.lineTo(rect.left() + 8, rect.bottom() - 4); check.lineTo(rect.right() - 3, rect.top() + 4);
+      painter->setPen(QPen(Qt::white, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)); painter->drawPath(check);
+    }
+    painter->restore();
+  }
+  bool editorEvent(QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index) override {
+    if (!index.data(Qt::CheckStateRole).isValid() || !(index.flags() & Qt::ItemIsEnabled)) return false;
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick) {
+      const auto* mouse = static_cast<QMouseEvent*>(event);
+      if (mouse->button() != Qt::LeftButton || !indicator(option.rect).contains(mouse->position().toPoint())) return false;
+      if (event->type() != QEvent::MouseButtonRelease) return true;
+    } else if (event->type() == QEvent::KeyPress) {
+      const auto* key = static_cast<QKeyEvent*>(event);
+      if (key->key() != Qt::Key_Space) return false;
+    } else return false;
+    return model->setData(index, index.data(Qt::CheckStateRole).toInt() == Qt::Checked ? Qt::Unchecked : Qt::Checked, Qt::CheckStateRole);
+  }
+  QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    return QStyledItemDelegate::sizeHint(option, index).expandedTo(QSize(32, 28));
+  }
+};
+}
 
 CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(parent), card_(card) {
   setObjectName("camera_card");
@@ -38,10 +88,19 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   list_->setHeaderLabels({"Копия", "Брак", "Кадр на карте"});
   list_->setIconSize({72, 48}); list_->setRootIsDecorated(false); list_->setUniformRowHeights(true);
   list_->setSelectionMode(QAbstractItemView::SingleSelection);
+  auto* checks = new CardCheckDelegate(list_);
+  list_->setItemDelegateForColumn(0, checks); list_->setItemDelegateForColumn(1, checks);
+  for (auto key : {Qt::Key_Left, Qt::Key_PageUp, Qt::Key_Right, Qt::Key_PageDown}) {
+    auto* shortcut = new QShortcut(QKeySequence(key), list_); shortcut->setContext(Qt::WidgetShortcut);
+    connect(shortcut, &QShortcut::activated, this, [this, key] { navigate(key == Qt::Key_Left || key == Qt::Key_PageUp ? -1 : 1); });
+  }
   list_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
   list_->header()->setStretchLastSection(true);
   viewer_ = new ImageViewer(split); viewer_->setObjectName("card_preview");
-  viewer_->set_caption("Выбери кадр на карте для просмотра");
+  viewer_->set_navigation_enabled(true);
+  viewer_->setToolTip("Предыдущий/следующий кадр: ←/→ или Page Up/Page Down, в том числе на полном экране");
+  connect(viewer_, &ImageViewer::navigate_requested, this, &CameraCardWidget::navigate);
+  viewer_->set_caption("Выбери кадр на карте для просмотра · ←/→ для перелистывания");
   split->addWidget(list_); split->addWidget(viewer_); split->setSizes({560, 550}); layout->addWidget(split, 1);
   auto* operations = new QHBoxLayout; tools = operations;
   add("Копировать отмеченные", "card_copy_selected", [this] { copy(CameraCard::CopyMode::Selected); });
@@ -62,10 +121,13 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   connect(card_, &CameraCard::status_changed, status_, &QLabel::setText);
   connect(card_, &CameraCard::busy_changed, this, [this](bool busy) {
     for (auto* action : actions_) action->setEnabled(!busy);
-    list_->setEnabled(!busy); cancel_->setEnabled(busy);
+    list_->setEnabled(!busy || card_->previewing()); cancel_->setEnabled(busy);
+    if (!busy && !pending_preview_.isEmpty()) QTimer::singleShot(0, this, &CameraCardWidget::request_preview);
   });
   connect(card_, &CameraCard::progress_changed, this, [this](int done, int total, int percent) {
-    progress_->setValue(total ? (done * 100 + percent) / total : percent);
+    percent = std::clamp(percent, 0, 100);
+    const int value = total > 0 ? int((qint64(std::clamp(done, 0, total)) * 100 + (done < total ? percent : 0)) / total) : percent;
+    progress_->setValue(value);
     progress_->setFormat(total ? QString("%1 / %2 · %p%").arg(done).arg(total) : "%p%");
   });
   connect(card_, &CameraCard::preview_ready, this, [this](const QString& key, const QImage& image, bool) {
@@ -114,7 +176,7 @@ void CameraCardWidget::rebuild() {
     if (item.key() == current) list_->setCurrentItem(row);
   }
   if (card_->items().isEmpty()) {
-    previews_.clear(); displayed_.clear(); viewer_->set_image({}, "Выбери кадр на карте для просмотра");
+    previews_.clear(); displayed_.clear(); pending_preview_.clear(); viewer_->set_image({}, "Выбери кадр на карте для просмотра");
   }
   filter();
 }
@@ -143,8 +205,22 @@ void CameraCardWidget::request_preview() {
   auto* row = list_->currentItem(); if (!row) return;
   const auto key = row->data(0, Qt::UserRole).toString();
   if (auto* image = previews_.object(key)) {
-    displayed_ = key; viewer_->set_image(*image, row->data(2, Qt::UserRole).toString() + " · сжатое превью камеры · 100% относится к превью");
-  } else card_->preview(key);
+    pending_preview_.clear(); displayed_ = key; viewer_->set_image(*image, row->data(2, Qt::UserRole).toString() + " · сжатое превью камеры · 100% относится к превью");
+  } else {
+    if (card_->busy()) { if (card_->previewing()) pending_preview_ = key; return; }
+    pending_preview_.clear();
+    viewer_->set_caption(row->data(2, Qt::UserRole).toString() + " · загружаю превью…");
+    card_->preview(key);
+  }
+}
+void CameraCardWidget::navigate(int step) {
+  if (card_->busy() && !card_->previewing()) return;
+  auto* current = list_->currentItem();
+  int row = current && !current->isHidden() ? list_->indexOfTopLevelItem(current) + step : step > 0 ? 0 : list_->topLevelItemCount() - 1;
+  for (; row >= 0 && row < list_->topLevelItemCount(); row += step) {
+    auto* item = list_->topLevelItem(row);
+    if (!item->isHidden()) { list_->setCurrentItem(item); list_->scrollToItem(item); return; }
+  }
 }
 void CameraCardWidget::remove_rejected() {
   const auto rejected = checked(true); if (rejected.isEmpty()) { status_->setText("Сначала отметь брак в отдельном столбце"); return; }

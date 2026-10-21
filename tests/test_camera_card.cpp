@@ -15,6 +15,8 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTreeWidget>
+#include <QLineEdit>
+#include <QProgressBar>
 
 class CameraCardTests final : public QObject {
   Q_OBJECT
@@ -49,7 +51,7 @@ class CameraCardTests final : public QObject {
     qputenv("REMOTE_TEST_RECORD", record_.toUtf8());
   }
   void cleanup() {
-    for (const auto* name : {"REMOTE_TEST_CARD", "REMOTE_TEST_CAPTURE", "REMOTE_TEST_RECORD", "REMOTE_TEST_DELETE_FAIL", "REMOTE_TEST_SLOW_COPY"}) qunsetenv(name);
+    for (const auto* name : {"REMOTE_TEST_CARD", "REMOTE_TEST_CAPTURE", "REMOTE_TEST_RECORD", "REMOTE_TEST_DELETE_FAIL", "REMOTE_TEST_SLOW_COPY", "REMOTE_TEST_COPY_FAIL", "REMOTE_TEST_PREVIEW_DELAY"}) qunsetenv(name);
   }
   void legacy_settings_never_enable_original_autotransfer() {
     const auto path = temporary_.filePath("legacy/settings.ini");
@@ -107,6 +109,67 @@ class CameraCardTests final : public QObject {
     card.remove({"1:1", "1:2"}); QTRY_VERIFY(!card.busy()); QCOMPARE(card.items().size(), 3);
     QCOMPARE(commands().count("card delete"), 1); // Stop at the first error, retain remaining rejects.
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void completed_queue_progress_data() {
+    QTest::addColumn<bool>("failure"); QTest::newRow("copied") << false; QTest::newRow("path-error") << true;
+  }
+  void completed_queue_progress() {
+    QFETCH(bool, failure); if (failure) qputenv("REMOTE_TEST_COPY_FAIL", "1");
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    CameraCardWidget widget(&card); widget.show();
+    auto* progress = widget.findChild<QProgressBar*>(); QVERIFY(progress);
+    QSignalSpy copied(&card, &CameraCard::copied);
+    card.copy({"1:1"}, "all", CameraCard::CopyMode::Selected); QTRY_VERIFY(!card.busy());
+    QCOMPARE(copied.size(), failure ? 0 : 2); QCOMPARE(progress->value(), 100);
+    QVERIFY(!widget.findChild<QPushButton*>("card_cancel")->isEnabled());
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void keyboard_navigation_fullscreen_fast_selection_and_filter() {
+    qputenv("REMOTE_TEST_PREVIEW_DELAY", "0.08");
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    CameraCardWidget widget(&card); widget.resize(1200, 700); widget.show(); widget.activateWindow();
+    auto* list = widget.findChild<QTreeWidget*>("card_items");
+    auto* viewer = widget.findChild<ImageViewer*>("card_preview");
+    QSignalSpy ready(&card, &CameraCard::preview_ready);
+    list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card.busy());
+    list->topLevelItem(0)->setCheckState(0, Qt::Checked);
+    viewer->toggle_fullscreen(); viewer->view()->setFocus(); QTest::qWait(30);
+    QTest::keyClick(viewer->view(), Qt::Key_Right); QTest::keyClick(viewer->view(), Qt::Key_Right);
+    QTRY_COMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
+    QTRY_VERIFY(!card.busy()); QTRY_VERIFY(ready.last()[0].toString() == "1:1");
+    QVERIFY(list->isEnabled()); QCOMPARE(list->topLevelItem(0)->checkState(0), Qt::Checked);
+    QTest::keyClick(viewer->view(), Qt::Key_PageUp); QTRY_VERIFY(!card.busy());
+    QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:2"));
+    QTest::keyClick(viewer->view(), Qt::Key_PageDown); QTRY_VERIFY(!card.busy());
+    QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
+    viewer->leave_fullscreen(); widget.activateWindow(); QTest::qWait(30);
+    widget.findChild<QLineEdit*>()->setText("кадр 1");
+    viewer->view()->setFocus(); QTRY_VERIFY(viewer->view()->hasFocus()); QTest::keyClick(viewer->view(), Qt::Key_Left);
+    QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
+    widget.findChild<QLineEdit*>()->setText("кадр 3");
+    QTest::keyClick(viewer->view(), Qt::Key_Right); QTRY_VERIFY(!card.busy());
+    QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("2:3"));
+    widget.close(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void checkboxes_toggle_independently_in_dark_palette() {
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    CameraCardWidget widget(&card); QPalette dark; dark.setColor(QPalette::Base, QColor("#303030"));
+    dark.setColor(QPalette::Window, QColor("#303030")); dark.setColor(QPalette::Text, Qt::white); widget.setPalette(dark);
+    widget.resize(1200, 700); widget.show(); QTest::qWait(30);
+    auto* list = widget.findChild<QTreeWidget*>("card_items");
+    auto* row = list->topLevelItem(1); list->setCurrentItem(row); QTRY_VERIFY(!card.busy());
+    const auto checkbox = [list, row](int column) { const auto index = list->indexFromItem(row, column); return list->visualRect(index).center(); };
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, checkbox(0));
+    QCOMPARE(row->checkState(0), Qt::Checked); QCOMPARE(row->checkState(1), Qt::Unchecked);
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, checkbox(1));
+    QCOMPARE(row->checkState(0), Qt::Checked); QCOMPARE(row->checkState(1), Qt::Checked);
+    if (qEnvironmentVariableIsSet("REMOTE_DARK_CARD_SCREENSHOT")) widget.grab().save(qEnvironmentVariable("REMOTE_DARK_CARD_SCREENSHOT"));
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, checkbox(0));
+    QCOMPARE(row->checkState(0), Qt::Unchecked); QCOMPARE(row->checkState(1), Qt::Checked);
+    widget.close(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void main_window_import_tab_and_cancel_delete_confirmation() {
     QTemporaryDir folder; SettingsStore settings; auto values = settings.load(); values.sdk_terms_accepted = true;

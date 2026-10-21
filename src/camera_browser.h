@@ -36,6 +36,7 @@ class CameraBrowser final {
   void list(const std::string& request);
   std::vector<Content> read_slot(unsigned slot);
   bool enabled(unsigned code);
+  bool slot_supported(unsigned slot);
   void transfer(const std::vector<std::string>& args, const Content& content, const File& file);
   void erase(const std::vector<std::string>& args, const Content& content);
   void event(const std::string& type, const std::string& request, const std::string& fields = {});

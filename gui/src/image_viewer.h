@@ -6,6 +6,7 @@
 #include <QList>
 class QGraphicsPixmapItem;
 class QLabel;
+class QShortcut;
 
 class ImageView final : public QGraphicsView {
   Q_OBJECT
@@ -36,9 +37,11 @@ class ImageViewer final : public QWidget {
   void set_caption(const QString& caption);
   void toggle_fullscreen();
   void leave_fullscreen();
+  void set_navigation_enabled(bool enabled);
   ImageView* view() const { return view_; }
  signals:
   void fullscreen_changed(bool active);
+  void navigate_requested(int step);
  protected:
   void closeEvent(QCloseEvent* event) override;
  private:
@@ -47,6 +50,7 @@ class ImageViewer final : public QWidget {
   QLabel* zoom_label_;
   QPointer<QWidget> embedded_parent_;
   QList<int> embedded_sizes_;
+  QList<QShortcut*> navigation_;
   int embedded_index_ = -1;
   bool detached_ = false;
   bool was_maximized_ = false;

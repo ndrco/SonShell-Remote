@@ -110,9 +110,11 @@ GalleryWidget::GalleryWidget(QWidget* parent) : QWidget(parent), model_(this) {
   proxy->setFilterCaseSensitivity(Qt::CaseInsensitive); proxy->setSortRole(GalleryModel::DateRole);
   proxy->sort(0, Qt::DescendingOrder); list_->setModel(proxy);
   auto* details = new QWidget(split); auto* detail_layout = new QVBoxLayout(details);
-  auto* open = new QPushButton("Открыть в отдельном окне · 100%", details);
+  auto* open = new QPushButton("Открыть в отдельном окне · 100%", details); open->setObjectName("open_photo_window");
   detail_layout->addWidget(open);
-  viewer_ = new ImageViewer(details); viewer_->set_caption("Выбери снимок в галерее");
+  viewer_ = new ImageViewer(details); viewer_->set_navigation_enabled(true);
+  connect(viewer_, &ImageViewer::navigate_requested, this, &GalleryWidget::navigate);
+  viewer_->set_caption("Выбери снимок в галерее");
   detail_layout->addWidget(viewer_, 1);
   metadata_ = new QPlainTextEdit(details); metadata_->setObjectName("photo_metadata");
   metadata_->setReadOnly(true); metadata_->setMaximumHeight(145); metadata_->setPlaceholderText("EXIF выбранного снимка");
@@ -170,4 +172,13 @@ void GalleryWidget::select_path(const QString& path) {
     const auto index = proxy_->index(row, 0);
     if (index.data(GalleryModel::KeyRole).toString() == key) { list_->setCurrentIndex(index); break; }
   }
+}
+
+void GalleryWidget::navigate(int step) {
+  const int count = proxy_->rowCount();
+  if (!count) return;
+  const auto current = list_->currentIndex();
+  const int row = current.isValid() ? std::clamp(current.row() + step, 0, count - 1) : step > 0 ? 0 : count - 1;
+  list_->setCurrentIndex(proxy_->index(row, 0));
+  list_->scrollTo(list_->currentIndex());
 }

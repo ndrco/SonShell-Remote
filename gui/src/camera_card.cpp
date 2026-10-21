@@ -78,7 +78,7 @@ const CardItem* CameraCard::find(const QString& key) const {
 void CameraCard::refresh() {
   if (!connected_ || busy()) return;
   active_ = {"list", request_id(), {}, {}}; list_request_ = active_.request;
-  canceled_ = false; list_warnings_.clear(); items_.clear(); emit catalog_changed(); emit busy_changed(true);
+  canceled_ = false; total_ = completed_ = failed_ = 0; list_warnings_.clear(); items_.clear(); emit catalog_changed(); emit busy_changed(true);
   emit status_changed("Читаю список файлов карты без загрузки оригиналов…");
   if (!session_->send_command("card list " + active_.request)) finish("Не удалось запросить список камеры");
 }
@@ -86,7 +86,7 @@ void CameraCard::preview(const QString& key, bool thumbnail) {
   if (!connected_ || busy()) return;
   const auto* item = find(key); if (!item) return;
   queue_.enqueue({"preview", request_id(), key, item->preview_file(), thumbnail});
-  canceled_ = false; total_ = 0; dispatch();
+  canceled_ = false; total_ = completed_ = failed_ = 0; dispatch();
 }
 void CameraCard::copy(const QStringList& keys, const QString& format, CopyMode mode) {
   if (!connected_ || busy() || directory_.isEmpty()) return;
@@ -134,7 +134,7 @@ void CameraCard::finish(const QString& message) {
   active_ = {}; list_request_.clear();
   if (!message.isEmpty()) emit status_changed(message);
   if (!queue_.isEmpty() && !canceled_) { QTimer::singleShot(0, this, &CameraCard::dispatch); return; }
-  emit busy_changed(false); emit progress_changed(completed_, total_, 100);
+  emit busy_changed(false); emit progress_changed(completed_, total_, total_ ? 0 : 100);
   if (batch) emit status_changed(canceled_ ? "Операция остановлена. Завершённые копии сохранены." :
       QString("Обработано файлов/кадров: %1; ошибок: %2%3").arg(completed_).arg(failed_).arg(message.isEmpty() ? "" : " · " + message));
 }
@@ -218,6 +218,7 @@ void CameraCard::receive(const QJsonObject& event) {
   } else if (type == "error") {
     if (active_.kind == "delete") queue_.clear(); // Reconfirm remaining deletions after any failure.
     studio_list_ = false;
+    emit session_->log_received("Карта: " + event.value("message").toString());
     finish(event.value("message").toString());
   }
 }

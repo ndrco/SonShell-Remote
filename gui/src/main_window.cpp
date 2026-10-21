@@ -308,6 +308,9 @@ void MainWindow::open_photo() {
     photo_window_->setWindowFlags(Qt::Window);
     photo_window_->setAttribute(Qt::WA_DeleteOnClose);
     photo_window_->setWindowTitle("Фотография · SonShell Remote");
+    photo_window_->setObjectName("photo_window");
+    photo_window_->set_navigation_enabled(true);
+    connect(photo_window_, &ImageViewer::navigate_requested, gallery_, &GalleryWidget::navigate);
     photo_window_->resize(1100, 800);
   }
   photo_window_->set_image(photo_, photo_caption_);

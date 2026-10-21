@@ -38,6 +38,7 @@ class CameraCard final : public QObject {
   void cancel();
   void set_studio(bool enabled) { studio_ = enabled; }
   bool busy() const { return !active_.request.isEmpty() || !queue_.isEmpty(); }
+  bool previewing() const { return active_.kind == "preview"; }
   bool dirty() const { return dirty_; }
   const QVector<CardItem>& items() const { return items_; }
   bool imported(const CardItem& item, const CardFile& file) const;

@@ -17,6 +17,7 @@
 #include <QListView>
 #include <QPlainTextEdit>
 #include <QProcess>
+#include <QImageReader>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTabWidget>
@@ -143,6 +144,41 @@ class MediaTests final : public QObject {
     review.present(result); review.hold(true); QTest::qWait(2100); QVERIFY(review.active()); QVERIFY(review.held());
     review.hold(false); review.configure(false, 3); QVERIFY(!review.active()); QVERIFY(!review.held());
     review.present(result); QVERIFY(!review.active());
+  }
+  void photo_navigation_embedded_and_separate_fullscreen_window() {
+    QTemporaryDir folder;
+    for (int i = 0; i < 3; ++i) {
+      QImage image(400 + i * 100, 300, QImage::Format_RGB32); image.fill(Qt::green);
+      QVERIFY(image.save(folder.filePath(QString("photo-%1.jpg").arg(i))));
+    }
+    SettingsStore settings; auto values = settings.load(); values.folder = folder.path(); values.studio_review = false;
+    QVERIFY(settings.save(values));
+    MainWindow window(FAKE_BACKEND_PATH); window.show(); window.activateWindow();
+    window.findChild<QTabWidget*>("main_tabs")->setCurrentIndex(2);
+    auto* gallery = window.findChild<GalleryWidget*>(); auto* list = gallery->findChild<QListView*>("gallery_list");
+    auto* photos = window.findChild<PhotoLibrary*>(); QSignalSpy loaded(photos, &PhotoLibrary::photo_loaded);
+    QTRY_COMPARE_WITH_TIMEOUT(list->model()->rowCount(), 3, 4000);
+    list->setCurrentIndex(list->model()->index(1, 0)); list->setCurrentIndex(list->model()->index(0, 0));
+    const auto first = list->currentIndex().data(GalleryModel::PathRole).toString();
+    QTRY_VERIFY(!loaded.isEmpty() && qvariant_cast<MediaResult>(loaded.last()[0]).path == first);
+    gallery->viewer()->view()->setFocus(); QTest::qWait(20);
+    QTest::keyClick(gallery->viewer()->view(), Qt::Key_Right);
+    QTRY_COMPARE(list->currentIndex().row(), 1);
+    QTest::keyClick(gallery->viewer()->view(), Qt::Key_Left); QTRY_COMPARE(list->currentIndex().row(), 0);
+    QTest::mouseClick(gallery->findChild<QPushButton*>("open_photo_window"), Qt::LeftButton);
+    QTRY_VERIFY(window.findChild<ImageViewer*>("photo_window"));
+    auto* separate = window.findChild<ImageViewer*>("photo_window");
+    separate->toggle_fullscreen(); QTest::qWait(30);
+    QTest::keyClick(separate->view(), Qt::Key_PageDown); QTRY_COMPARE(list->currentIndex().row(), 1);
+    const auto next = list->currentIndex().data(GalleryModel::PathRole).toString();
+    QTRY_VERIFY(qvariant_cast<MediaResult>(loaded.last()[0]).path == next);
+    QCOMPARE(separate->view()->scene()->itemsBoundingRect().size(), QSizeF(QImageReader(next).size()));
+    QTest::keyClick(separate->view(), Qt::Key_PageUp); QTRY_COMPARE(list->currentIndex().row(), 0);
+    gallery->findChild<QLineEdit*>("gallery_search")->setText(QFileInfo(next).fileName());
+    QTRY_COMPARE(list->model()->rowCount(), 1);
+    QTest::keyClick(separate->view(), Qt::Key_Right); QTRY_COMPARE(list->currentIndex().row(), 0);
+    QTRY_VERIFY(qvariant_cast<MediaResult>(loaded.last()[0]).path == next);
+    window.close();
   }
   void studio_uses_compressed_preview_without_original_transfer() {
     const auto live = make_jpeg("live.jpg", {640, 480}); const auto captured = make_jpeg("capture.jpg", {1200, 800});

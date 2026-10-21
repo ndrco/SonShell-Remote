@@ -13,21 +13,28 @@
 // no SDK Init, camera, network or hardware calls are made by these tests.
 namespace {
 CameraBrowser* browser = nullptr;
-std::atomic<int> originals{0}, previews{0}, deletions{0}, cancels{0};
+std::atomic<int> originals{0}, previews{0}, deletions{0}, cancels{0}, path_style{1}, slot2_lists{0};
+std::atomic<bool> slot2_present{false}, slot2_ready{false};
 std::atomic<bool> hold_transfer{false}, deletion_fails{false}, changed_identity{false};
 std::atomic<bool> preview_fails{false}, short_file{false};
 std::atomic<bool> delete_enabled{true}, protected_file{false};
 }
 namespace SCRSDK {
 CrError GetDeviceProperties(CrDeviceHandle, CrDeviceProperty** output, CrInt32* count) {
-  *count = 4; *output = new CrDeviceProperty[4];
+  *count = 6; *output = new CrDeviceProperty[6];
   const unsigned codes[] = {CrDeviceProperty_DeleteContentOperationEnableStatusSLOT1, CrDeviceProperty_DeleteContentOperationEnableStatusSLOT2,
-      CrDeviceProperty_MediaSLOT1_ContentsInfoListEnableStatus, CrDeviceProperty_MediaSLOT2_ContentsInfoListEnableStatus};
-  for (int i = 0; i < 4; ++i) { (*output)[i].SetCode(codes[i]); (*output)[i].SetCurrentValue(i < 2 ? (delete_enabled ? 1 : 0) : i == 2 ? 1 : 0); }
+      CrDeviceProperty_MediaSLOT1_ContentsInfoListEnableStatus, CrDeviceProperty_MediaSLOT2_ContentsInfoListEnableStatus,
+      CrDeviceProperty_MediaSLOT1_Status, CrDeviceProperty_MediaSLOT2_Status};
+  for (int i = 0; i < 6; ++i) {
+    auto& property = (*output)[i]; property.SetCode(codes[i]); property.SetValueType(CrDataType_UInt16);
+    property.SetPropertyEnableFlag(i == 5 && !slot2_present ? CrEnableValue_NotSupported : CrEnableValue_True);
+    property.SetCurrentValue(i < 2 ? (delete_enabled ? 1 : 0) : i == 2 ? 1 : i == 3 ? (slot2_ready ? 1 : 0) : i == 5 ? CrSlotStatus_NoCard : CrSlotStatus_OK);
+  }
   return CrError_None;
 }
 CrError ReleaseDeviceProperties(CrDeviceHandle, CrDeviceProperty* properties) { delete[] properties; return CrError_None; }
-CrError GetRemoteTransferContentsInfoList(CrDeviceHandle, CrSlotNumber, CrGetContentsInfoListType, CrCaptureDate*, CrInt32u, CrContentsInfo** output, CrInt32u* count) {
+CrError GetRemoteTransferContentsInfoList(CrDeviceHandle, CrSlotNumber slot, CrGetContentsInfoListType, CrCaptureDate*, CrInt32u, CrContentsInfo** output, CrInt32u* count) {
+  if (slot == CrSlotNumber_Slot2) { ++slot2_lists; *count = 0; *output = nullptr; return CrError_None; }
   *count = 1; *output = new CrContentsInfo[1]; auto& content = **output;
   content.contentId = 17; content.protectionStatus = protected_file; content.dummyContent = false;
   content.creationDatetimeUTC.year = changed_identity ? 2025 : 2026; content.creationDatetimeUTC.month = 10; content.creationDatetimeUTC.day = 21;
@@ -35,8 +42,11 @@ CrError GetRemoteTransferContentsInfoList(CrDeviceHandle, CrSlotNumber, CrGetCon
   content.filesNum = 2; content.files = new CrContentsFile[2];
   for (int i = 0; i < 2; ++i) {
     auto& file = content.files[i]; file.fileId = i + 1; file.fileFormat = i ? CrContentsFile_FileFormat_Raw : CrContentsFile_FileFormat_Jpeg;
-    const auto path = i ? "DCIM/100MSDCF/DSC001.ARW" : "DCIM/100MSDCF/DSC001.JPG";
-    file.filePathLength = std::strlen(path) + 1; file.filePath = new char[file.filePathLength]; std::strcpy(file.filePath, path); file.fileSize = 8;
+    const auto relative = i ? "DCIM/100MSDCF/DSC001.ARW" : "DCIM/100MSDCF/DSC001.JPG";
+    std::string path = path_style == 1 ? std::string("C:/") + relative : path_style == 2 ? std::string("memory:0:/") + relative :
+        path_style == 3 ? std::string("D:/") + relative : path_style == 4 ? std::string("C:/../") + relative : std::string(relative);
+    if (path_style == 3) std::replace(path.begin(), path.end(), '/', '\\');
+    file.filePathLength = path.size() + 1; file.filePath = new char[file.filePathLength]; std::strcpy(file.filePath, path.c_str()); file.fileSize = 8;
   }
   return CrError_None;
 }
@@ -89,7 +99,7 @@ class CardBackendTests final : public QObject {
   }
  private slots:
   void init() {
-    preview_fails = short_file = false;
+    preview_fails = short_file = false; path_style = 1; slot2_lists = 0; slot2_present = slot2_ready = false;
     originals = previews = deletions = cancels = 0; hold_transfer = deletion_fails = changed_identity = protected_file = false; delete_enabled = true;
     events_.clear();
     service_ = std::make_unique<CameraBrowser>(transfers_, [this](const std::string& json) {
@@ -137,6 +147,31 @@ class CardBackendTests final : public QObject {
     QVERIFY(QFile::link(root, linked + "/Slot_1"));
     QVERIFY(service_->command(command("copy", "symlink", linked.toUtf8().toHex().toStdString())));
     QTRY_VERIFY(has("error", "symlink")); QCOMPARE(originals.load(), 1);
+  }
+  void camera_volume_paths_data() {
+    QTest::addColumn<int>("style");
+    QTest::newRow("plain") << 0; QTest::newRow("drive") << 1;
+    QTest::newRow("namespace") << 2; QTest::newRow("backslashes") << 3;
+  }
+  void camera_volume_paths() {
+    QFETCH(int, style); path_style = style; list();
+    const auto root = temporary_.filePath("path-" + QString::number(style));
+    QVERIFY(service_->command(command("copy", "volume", root.toUtf8().toHex().toStdString())));
+    QTRY_VERIFY(has("copied", "volume"));
+    QCOMPARE(QFileInfo(root + "/Slot_1/DCIM/100MSDCF/DSC001.ARW").size(), 8);
+    path_style = 4;
+    QVERIFY(service_->command({"card", "list", "unsafe-catalog"})); QTRY_VERIFY(has("end", "unsafe-catalog"));
+    auto unsafe = command("copy", "unsafe", root.toUtf8().toHex().toStdString()); unsafe[3] = "unsafe-catalog";
+    QVERIFY(service_->command(unsafe)); QTRY_VERIFY(has("error", "unsafe")); QCOMPARE(originals.load(), 1);
+  }
+  void unsupported_second_slot_is_silent_supported_empty_slot_is_reported() {
+    list(); QVERIFY(!has("slot-error", "catalog")); QCOMPARE(slot2_lists.load(), 0);
+    slot2_present = true;
+    QVERIFY(service_->command({"card", "list", "empty-slot"})); QTRY_VERIFY(has("end", "empty-slot"));
+    QVERIFY(has("slot-error", "empty-slot")); QCOMPARE(slot2_lists.load(), 0);
+    slot2_ready = true;
+    QVERIFY(service_->command({"card", "list", "ready-slot"})); QTRY_VERIFY(has("end", "ready-slot"));
+    QVERIFY(!has("slot-error", "ready-slot")); QCOMPARE(slot2_lists.load(), 1);
   }
   void delete_requires_current_identity_capability_and_terminal_success() {
     list(); changed_identity = true;

@@ -41,6 +41,7 @@ class GalleryWidget final : public QWidget {
   void set_items(const MediaItems& items);
   void show_photo(const MediaResult& result);
   void select_path(const QString& path);
+  void navigate(int step);
   ImageViewer* viewer() const { return viewer_; }
  signals:
   void photo_selected(const QString& path);

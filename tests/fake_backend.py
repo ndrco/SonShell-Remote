@@ -79,11 +79,16 @@ for line in sys.stdin:
             event('error', request, message='Нет файла')
             continue
         if kind == 'preview':
+            if os.environ.get('REMOTE_TEST_PREVIEW_DELAY'):
+                time.sleep(float(os.environ['REMOTE_TEST_PREVIEW_DELAY']))
             source = os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
             target = Path(args[args.index('--camera-cache') + 1]) / (request + '.jpg')
             target.write_bytes(Path(source).read_bytes())
             event('preview', request, path=str(target))
         elif kind == 'copy':
+            if os.environ.get('REMOTE_TEST_COPY_FAIL'):
+                event('error', request, message='Небезопасный путь на карте')
+                continue
             event('progress', request, percent=50)
             if os.environ.get('REMOTE_TEST_SLOW_COPY'):
                 pending = request

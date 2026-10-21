@@ -84,12 +84,22 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   connect(view_, &ImageView::zoom_changed, this, [this] {
     zoom_label_->setText(QString::number(qRound(view_->zoom_factor() * 100)) + "%");
   });
+  for (auto key : {Qt::Key_Left, Qt::Key_PageUp, Qt::Key_Right, Qt::Key_PageDown}) {
+    auto* shortcut = new QShortcut(QKeySequence(key), this);
+    shortcut->setContext(Qt::WidgetWithChildrenShortcut); shortcut->setEnabled(false);
+    navigation_.append(shortcut);
+    const int step = key == Qt::Key_Left || key == Qt::Key_PageUp ? -1 : 1;
+    connect(shortcut, &QShortcut::activated, this, [this, step] { emit navigate_requested(step); });
+  }
   auto* fullscreen = new QShortcut(QKeySequence(Qt::Key_F11), this);
   fullscreen->setContext(Qt::WidgetWithChildrenShortcut);
   connect(fullscreen, &QShortcut::activated, this, &ImageViewer::toggle_fullscreen);
   auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
   escape->setContext(Qt::WidgetWithChildrenShortcut);
   connect(escape, &QShortcut::activated, this, &ImageViewer::leave_fullscreen);
+}
+void ImageViewer::set_navigation_enabled(bool enabled) {
+  for (auto* shortcut : navigation_) shortcut->setEnabled(enabled);
 }
 void ImageViewer::set_image(const QImage& image, const QString& caption) {
   view_->set_image(image);

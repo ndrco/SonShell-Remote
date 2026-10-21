@@ -24,6 +24,7 @@ class CameraCardWidget final : public QWidget {
   void copy(CameraCard::CopyMode mode);
   void remove_rejected();
   void request_preview();
+  void navigate(int step);
   CameraCard* card_;
   QTreeWidget* list_;
   QComboBox* format_;
@@ -34,5 +35,5 @@ class CameraCardWidget final : public QWidget {
   QList<QWidget*> actions_;
   QPushButton* cancel_;
   QCache<QString, QImage> previews_{64 * 1024};
-  QString displayed_;
+  QString displayed_, pending_preview_;
 };
