@@ -153,6 +153,31 @@ class CameraCardTests final : public QObject {
     QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("2:3"));
     widget.close(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
+  void space_and_delete_mark_named_columns_in_list_and_fullscreen() {
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    CameraCardWidget widget(&card); widget.resize(1200, 700); widget.show(); widget.activateWindow();
+    auto* list = widget.findChild<QTreeWidget*>("card_items"); auto* viewer = widget.findChild<ImageViewer*>("card_preview");
+    auto* row = list->topLevelItem(1); list->setCurrentItem(row, 1); QTRY_VERIFY(!card.busy());
+    list->setFocus(); QTest::qWait(30); QTest::keyClick(list, Qt::Key_Space);
+    QCOMPARE(row->checkState(0), Qt::Checked); QCOMPARE(row->checkState(1), Qt::Unchecked);
+    QTest::keyClick(list, Qt::Key_Delete); QCOMPARE(row->checkState(1), Qt::Checked);
+    list->setCurrentItem(row, 2); QTest::keyClick(list, Qt::Key_Space); QCOMPARE(row->checkState(0), Qt::Unchecked);
+    viewer->toggle_fullscreen(); QTest::qWait(30);
+    QTest::keyClick(viewer->view(), Qt::Key_Space); QCOMPARE(row->checkState(0), Qt::Checked);
+    QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(row->checkState(1), Qt::Unchecked);
+    // Protected photos remain unmarked; Delete never sends a deletion command.
+    list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card.busy());
+    QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(list->currentItem()->checkState(1), Qt::Unchecked);
+    QVERIFY(!commands().contains("card delete"));
+    viewer->leave_fullscreen(); widget.activateWindow(); QTest::qWait(30);
+    auto* search = widget.findChild<QLineEdit*>(); search->setText("кадр"); search->setCursorPosition(0); search->setFocus();
+    QTest::keyClick(search, Qt::Key_Space); QVERIFY(search->text().startsWith(' '));
+    QTest::keyClick(search, Qt::Key_Backspace); QTest::keyClick(search, Qt::Key_Delete);
+    QCOMPARE(search->text(), QString::fromUtf8("адр"));
+    QVERIFY(!commands().contains("card delete"));
+    widget.close(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
   void checkboxes_toggle_independently_in_dark_palette() {
     QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
     QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());

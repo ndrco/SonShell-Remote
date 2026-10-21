@@ -6,7 +6,7 @@
 
 ```bash
 sudo apt update
-sudo apt install ./sonshell-remote_0.4.1-1ubuntu24.04_amd64.deb
+sudo apt install ./sonshell-remote_0.5.0-1ubuntu24.04_amd64.deb
 ```
 
 Открыть **SonShell Remote** из меню приложений или выполнить `sonshell-remote`.

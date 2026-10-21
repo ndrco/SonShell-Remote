@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="/i18n"><file alias="sonshell_en.qm">@EN_QM@</file></qresource>
+  <qresource prefix="/help">
+    <file alias="ru.md">@CMAKE_CURRENT_SOURCE_DIR@/help/ru.md</file>
+    <file alias="en.md">@CMAKE_CURRENT_SOURCE_DIR@/help/en.md</file>
+  </qresource>
+</RCC>

@@ -14,9 +14,9 @@ def record_event(event):
     if record:
         with open(record, 'a', encoding='utf-8') as output:
             output.write(json.dumps(event) + '\n')
-def event(kind, request='', **fields):
+def event(kind, request='', channel='card', **fields):
     data = json.dumps(dict(type=kind, request=request, **fields), ensure_ascii=False).encode().hex()
-    print('INFO  | [INFO] REMOTE/1 card ' + data, flush=True)
+    print('INFO  | [INFO] REMOTE/1 ' + channel + ' ' + data, flush=True)
 record_event({'argv': args, 'has_password': bool(os.environ.get('SONSHELL_CAMERA_PASSWORD')), 'private_loader_path': os.environ.get('LD_LIBRARY_PATH', '').startswith(str(Path(sys.argv[0]).resolve().parent) + ':')})
 mode = os.environ.get('REMOTE_TEST_MODE', 'normal')
 if mode == 'hang':
@@ -46,6 +46,21 @@ for line in sys.stdin:
     parts = command.split()
     if command == 'quit':
         break
+    if parts[:1] == ['controls'] and len(parts) >= 3:
+        operation, request = parts[1:3]
+        if operation == 'list' and os.environ.get('REMOTE_TEST_CONTROLS_LIST_FAIL'):
+            event('error', request, channel='controls', message='read-failed')
+        elif operation == 'list':
+            properties = []
+            for n, name in enumerate(('focus_mode', 'focus_area', 'white_balance', 'drive_mode')):
+                properties.append(dict(name=name, code=100 + n, readable=True,
+                    writable=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')),
+                    current='1', values=[dict(value='1', label='Single'), dict(value='2', label='Continuous')]))
+            event('snapshot', request, channel='controls', properties=properties,
+                  af=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')))
+        else:
+            event('error' if os.environ.get('REMOTE_TEST_CONTROLS_FAIL') else 'applied', request,
+                  channel='controls', message='read-only')
     if command == 'shoot':
         # Capturing never copies an original, even with a legacy Auto Sync setting.
         event('changed')

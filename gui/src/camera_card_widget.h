@@ -25,6 +25,7 @@ class CameraCardWidget final : public QWidget {
   void remove_rejected();
   void request_preview();
   void navigate(int step);
+  void toggle_mark(bool rejected);
   CameraCard* card_;
   QTreeWidget* list_;
   QComboBox* format_;

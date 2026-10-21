@@ -57,6 +57,7 @@
 #include "live_view_stream.h"
 #include "transfer_file.h"
 #include "camera_browser.h"
+#include "camera_controls.h"
 #include "prop_names_generated.h"
 #include "error_names_generated.h"
 
@@ -2840,7 +2841,10 @@ private:
 public:
   
   void OnPropertyChanged() override {
-    if (!g_shutting_down.load()) log_changed_properties_("[CB] OnPropertyChanged");
+    if (!g_shutting_down.load()) {
+      if (g_gui_mode) LOGI("REMOTE/1 controls-changed");
+      else log_changed_properties_("[CB] OnPropertyChanged");
+    }
   }
   
   void OnLvPropertyChanged() override {
@@ -4498,6 +4502,17 @@ int main(int argc, char **argv) {
 	  
 	  return 0;
 	}},
+        {"controls", [&](auto const& args)->int {
+          if (!g_gui_mode) return 2;
+          const auto result = camera_controls(handle, args, [](unsigned code, std::uint64_t value) {
+            if (code == SDK::CrDeviceProperty_FocusMode) return focus_mode_to_string(value);
+            if (code == SDK::CrDeviceProperty_FocusArea) return focus_area_to_string(value);
+            if (code == SDK::CrDeviceProperty_WhiteBalance) return white_balance_to_string(value);
+            return drive_mode_to_string(value);
+          });
+          if (result.empty()) return 2;
+          LOGI("REMOTE/1 controls " << protocol_hex(result)); return 0;
+        }},
 	{"card", [&](auto const& args)->int {
           if (!g_gui_mode || !cb.browser.command(args)) { LOGE("Card command rejected"); return 2; }
           return 0;

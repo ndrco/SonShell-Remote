@@ -1,5 +1,8 @@
 find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets Network Concurrent)
 add_library(sonshell_gui_core STATIC
+  src/language_support.cpp src/language_support.h
+  src/help_dialog.cpp src/help_dialog.h
+  src/camera_controls_widget.cpp src/camera_controls_widget.h
   src/camera_session.cpp src/camera_session.h
   src/camera_card.cpp src/camera_card.h
   src/camera_card_widget.cpp src/camera_card_widget.h
@@ -17,3 +20,14 @@ add_executable(sonshell-remote main.cpp)
 target_link_libraries(sonshell-remote PRIVATE sonshell_gui_core)
 target_compile_definitions(sonshell-remote PRIVATE SONSHELL_REMOTE_VERSION="${PROJECT_VERSION}")
 install(TARGETS sonshell-remote RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# lrelease is a build dependency only; the installed app embeds its catalog/help.
+find_program(QT_LRELEASE_EXECUTABLE NAMES lrelease-qt6 lrelease
+  HINTS /usr/lib/qt6/bin REQUIRED)
+set(EN_QM "${CMAKE_CURRENT_BINARY_DIR}/sonshell_en.qm")
+add_custom_command(OUTPUT "${EN_QM}"
+  COMMAND "${QT_LRELEASE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/i18n/sonshell_en.ts" -qm "${EN_QM}"
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/i18n/sonshell_en.ts" VERBATIM)
+configure_file(remote_resources.qrc.in "${CMAKE_CURRENT_BINARY_DIR}/remote_resources.qrc" @ONLY)
+qt_add_resources(REMOTE_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/remote_resources.qrc")
+target_sources(sonshell_gui_core PRIVATE ${REMOTE_RESOURCES} "${EN_QM}")

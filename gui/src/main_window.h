@@ -18,6 +18,8 @@ class QTabWidget;
 class QSpinBox;
 class GalleryWidget;
 class CameraCardWidget;
+class CameraControlsWidget;
+class HelpDialog;
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -28,6 +30,8 @@ class MainWindow final : public QMainWindow {
   void closeEvent(QCloseEvent* event) override;
  private:
   void create_ui();
+  void create_menus();
+  void show_help();
   void load_settings();
   void save_settings();
   void connect_camera();
@@ -39,7 +43,8 @@ class MainWindow final : public QMainWindow {
   QPushButton* command_button(const QString& label, const QString& command, QWidget* parent);
   QWidget* setting_row(const QString& initial, const QString& command, QWidget* parent);
   AppSettings values() const;
-  QString binary_;
+  QString binary_, language_;
+  QPointer<HelpDialog> help_;
   SettingsStore settings_;
   CameraSession session_;
   CameraCard card_;
@@ -53,6 +58,7 @@ class MainWindow final : public QMainWindow {
   QTabWidget* tabs_;
   GalleryWidget* gallery_;
   CameraCardWidget* card_widget_;
+  CameraControlsWidget* sdk_controls_;
   QLabel *state_;
   QPlainTextEdit* log_;
   ImageViewer *live_view_, *photo_view_;

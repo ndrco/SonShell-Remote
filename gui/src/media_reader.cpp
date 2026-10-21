@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "media_reader.h"
 #include <QBuffer>
 #include <QDir>
@@ -25,7 +26,7 @@ QByteArray exif_data(const QString& path, bool raw, bool thumbnail, const MediaC
   args << "--" << QFileInfo(path).absoluteFilePath();
   QProcess process;
   process.start("exiftool", args, QIODevice::ReadOnly);
-  if (!process.waitForStarted(2000)) { error = "ExifTool не найден. Установи libimage-exiftool-perl."; return {}; }
+  if (!process.waitForStarted(2000)) { error = QCoreApplication::translate("App", "ExifTool не найден. Установи libimage-exiftool-perl."); return {}; }
   QByteArray output;
   QElapsedTimer elapsed; elapsed.start();
   do {
@@ -33,13 +34,13 @@ QByteArray exif_data(const QString& path, bool raw, bool thumbnail, const MediaC
     output += process.readAllStandardOutput();
     if (canceled(token) || elapsed.elapsed() > 10000 || output.size() > 96 * 1024 * 1024) {
       process.kill(); process.waitForFinished(1000);
-      error = canceled(token) ? "Чтение отменено" : "ExifTool: превышен лимит чтения";
+      error = canceled(token) ? QCoreApplication::translate("App", "Чтение отменено") : QCoreApplication::translate("App", "ExifTool: превышен лимит чтения");
       return {};
     }
   } while (process.state() != QProcess::NotRunning);
   output += process.readAllStandardOutput();
   if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-    error = "Не удалось прочитать EXIF или превью RAW";
+    error = QCoreApplication::translate("App", "Не удалось прочитать EXIF или превью RAW");
     return {};
   }
   return output;
@@ -73,12 +74,12 @@ bool MediaReader::is_complete_jpeg(const QString& path) {
 MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCancel& cancel) {
   MediaResult result; result.path = path;
   const QFileInfo before(path);
-  if (canceled(cancel) || !before.isFile() || before.size() == 0) { result.error = "Файл недоступен"; return result; }
+  if (canceled(cancel) || !before.isFile() || before.size() == 0) { result.error = QCoreApplication::translate("App", "Файл недоступен"); return result; }
   const auto suffix = before.suffix().toLower();
   const bool raw = is_raw(path);
   result.raw_preview = raw;
   if ((suffix == "jpg" || suffix == "jpeg") && !is_complete_jpeg(path)) {
-    result.error = "JPEG ещё не готов или повреждён"; return result;
+    result.error = QCoreApplication::translate("App", "JPEG ещё не готов или повреждён"); return result;
   }
   QJsonObject metadata;
   QString metadata_error;
@@ -86,7 +87,7 @@ MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCa
     const auto json = QJsonDocument::fromJson(exif_data(path, raw, thumbnail, cancel, metadata_error));
     if (json.isArray() && !json.array().isEmpty()) metadata = json.array().first().toObject();
   }
-  if (canceled(cancel)) { result.error = "Чтение отменено"; return result; }
+  if (canceled(cancel)) { result.error = QCoreApplication::translate("App", "Чтение отменено"); return result; }
   if (raw) {
     QByteArray best;
     const auto tags = thumbnail ? QStringList{"ThumbnailImage", "PreviewImage", "JpgFromRaw"}
@@ -103,25 +104,25 @@ MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCa
       if (thumbnail && !best.isEmpty()) break;
     }
     if (best.isEmpty()) {
-      result.error = metadata_error.isEmpty() ? "В RAW нет доступного встроенного JPEG-превью" : metadata_error;
+      result.error = metadata_error.isEmpty() ? QCoreApplication::translate("App", "В RAW нет доступного встроенного JPEG-превью") : metadata_error;
       return result;
     }
     QBuffer buffer(&best); buffer.open(QIODevice::ReadOnly);
     QImageReader reader(&buffer);
     if (thumbnail) reader.setScaledSize(reader.size().scaled(192, 128, Qt::KeepAspectRatio));
     result.image = orient(reader.read(), metadata.value("Orientation").toInt(1));
-    result.source = QString("RAW · встроенное JPEG-превью %1 × %2").arg(result.image.width()).arg(result.image.height());
+    result.source = QString(QCoreApplication::translate("App", "RAW · встроенное JPEG-превью %1 × %2")).arg(result.image.width()).arg(result.image.height());
   } else {
     QImageReader reader(path); reader.setAutoTransform(true);
     if (thumbnail && reader.size().isValid()) reader.setScaledSize(reader.size().scaled(192, 128, Qt::KeepAspectRatio));
     result.image = reader.read();
-    result.source = QString("%1 · оригинал %2 × %3").arg(suffix.toUpper()).arg(result.image.width()).arg(result.image.height());
+    result.source = QString(QCoreApplication::translate("App", "%1 · оригинал %2 × %3")).arg(suffix.toUpper()).arg(result.image.width()).arg(result.image.height());
   }
   const QFileInfo after(path);
   if (before.size() != after.size() || before.lastModified() != after.lastModified()) {
-    result.image = {}; result.error = "Файл ещё изменяется"; return result;
+    result.image = {}; result.error = QCoreApplication::translate("App", "Файл ещё изменяется"); return result;
   }
-  if (result.image.isNull()) { result.error = "Не удалось декодировать изображение"; return result; }
+  if (result.image.isNull()) { result.error = QCoreApplication::translate("App", "Не удалось декодировать изображение"); return result; }
   if (thumbnail) return result;
   auto value = [&metadata](const QString& tag) {
     const auto v = metadata.value(tag);
@@ -130,20 +131,20 @@ MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCa
   auto add = [&result](const QString& name, const QString& text) {
     if (!text.isEmpty()) result.metadata << name + ": " + text.left(500);
   };
-  add("Файл", before.fileName()); add("Источник", result.source);
-  add("Камера", value("Model"));
-  add("Объектив", value("LensModel").isEmpty() ? value("LensID") : value("LensModel"));
+  add(QCoreApplication::translate("App", "Файл"), before.fileName()); add(QCoreApplication::translate("App", "Источник"), result.source);
+  add(QCoreApplication::translate("App", "Камера"), value("Model"));
+  add(QCoreApplication::translate("App", "Объектив"), value("LensModel").isEmpty() ? value("LensID") : value("LensModel"));
   const double exposure = metadata.value("ExposureTime").toDouble();
-  if (exposure > 0) add("Выдержка", exposure < 1 ? QString("1/%1 с").arg(qRound(1 / exposure)) : QString::number(exposure) + " с");
-  if (!value("FNumber").isEmpty()) add("Диафрагма", "f/" + value("FNumber"));
-  add("ISO", value("ISO")); add("Фокусное, мм", value("FocalLength"));
-  add("Дата съёмки", value("DateTimeOriginal"));
-  add("Ориентация EXIF", value("Orientation"));
+  if (exposure > 0) add(QCoreApplication::translate("App", "Выдержка"), exposure < 1 ? QString(QCoreApplication::translate("App", "1/%1 с")).arg(qRound(1 / exposure)) : QString::number(exposure) + QCoreApplication::translate("App", " с"));
+  if (!value("FNumber").isEmpty()) add(QCoreApplication::translate("App", "Диафрагма"), "f/" + value("FNumber"));
+  add("ISO", value("ISO")); add(QCoreApplication::translate("App", "Фокусное, мм"), value("FocalLength"));
+  add(QCoreApplication::translate("App", "Дата съёмки"), value("DateTimeOriginal"));
+  add(QCoreApplication::translate("App", "Ориентация EXIF"), value("Orientation"));
   const auto color = metadata.value("ColorSpace").toInt(-1);
-  add("Цветовой профиль", value("ProfileDescription").isEmpty() ? (color == 1 ? "sRGB" : (color == 2 ? "Adobe RGB" : "")) : value("ProfileDescription"));
+  add(QCoreApplication::translate("App", "Цветовой профиль"), value("ProfileDescription").isEmpty() ? (color == 1 ? "sRGB" : (color == 2 ? "Adobe RGB" : "")) : value("ProfileDescription"));
   if (raw && metadata.contains("ImageWidth"))
-    add("Размер RAW по EXIF", value("ImageWidth") + " × " + value("ImageHeight"));
-  add("Размер файла", QString::number(before.size() / 1024.0 / 1024, 'f', 1) + " MiB");
+    add(QCoreApplication::translate("App", "Размер RAW по EXIF"), value("ImageWidth") + " × " + value("ImageHeight"));
+  add(QCoreApplication::translate("App", "Размер файла"), QString::number(before.size() / 1024.0 / 1024, 'f', 1) + " MiB");
   if (!metadata_error.isEmpty()) add("EXIF", metadata_error);
   return result;
 }

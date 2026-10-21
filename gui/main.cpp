@@ -1,4 +1,7 @@
+#include <QCoreApplication>
 #include "main_window.h"
+#include "language_support.h"
+#include "settings_store.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDir>
@@ -10,10 +13,12 @@ int main(int argc, char* argv[]) {
   app.setApplicationVersion(SONSHELL_REMOTE_VERSION);
   app.setOrganizationName("SonShellRemote");
   app.setWindowIcon(QIcon::fromTheme("sonshell-remote"));
+  LanguageSupport language;
+  if (!language.install(SettingsStore().load().language)) return 1;
   QCommandLineParser parser;
-  parser.setApplicationDescription("Управление камерами Sony · SonShell Remote");
+  parser.setApplicationDescription(QCoreApplication::translate("App", "Управление камерами Sony · SonShell Remote"));
   parser.addHelpOption(); parser.addVersionOption();
-  parser.addOption({"sonshell", "Путь к backend SonShell", "path"});
+  parser.addOption({"sonshell", QCoreApplication::translate("App", "Путь к backend SonShell"), "path"});
   parser.process(app);
   const QDir directory(QCoreApplication::applicationDirPath());
   QString binary = parser.value("sonshell");

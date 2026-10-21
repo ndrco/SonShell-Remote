@@ -34,6 +34,8 @@ class CameraSession final : public QObject {
   void download_completed(const QString& path, bool new_capture);
   void transfer_progress(const QString& path, int percent);
   void card_event(const QJsonObject& event);
+  void controls_event(const QJsonObject& event);
+  void controls_changed();
  private:
   void launch();
   void consume_output();

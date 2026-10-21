@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "image_viewer.h"
 #include <QBoxLayout>
 #include <QCloseEvent>
@@ -9,6 +10,8 @@
 #include <QSplitter>
 #include <QWheelEvent>
 #include <cmath>
+#include <QApplication>
+#include <QMouseEvent>
 
 ImageView::ImageView(QWidget* parent) : QGraphicsView(parent) {
   auto* canvas = new QGraphicsScene(this);
@@ -55,6 +58,24 @@ void ImageView::wheelEvent(QWheelEvent* event) {
   zoom(std::pow(1.0015, event->angleDelta().y()));
   event->accept();
 }
+void ImageView::set_point_selection(bool enabled) { select_point_ = enabled; }
+QPointF ImageView::image_position(const QPoint& viewport_position) const {
+  const auto rect = item_->boundingRect();
+  const auto point = item_->mapFromScene(mapToScene(viewport_position));
+  if (rect.isEmpty() || !rect.contains(point)) return {-1, -1};
+  return {point.x() / rect.width(), point.y() / rect.height()};
+}
+void ImageView::mousePressEvent(QMouseEvent* event) {
+  press_position_ = event->position().toPoint();
+  QGraphicsView::mousePressEvent(event);
+}
+void ImageView::mouseReleaseEvent(QMouseEvent* event) {
+  QGraphicsView::mouseReleaseEvent(event);
+  if (!select_point_ || event->button() != Qt::LeftButton ||
+      (event->position().toPoint() - press_position_).manhattanLength() >= QApplication::startDragDistance()) return;
+  const auto point = image_position(event->position().toPoint());
+  if (point.x() >= 0) emit point_selected(point);
+}
 
 ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   auto* layout = new QVBoxLayout(this);
@@ -72,13 +93,13 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
     bar->addWidget(button);
   };
   view_ = new ImageView(this);
-  add("Вписать", [this] { view_->fit_image(); });
+  add(QCoreApplication::translate("App", "Вписать"), [this] { view_->fit_image(); });
   add("100%", [this] { view_->actual_size(); });
   add("−", [this] { view_->zoom(1.0 / 1.25); });
   add("+", [this] { view_->zoom(1.25); });
   zoom_label_ = new QLabel(this);
   bar->addWidget(zoom_label_);
-  add("Полный экран · F11", [this] { toggle_fullscreen(); });
+  add(QCoreApplication::translate("App", "Полный экран · F11"), [this] { toggle_fullscreen(); });
   layout->addLayout(bar);
   layout->addWidget(view_, 1);
   connect(view_, &ImageView::zoom_changed, this, [this] {
@@ -92,6 +113,12 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
     connect(shortcut, &QShortcut::activated, this, [this, step] { emit navigate_requested(step); });
   }
   auto* fullscreen = new QShortcut(QKeySequence(Qt::Key_F11), this);
+  for (auto key : {Qt::Key_Space, Qt::Key_Delete}) {
+    auto* shortcut = new QShortcut(QKeySequence(key), this);
+    shortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    shortcut->setEnabled(false); shortcut->setAutoRepeat(false); marking_.append(shortcut);
+    connect(shortcut, &QShortcut::activated, this, [this, key] { emit mark_requested(key == Qt::Key_Delete); });
+  }
   fullscreen->setContext(Qt::WidgetWithChildrenShortcut);
   connect(fullscreen, &QShortcut::activated, this, &ImageViewer::toggle_fullscreen);
   auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
@@ -100,6 +127,9 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
 }
 void ImageViewer::set_navigation_enabled(bool enabled) {
   for (auto* shortcut : navigation_) shortcut->setEnabled(enabled);
+}
+void ImageViewer::set_marking_enabled(bool enabled) {
+  for (auto* shortcut : marking_) shortcut->setEnabled(enabled);
 }
 void ImageViewer::set_image(const QImage& image, const QString& caption) {
   view_->set_image(image);

@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "settings_store.h"
 #include <utility>
 #include <algorithm>
@@ -18,6 +19,8 @@ AppSettings SettingsStore::load() const {
   AppSettings v;
   v.host = settings.value("host", v.host).toString();
   v.model = settings.value("model", v.model).toString();
+  v.language = settings.value("language", "ru").toString();
+  if (v.language != "ru" && v.language != "en") v.language = "ru";
   v.folder = settings.value("folder", QDir::homePath() + "/Pictures/Sony").toString();
   v.remember_credentials = settings.value("remember_credentials", false).toBool();
   if (v.remember_credentials) {
@@ -49,6 +52,7 @@ bool SettingsStore::save(const AppSettings& v) const {
   QSettings settings(path_, QSettings::IniFormat);
   settings.setValue("host", v.host);
   settings.setValue("model", v.model);
+  settings.setValue("language", v.language == "en" ? "en" : "ru");
   settings.setValue("folder", v.folder);
   settings.setValue("remember_credentials", v.remember_credentials);
   settings.remove("credentials");

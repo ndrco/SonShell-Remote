@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "gallery_widget.h"
 #include "image_viewer.h"
 #include <QComboBox>
@@ -35,7 +36,7 @@ class GalleryFilter final : public QSortFilterProxyModel {
 QIcon placeholder() {
   QPixmap pixmap(192, 128); pixmap.fill(QColor("#242b36"));
   QPainter painter(&pixmap); painter.setPen(QColor("#aab7c4"));
-  painter.drawText(pixmap.rect(), Qt::AlignCenter, "Фото");
+  painter.drawText(pixmap.rect(), Qt::AlignCenter, QCoreApplication::translate("App", "Фото"));
   return QIcon(pixmap);
 }
 }
@@ -94,9 +95,9 @@ void GalleryModel::request_thumbnail(int row) {
 GalleryWidget::GalleryWidget(QWidget* parent) : QWidget(parent), model_(this) {
   auto* layout = new QVBoxLayout(this);
   auto* filters = new QHBoxLayout;
-  search_ = new QLineEdit(this); search_->setObjectName("gallery_search"); search_->setPlaceholderText("Поиск по имени или пути");
-  format_ = new QComboBox(this); format_->setObjectName("gallery_format"); format_->addItems({"Все форматы", "JPEG", "RAW", "RAW+JPEG"});
-  sort_ = new QComboBox(this); sort_->addItems({"Сначала новые", "Сначала старые", "По имени"});
+  search_ = new QLineEdit(this); search_->setObjectName("gallery_search"); search_->setPlaceholderText(QCoreApplication::translate("App", "Поиск по имени или пути"));
+  format_ = new QComboBox(this); format_->setObjectName("gallery_format"); format_->addItems({QCoreApplication::translate("App", "Все форматы"), "JPEG", "RAW", "RAW+JPEG"});
+  sort_ = new QComboBox(this); sort_->addItems({QCoreApplication::translate("App", "Сначала новые"), QCoreApplication::translate("App", "Сначала старые"), QCoreApplication::translate("App", "По имени")});
   filters->addWidget(search_, 1); filters->addWidget(format_); filters->addWidget(sort_);
   layout->addLayout(filters);
   auto* split = new QSplitter(Qt::Horizontal, this);
@@ -110,19 +111,19 @@ GalleryWidget::GalleryWidget(QWidget* parent) : QWidget(parent), model_(this) {
   proxy->setFilterCaseSensitivity(Qt::CaseInsensitive); proxy->setSortRole(GalleryModel::DateRole);
   proxy->sort(0, Qt::DescendingOrder); list_->setModel(proxy);
   auto* details = new QWidget(split); auto* detail_layout = new QVBoxLayout(details);
-  auto* open = new QPushButton("Открыть в отдельном окне · 100%", details); open->setObjectName("open_photo_window");
+  auto* open = new QPushButton(QCoreApplication::translate("App", "Открыть в отдельном окне · 100%"), details); open->setObjectName("open_photo_window");
   detail_layout->addWidget(open);
   viewer_ = new ImageViewer(details); viewer_->set_navigation_enabled(true);
   connect(viewer_, &ImageViewer::navigate_requested, this, &GalleryWidget::navigate);
-  viewer_->set_caption("Выбери снимок в галерее");
+  viewer_->set_caption(QCoreApplication::translate("App", "Выбери снимок в галерее"));
   detail_layout->addWidget(viewer_, 1);
   metadata_ = new QPlainTextEdit(details); metadata_->setObjectName("photo_metadata");
-  metadata_->setReadOnly(true); metadata_->setMaximumHeight(145); metadata_->setPlaceholderText("EXIF выбранного снимка");
+  metadata_->setReadOnly(true); metadata_->setMaximumHeight(145); metadata_->setPlaceholderText(QCoreApplication::translate("App", "EXIF выбранного снимка"));
   detail_layout->addWidget(metadata_);
   split->addWidget(list_); split->addWidget(details); split->setStretchFactor(1, 1); split->setSizes({240, 680});
   layout->addWidget(split, 1);
-  count_ = new QLabel("Снимков: 0 / 0", this); layout->addWidget(count_);
-  auto count = [this] { count_->setText(QString("Снимков: %1 / %2").arg(proxy_->rowCount()).arg(model_.rowCount())); };
+  count_ = new QLabel(QCoreApplication::translate("App", "Снимков: 0 / 0"), this); layout->addWidget(count_);
+  auto count = [this] { count_->setText(QString(QCoreApplication::translate("App", "Снимков: %1 / %2")).arg(proxy_->rowCount()).arg(model_.rowCount())); };
   connect(search_, &QLineEdit::textChanged, this, [this, count](const QString& text) { proxy_->setFilterFixedString(text); count(); });
   connect(format_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, proxy, count](int index) {
     proxy->format = index == 0 ? QString() : format_->currentText(); proxy->refresh(); count();
@@ -147,7 +148,7 @@ void GalleryWidget::set_items(const MediaItems& items) {
   const auto selected = list_->currentIndex().data(GalleryModel::KeyRole).toString();
   QSignalBlocker guard(list_->selectionModel());
   if (!model_.set_items(items)) return;
-  count_->setText(QString("Снимков: %1 / %2").arg(proxy_->rowCount()).arg(model_.rowCount()));
+  count_->setText(QString(QCoreApplication::translate("App", "Снимков: %1 / %2")).arg(proxy_->rowCount()).arg(model_.rowCount()));
   QModelIndex restore;
   for (int row = 0; row < proxy_->rowCount(); ++row) {
     const auto index = proxy_->index(row, 0);
