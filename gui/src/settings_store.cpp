@@ -24,7 +24,7 @@ AppSettings SettingsStore::load() const {
     v.user = settings.value("credentials/user").toString();
     v.password = settings.value("credentials/password").toString();
   }
-  v.auto_sync = settings.value("auto_sync", true).toBool();
+  v.auto_sync = false; // Do not restore the old automatic original transfer.
   v.auto_liveview = settings.value("auto_liveview", true).toBool();
   v.auto_reconnect = settings.value("auto_reconnect", true).toBool();
   v.studio_review = settings.value("studio/enabled", false).toBool();
@@ -56,7 +56,7 @@ bool SettingsStore::save(const AppSettings& v) const {
     settings.setValue("credentials/user", v.user);
     settings.setValue("credentials/password", v.password);
   }
-  settings.setValue("auto_sync", v.auto_sync);
+  settings.remove("auto_sync");
   settings.setValue("auto_liveview", v.auto_liveview);
   settings.setValue("auto_reconnect", v.auto_reconnect);
   settings.setValue("studio/enabled", v.studio_review);

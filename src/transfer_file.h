@@ -5,6 +5,9 @@
 #include <string>
 #include <system_error>
 #include <unistd.h>
+#include <fcntl.h>
+#include <linux/fs.h>
+#include <sys/syscall.h>
 
 // The SDK writes inside a hidden directory; readers only see the final rename.
 class TransferFile final {
@@ -33,8 +36,10 @@ class TransferFile final {
       error = "Completed transfer has no readable file"; return false;
     }
     if (std::filesystem::exists(target_, ec)) { error = "Destination already exists"; return false; }
-    std::filesystem::rename(staged, target_, ec);
-    if (ec) { error = ec.message(); return false; }
+    // Atomic no-replace also covers a destination created after the exists check.
+    if (::syscall(SYS_renameat2, AT_FDCWD, staged.c_str(), AT_FDCWD, target_.c_str(), RENAME_NOREPLACE) != 0) {
+      error = std::error_code(errno, std::generic_category()).message(); return false;
+    }
     std::filesystem::remove(staging_dir_, ec);
     return true;
   }

@@ -154,7 +154,7 @@ class RemoteTests : public QObject {
     QTest::qWait(80);
     if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOT")) window.grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOT"));
     QFile file(record); QVERIFY(file.open(QIODevice::ReadOnly)); const auto data = file.readAll();
-    QVERIFY(data.contains("sync on")); QVERIFY(data.contains("monitor start"));
+    QVERIFY(data.contains("sync off")); QVERIFY(!data.contains("sync on")); QVERIFY(data.contains("monitor start"));
     QTest::mouseClick(connect_button, Qt::LeftButton);
     QTRY_COMPARE(state->text(), QString("Отключено"));
     window.close();

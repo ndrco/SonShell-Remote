@@ -1,5 +1,6 @@
 #include "camera_session.h"
 #include <QDir>
+#include <QJsonDocument>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcessEnvironment>
@@ -46,6 +47,7 @@ CameraSession::~CameraSession() {
     }
   }
 }
+QString CameraSession::card_cache_path() const { return frames_.filePath("card"); }
 QString CameraSession::liveview_path() const { return frames_.filePath("liveview.jpg"); }
 void CameraSession::set_state(State state, const QString& message) {
   state_ = state;
@@ -66,10 +68,12 @@ void CameraSession::launch() {
   if (!desired_ || process_.state() != QProcess::NotRunning) return;
   pending_.clear();
   QFile::remove(liveview_path());
+  QDir(card_cache_path()).removeRecursively();
+  QDir().mkpath(card_cache_path());
   process_.setProgram(options_.binary);
   process_.setWorkingDirectory(QFileInfo(options_.binary).absolutePath());
   process_.setArguments({"--gui", "--auth-env", "--host", options_.host,
-      "--model", options_.model, "--sync-dir", options_.folder, "--liveview-file", liveview_path()});
+      "--model", options_.model, "--sync-dir", options_.folder, "--liveview-file", liveview_path(), "--camera-cache", card_cache_path()});
   auto environment = QProcessEnvironment::systemEnvironment();
   // Sony's dlopen-loaded monitor library has no RUNPATH for its own sibling.
   // Restrict the loader adjustment to this child; never modify global ld config.
@@ -101,11 +105,35 @@ void CameraSession::handle_line(const QByteArray& bytes) {
   line.remove('\r');
   QString sanitized = line;
   if (!options_.password.isEmpty()) sanitized.replace(options_.password, "[скрыто]");
-  const bool file_event = line.startsWith("INFO  | [INFO] REMOTE/1 download-complete ") ||
+  const bool file_event = line.startsWith("INFO  | [INFO] REMOTE/1 card ") || line.startsWith("INFO  | [INFO] REMOTE/1 download-complete ") ||
       line.startsWith("INFO  | [INFO] REMOTE/1 transfer-progress ");
   if (!file_event && !sanitized.trimmed().isEmpty()) emit log_received(sanitized);
   if (!desired_) return;
   const QString event_prefix = "INFO  | [INFO] REMOTE/1 ";
+  if (line.startsWith(event_prefix + "card ")) {
+    const auto encoded = line.mid(event_prefix.size() + 5);
+    static const QRegularExpression hex_json("^(?:[0-9a-f]{2})+$");
+    if (encoded.size() > 60000 || !hex_json.match(encoded).hasMatch() || state_ != State::Connected) return;
+    const auto event = QJsonDocument::fromJson(QByteArray::fromHex(encoded.toLatin1())).object();
+    const auto type = event.value("type").toString();
+    if (type == "fatal") {
+      emit log_received(event.value("message").toString());
+      set_state(State::Connecting, "Перезапуск соединения после ошибки передачи…");
+      terminate_process(); return;
+    }
+    if (type == "preview" || type == "copied") {
+      const auto path = event.value("path").toString();
+      const auto root = type == "preview" ? card_cache_path() : QString();
+      // Import destinations are chosen by the GUI; CameraCard checks the selected directory.
+      if (!QFileInfo(path).isAbsolute()) return;
+      if (!root.isEmpty()) {
+        const auto relative = QDir(root).relativeFilePath(path);
+        if (relative == ".." || relative.startsWith("../") || QFileInfo(path).isSymLink()) return;
+      }
+    }
+    if (!event.isEmpty()) emit card_event(event);
+    return;
+  }
   if (line.startsWith(event_prefix + "download-complete ") || line.startsWith(event_prefix + "transfer-progress ")) {
     const auto parts = line.mid(event_prefix.size()).split(' ');
     static const QRegularExpression hex("^(?:[0-9a-f]{2})+$");

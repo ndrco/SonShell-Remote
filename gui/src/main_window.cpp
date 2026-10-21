@@ -1,8 +1,8 @@
 #include "main_window.h"
 #include "image_viewer.h"
 #include "gallery_widget.h"
+#include "camera_card_widget.h"
 #include <QSpinBox>
-#include <QProgressBar>
 #include <QSignalBlocker>
 #include <functional>
 #include <QCheckBox>
@@ -39,7 +39,7 @@ QPushButton* button(const QString& text, QWidget* parent, const std::function<vo
 }
 }
 MainWindow::MainWindow(QString binary, QWidget* parent)
-    : QMainWindow(parent), binary_(std::move(binary)), session_(this), photos_(this), review_(this) {
+    : QMainWindow(parent), binary_(std::move(binary)), session_(this), card_(&session_, this), photos_(this), review_(this) {
   setWindowTitle("SonShell Remote");
   resize(1280, 870);
   create_ui();
@@ -47,14 +47,22 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   photos_.set_auto_preview(false);
   review_.setObjectName("studio_review");
   review_.configure(studio_->isChecked(), review_seconds_->value());
+  card_.set_studio(studio_->isChecked());
+  connect(&card_, &CameraCard::copied, this, [this](const QString& path) { photos_.completed_download(path, false); });
+  connect(&card_, &CameraCard::busy_changed, this, [this](bool busy) { browse_->setEnabled(!busy); folder_->setEnabled(!busy); });
+  connect(&card_, &CameraCard::studio_ready, this, [this](const QImage& image, const QString& name) {
+    if (!liveview_running_) return;
+    MediaResult result; result.image = image; result.path = name; result.source = "Сжатое превью камеры"; review_.present(result);
+  });
   connect(&session_, &CameraSession::state_changed, this, [this](auto state, const QString& message) {
     state_->setText(message);
     const bool connected = state == CameraSession::State::Connected;
     for (auto* action : camera_actions_) action->setEnabled(connected);
     connect_button_->setText(session_.active() ? "Отключить" : "Подключить");
     connect_button_->setEnabled(state != CameraSession::State::Stopping);
-    browse_->setEnabled(!session_.active());
-    for (auto* input : {host_, model_, user_, password_, folder_}) input->setEnabled(!session_.active());
+    card_.set_connected(connected); card_widget_->setEnabled(connected);
+    browse_->setEnabled(!card_.busy()); folder_->setEnabled(!card_.busy());
+    for (auto* input : {host_, model_, user_, password_}) input->setEnabled(!session_.active());
     statusBar()->showMessage(message);
     if (!connected) {
       review_.cancel();
@@ -64,7 +72,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   });
   connect(&session_, &CameraSession::log_received, log_, &QPlainTextEdit::appendPlainText);
   connect(&session_, &CameraSession::connected, this, [this] {
-    send(auto_sync_->isChecked() ? "sync on" : "sync off");
+    send("sync off");
     if (auto_liveview_->isChecked()) send("monitor start");
     send("status");
   });
@@ -89,18 +97,8 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     if (photo_window_ && !result.image.isNull()) photo_window_->set_image(photo_, photo_caption_);
     if (open_after_load_ && !photo_.isNull()) open_photo();
     open_after_load_ = false;
-    if (new_capture && liveview_running_ && session_.state() == CameraSession::State::Connected) review_.present(result);
+    Q_UNUSED(new_capture);
     statusBar()->showMessage(result.error.isEmpty() ? "Готово: " + QFileInfo(result.path).fileName() : result.error, 5000);
-  });
-  connect(&session_, &CameraSession::download_completed, this, [this](const QString& path, bool new_capture) {
-    transfer_progress_->setValue(100); transfer_label_->setText("Получено: " + QFileInfo(path).fileName());
-    if (MediaReader::is_supported(path)) {
-      open_after_load_ = false;
-      decode_pending_ = photos_.completed_download(path, new_capture);
-    }
-  });
-  connect(&session_, &CameraSession::transfer_progress, this, [this](const QString& path, int percent) {
-    transfer_progress_->setValue(percent); transfer_label_->setText(QFileInfo(path).fileName());
   });
   connect(&review_, &StudioReview::photo_presented, this, [this](const MediaResult& result) {
     live_view_->set_image(result.image, "Снимок · " + QFileInfo(result.path).fileName() + " · " + result.source);
@@ -122,6 +120,7 @@ MainWindow::~MainWindow() {
   // QObject children outlive C++ value members. No child may call back into
   // PhotoLibrary/StudioReview after those members begin destruction.
   for (auto* child : findChildren<QObject*>()) QObject::disconnect(child, nullptr, this, nullptr);
+  live_view_->leave_fullscreen(); photo_view_->leave_fullscreen(); card_widget_->leave_fullscreen();
   frames_timer_.stop(); review_.cancel(); session_.stop();
 }
 
@@ -139,7 +138,6 @@ void MainWindow::create_ui() {
   folder_ = new QLineEdit(connection_box);
   remember_ = new QCheckBox("Сохранить имя и пароль", connection_box); remember_->setObjectName("remember");
   remember_->setToolTip("Хранить на этом компьютере в файле с правами 0600, без шифрования. Снятие флажка удаляет сохранённые поля.");
-  auto_sync_ = new QCheckBox("Auto Sync", connection_box);
   auto_liveview_ = new QCheckBox("Live View при подключении", connection_box);
   auto_reconnect_ = new QCheckBox("Переподключаться автоматически", connection_box);
   connect_button_ = button("Подключить", connection_box, [this] {
@@ -153,13 +151,12 @@ void MainWindow::create_ui() {
   connection->addWidget(new QLabel("Пароль"), 0, 6); connection->addWidget(password_, 0, 7);
   connection->addWidget(new QLabel("Каталог фото"), 1, 0); connection->addWidget(folder_, 1, 1, 1, 6);
   browse_ = button("Обзор…", connection_box, [this] {
-    if (session_.active()) return;
+    if (card_.busy()) return;
     const auto path = QFileDialog::getExistingDirectory(this, "Каталог снимков", folder_->text());
     if (!path.isEmpty()) { folder_->setText(path); set_photo_directory(); save_settings(); }
   });
   connection->addWidget(browse_, 1, 7);
   connection->addWidget(remember_, 2, 0, 1, 2);
-  connection->addWidget(auto_sync_, 2, 2);
   connection->addWidget(auto_liveview_, 2, 3, 1, 2);
   connection->addWidget(auto_reconnect_, 2, 5, 1, 3);
   connection->addWidget(state_, 3, 0, 1, 6); connection->addWidget(connect_button_, 3, 6, 1, 2);
@@ -181,13 +178,7 @@ void MainWindow::create_ui() {
   exposure_layout->addRow("Диафрагма", setting_row("2.8", "exposure aperture", exposure));
   exposure_layout->addRow("Коррекция EV", setting_row("0", "exposure comp", exposure));
   controls_layout->addWidget(exposure);
-  auto* transfer = new QGroupBox("Передача и Live View", controls); auto* transfer_layout = new QVBoxLayout(transfer);
-  transfer_layout->addWidget(command_button("Sync · новые файлы", "sync", transfer));
-  transfer_layout->addWidget(command_button("Sync All · скачать всё", "sync all", transfer));
-  transfer_layout->addWidget(command_button("Остановить Sync", "sync stop", transfer));
-  transfer_label_ = new QLabel("Нет активной передачи", transfer); transfer_label_->setWordWrap(true);
-  transfer_progress_ = new QProgressBar(transfer); transfer_progress_->setRange(0, 100); transfer_progress_->setValue(0);
-  transfer_layout->addWidget(transfer_label_); transfer_layout->addWidget(transfer_progress_);
+  auto* transfer = new QGroupBox("Live View", controls); auto* transfer_layout = new QVBoxLayout(transfer);
   transfer_layout->addWidget(command_button("Live View · включить", "monitor start", transfer));
   transfer_layout->addWidget(command_button("Live View · выключить", "monitor stop", transfer));
   transfer_layout->addWidget(button("Открыть каталог фото", transfer, [this] {
@@ -196,7 +187,8 @@ void MainWindow::create_ui() {
   controls_layout->addWidget(transfer);
   auto* studio_box = new QGroupBox("Студийная съёмка", controls);
   auto* studio_layout = new QVBoxLayout(studio_box);
-  studio_ = new QCheckBox("Показывать полученный снимок", studio_box); studio_->setObjectName("studio_enabled");
+  studio_ = new QCheckBox("Превью после спуска (без RAW)", studio_box);
+  studio_->setToolTip("Запрашивает сжатое превью последнего кадра с карты. Оригинал не загружается; разрешение определяет камера."); studio_->setObjectName("studio_enabled");
   review_seconds_ = new QSpinBox(studio_box); review_seconds_->setObjectName("review_seconds");
   review_seconds_->setRange(2, 10); review_seconds_->setSuffix(" с");
   hold_ = new QCheckBox("Удерживать кадр", studio_box); hold_->setObjectName("review_hold"); hold_->setEnabled(false);
@@ -211,7 +203,9 @@ void MainWindow::create_ui() {
   live_view_ = new ImageViewer(live_host); live_view_->setObjectName("live_view");
   live_view_->set_caption("Live View · подключи камеру"); live_layout->addWidget(live_view_, 1);
   gallery_ = new GalleryWidget(tabs); photo_view_ = gallery_->viewer();
-  tabs->addTab(live_host, "Live View"); tabs->addTab(gallery_, "Галерея и EXIF");
+  card_widget_ = new CameraCardWidget(&card_, tabs); card_widget_->setEnabled(false);
+  tabs->addTab(live_host, "Live View"); tabs->addTab(card_widget_, "В камере"); tabs->addTab(gallery_, "На компьютере · EXIF");
+  connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) { if (index == 1) card_widget_->activated(); });
   right_layout->addWidget(tabs, 4);
   log_ = new QPlainTextEdit(right); log_->setReadOnly(true); log_->setMaximumBlockCount(1500);
   log_->setPlaceholderText("Журнал соединения и передачи файлов"); log_->setMaximumHeight(180);
@@ -227,13 +221,10 @@ void MainWindow::create_ui() {
     if (!remember && !settings_.forget_credentials()) statusBar()->showMessage("Не удалось удалить сохранённые данные");
     save_settings();
   });
-  connect(auto_sync_, &QCheckBox::toggled, this, [this](bool on) {
-    if (!loading_) { send(on ? "sync on" : "sync off"); save_settings(); }
-  });
   connect(auto_liveview_, &QCheckBox::toggled, this, [this] { if (!loading_) save_settings(); });
   auto configure_review = [this] {
     if (loading_) return;
-    review_.configure(studio_->isChecked(), review_seconds_->value()); save_settings();
+    review_.configure(studio_->isChecked(), review_seconds_->value()); card_.set_studio(studio_->isChecked()); save_settings();
   };
   connect(studio_, &QCheckBox::toggled, this, configure_review);
   connect(review_seconds_, qOverload<int>(&QSpinBox::valueChanged), this, configure_review);
@@ -257,7 +248,7 @@ AppSettings MainWindow::values() const {
   AppSettings v;
   v.host = host_->text().trimmed(); v.model = model_->text().trimmed();
   v.user = user_->text(); v.password = password_->text(); v.folder = folder_->text().trimmed();
-  v.remember_credentials = remember_->isChecked(); v.auto_sync = auto_sync_->isChecked();
+  v.remember_credentials = remember_->isChecked(); v.auto_sync = false;
   v.auto_liveview = auto_liveview_->isChecked(); v.auto_reconnect = auto_reconnect_->isChecked();
   v.studio_review = studio_->isChecked(); v.review_seconds = review_seconds_->value();
   v.geometry = saveGeometry(); v.sdk_terms_accepted = settings_.load().sdk_terms_accepted; return v;
@@ -266,7 +257,7 @@ void MainWindow::load_settings() {
   loading_ = true;
   const auto v = settings_.load();
   host_->setText(v.host); model_->setText(v.model); user_->setText(v.user); password_->setText(v.password);
-  folder_->setText(v.folder); remember_->setChecked(v.remember_credentials); auto_sync_->setChecked(v.auto_sync);
+  folder_->setText(v.folder); remember_->setChecked(v.remember_credentials);
   auto_liveview_->setChecked(v.auto_liveview); auto_reconnect_->setChecked(v.auto_reconnect);
   studio_->setChecked(v.studio_review); review_seconds_->setValue(v.review_seconds);
   if (!v.geometry.isEmpty()) restoreGeometry(v.geometry);
@@ -338,14 +329,14 @@ void MainWindow::set_photo_directory() {
     MediaResult empty; empty.source = "Выбери снимок в галерее"; gallery_->show_photo(empty);
     if (photo_window_) photo_window_->close();
   }
-  photos_.set_directory(path);
+  photos_.set_directory(path); card_.set_directory(path);
 }
 void MainWindow::load_photo(const QString& path, bool open) {
   decode_pending_ = true; open_after_load_ = open; photos_.load(path);
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
   review_.cancel();
-  live_view_->leave_fullscreen(); photo_view_->leave_fullscreen();
+  live_view_->leave_fullscreen(); photo_view_->leave_fullscreen(); card_widget_->leave_fullscreen();
   if (photo_window_) photo_window_->close();
   save_settings(); session_.stop(); QMainWindow::closeEvent(event);
 }

@@ -1,4 +1,5 @@
 #include "gallery_widget.h"
+#include "camera_card.h"
 #include "photo_library.h"
 #include "media_reader.h"
 #include "studio_review.h"
@@ -143,7 +144,7 @@ class MediaTests final : public QObject {
     review.hold(false); review.configure(false, 3); QVERIFY(!review.active()); QVERIFY(!review.held());
     review.present(result); QVERIFY(!review.active());
   }
-  void new_capture_enters_studio_sync_all_does_not() {
+  void studio_uses_compressed_preview_without_original_transfer() {
     const auto live = make_jpeg("live.jpg", {640, 480}); const auto captured = make_jpeg("capture.jpg", {1200, 800});
     qputenv("REMOTE_TEST_JPEG", live.toUtf8()); qputenv("REMOTE_TEST_CAPTURE", captured.toUtf8());
     QTemporaryDir captures;
@@ -158,16 +159,18 @@ class MediaTests final : public QObject {
     auto* review = window.findChild<StudioReview*>("studio_review"); QVERIFY(review);
     QSignalSpy completed(session, &CameraSession::download_completed), progress(session, &CameraSession::transfer_progress);
     QTest::mouseClick(window.findChild<QPushButton*>("command_shoot"), Qt::LeftButton);
-    QTRY_COMPARE(completed.size(), 1); QVERIFY(progress.size() >= 1);
+    QTest::qWait(100); QCOMPARE(completed.size(), 0); QCOMPARE(progress.size(), 0);
     QTRY_VERIFY(review->active()); QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), QSizeF(1200, 800));
     QTRY_VERIFY_WITH_TIMEOUT(!review->active(), 3500);
     QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), QSizeF(640, 480));
-    QTest::mouseClick(window.findChild<QPushButton*>("command_sync_all"), Qt::LeftButton);
-    QTRY_COMPARE(completed.size(), 2); QTest::qWait(400); QVERIFY(!review->active());
-    auto* tabs = window.findChild<QTabWidget*>("main_tabs"); tabs->setCurrentIndex(1);
+    auto* card = window.findChild<CameraCard*>(); QVERIFY(card);
+    QVERIFY(!QFileInfo::exists(captures.filePath("Slot_1/DCIM/100MSDCF/снимок 1.jpg")));
+    QSignalSpy copied(card, &CameraCard::copied);
+    card->copy({}, "all", CameraCard::CopyMode::All);
+    QTRY_COMPARE(copied.size(), 1); QTest::qWait(400); QVERIFY(!review->active());
+    auto* tabs = window.findChild<QTabWidget*>("main_tabs"); tabs->setCurrentIndex(2);
     auto* list = window.findChild<QListView*>("gallery_list");
     QTRY_COMPARE_WITH_TIMEOUT(list->model()->rowCount(), 1, 4000);
-    QVERIFY(window.findChild<QPlainTextEdit*>("photo_metadata")->toPlainText().contains("1200 × 800"));
     if (qEnvironmentVariableIsSet("REMOTE_MAIN_GALLERY_SCREENSHOT")) window.grab().save(qEnvironmentVariable("REMOTE_MAIN_GALLERY_SCREENSHOT"));
     window.close();
   }

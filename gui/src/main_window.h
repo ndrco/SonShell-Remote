@@ -1,5 +1,6 @@
 #pragma once
 #include "camera_session.h"
+#include "camera_card.h"
 #include "settings_store.h"
 #include "photo_library.h"
 #include "studio_review.h"
@@ -15,8 +16,8 @@ class QLabel;
 class QPlainTextEdit;
 class QTabWidget;
 class QSpinBox;
-class QProgressBar;
 class GalleryWidget;
+class CameraCardWidget;
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -41,17 +42,17 @@ class MainWindow final : public QMainWindow {
   QString binary_;
   SettingsStore settings_;
   CameraSession session_;
+  CameraCard card_;
   PhotoLibrary photos_;
   StudioReview review_;
   QLineEdit *host_, *model_, *user_, *password_, *folder_;
-  QCheckBox *remember_, *auto_sync_, *auto_liveview_, *auto_reconnect_;
+  QCheckBox *remember_, *auto_liveview_, *auto_reconnect_;
   QPushButton *connect_button_, *browse_;
   QCheckBox *studio_, *hold_;
   QSpinBox* review_seconds_;
-  QProgressBar* transfer_progress_;
-  QLabel* transfer_label_;
   QTabWidget* tabs_;
   GalleryWidget* gallery_;
+  CameraCardWidget* card_widget_;
   QLabel *state_;
   QPlainTextEdit* log_;
   ImageViewer *live_view_, *photo_view_;

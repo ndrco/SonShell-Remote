@@ -17,3 +17,6 @@ __pycache__/
 /captures/
 /CMakeUserPresets.json
 /compile_commands.json
+
+.sonshell-imports.json
+.sonshell-incoming/

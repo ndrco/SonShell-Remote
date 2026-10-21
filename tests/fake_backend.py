@@ -10,9 +10,14 @@ import time
 
 args = sys.argv[1:]
 record = os.environ.get('REMOTE_TEST_RECORD')
-if record:
-    with open(record, 'a', encoding='utf-8') as output:
-        output.write(json.dumps({'argv': args, 'has_password': bool(os.environ.get('SONSHELL_CAMERA_PASSWORD')), 'private_loader_path': os.environ.get('LD_LIBRARY_PATH', '').startswith(str(Path(sys.argv[0]).resolve().parent) + ':')}) + '\n')
+def record_event(event):
+    if record:
+        with open(record, 'a', encoding='utf-8') as output:
+            output.write(json.dumps(event) + '\n')
+def event(kind, request='', **fields):
+    data = json.dumps(dict(type=kind, request=request, **fields), ensure_ascii=False).encode().hex()
+    print('INFO  | [INFO] REMOTE/1 card ' + data, flush=True)
+record_event({'argv': args, 'has_password': bool(os.environ.get('SONSHELL_CAMERA_PASSWORD')), 'private_loader_path': os.environ.get('LD_LIBRARY_PATH', '').startswith(str(Path(sys.argv[0]).resolve().parent) + ':')})
 mode = os.environ.get('REMOTE_TEST_MODE', 'normal')
 if mode == 'hang':
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -20,7 +25,6 @@ if mode == 'hang':
         time.sleep(1)
 if mode == 'fail':
     sys.exit(2)
-# Deliberately fragment events, exactly as a process pipe can do.
 sys.stdout.write('INFO  | [INFO] REMOTE/1 con')
 sys.stdout.flush()
 time.sleep(0.03)
@@ -28,21 +32,72 @@ print('nected', flush=True)
 if mode == 'disconnect':
     time.sleep(0.04)
     print('INFO  | [INFO] REMOTE/1 disconnected', flush=True)
+fixture = os.environ.get('REMOTE_TEST_CARD')
+card = json.loads(Path(fixture).read_text()) if fixture else []
+captured = os.environ.get('REMOTE_TEST_CAPTURE')
+if captured and not fixture:
+    card = [dict(slot=1, id=1, stamp='2026-10-21T12:00:00', identity='test-camera:one', protected=False, deletable=True,
+                 files=[dict(id=1, format=0x3801, size=str(Path(captured).stat().st_size), path='DCIM/100MSDCF/снимок 1.jpg', source=captured)])]
+epoch = ''
+pending = None
 for line in sys.stdin:
     command = line.strip()
-    if record:
-        with open(record, 'a', encoding='utf-8') as output:
-            output.write(json.dumps({'command': command}) + '\n')
+    record_event({'command': command})
+    parts = command.split()
     if command == 'quit':
         break
-    if command in ('shoot', 'sync all') and os.environ.get('REMOTE_TEST_CAPTURE'):
-        folder = Path(args[args.index('--sync-dir') + 1])
-        folder.mkdir(parents=True, exist_ok=True)
-        target = folder / 'снимок 1.jpg'
-        print('INFO  | [INFO] REMOTE/1 transfer-progress 50 ' + str(target).encode().hex(), flush=True)
-        target.write_bytes(Path(os.environ['REMOTE_TEST_CAPTURE']).read_bytes())
-        operation = 'new' if command == 'shoot' else 'sync'
-        print('INFO  | [INFO] REMOTE/1 download-complete ' + operation + ' ' + str(target).encode().hex(), flush=True)
+    if command == 'shoot':
+        # Capturing never copies an original, even with a legacy Auto Sync setting.
+        event('changed')
+    if len(parts) >= 3 and parts[:2] == ['card', 'list']:
+        epoch = parts[2]
+        event('begin', epoch, epoch=epoch)
+        for item in card:
+            clean = dict(item)
+            clean['files'] = [{k: v for k, v in f.items() if k != 'source'} for f in item['files']]
+            event('item', epoch, epoch=epoch, **clean)
+        event('end', epoch, epoch=epoch, stale=False)
+    elif command == 'card cancel':
+        if pending:
+            event('error', pending, message='Передача отменена')
+            pending = None
+    elif len(parts) >= 6 and parts[0] == 'card':
+        kind, request, revision, slot, content = parts[1:6]
+        item = next((item for item in card if item['slot'] == int(slot) and item['id'] == int(content)), None)
+        if revision != epoch or not item:
+            event('error', request, message='Каталог устарел')
+            continue
+        if kind == 'delete':
+            if os.environ.get('REMOTE_TEST_DELETE_FAIL') or item['protected'] or not item['deletable']:
+                event('error', request, message='Камера не разрешает удаление')
+            else:
+                card.remove(item)
+                event('deleted', request)
+            continue
+        file = next((f for f in item['files'] if f['id'] == int(parts[6])), None)
+        if not file:
+            event('error', request, message='Нет файла')
+            continue
+        if kind == 'preview':
+            source = os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
+            target = Path(args[args.index('--camera-cache') + 1]) / (request + '.jpg')
+            target.write_bytes(Path(source).read_bytes())
+            event('preview', request, path=str(target))
+        elif kind == 'copy':
+            event('progress', request, percent=50)
+            if os.environ.get('REMOTE_TEST_SLOW_COPY'):
+                pending = request
+                continue
+            root = Path(bytes.fromhex(parts[7]).decode())
+            target = root / ('Slot_' + slot) / file['path']
+            target.parent.mkdir(parents=True, exist_ok=True)
+            base = target
+            n = 1
+            while target.exists():
+                target = base.with_stem(base.stem + '_' + str(n))
+                n += 1
+            target.write_bytes(Path(file['source']).read_bytes())
+            event('copied', request, path=str(target), size=str(target.stat().st_size))
     if command == 'monitor start':
         if '--liveview-file' in args and os.environ.get('REMOTE_TEST_JPEG'):
             target = Path(args[args.index('--liveview-file') + 1])

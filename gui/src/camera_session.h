@@ -3,6 +3,7 @@
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QJsonObject>
 
 struct ConnectionOptions {
   QString binary, host, model, user, password, folder;
@@ -23,6 +24,7 @@ class CameraSession final : public QObject {
   State state() const { return state_; }
   bool active() const { return desired_ || process_.state() != QProcess::NotRunning; }
   QString liveview_path() const;
+  QString card_cache_path() const;
   void set_retry_interval(int ms) { retry_base_ms_ = ms; }
  signals:
   void state_changed(CameraSession::State state, const QString& message);
@@ -31,6 +33,7 @@ class CameraSession final : public QObject {
   void liveview_changed(bool running);
   void download_completed(const QString& path, bool new_capture);
   void transfer_progress(const QString& path, int percent);
+  void card_event(const QJsonObject& event);
  private:
   void launch();
   void consume_output();

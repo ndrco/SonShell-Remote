@@ -56,6 +56,7 @@
 
 #include "live_view_stream.h"
 #include "transfer_file.h"
+#include "camera_browser.h"
 #include "prop_names_generated.h"
 #include "error_names_generated.h"
 
@@ -68,6 +69,7 @@ static std::vector<std::thread> g_downloadThreads;
 static std::mutex g_camera_download_mtx;
 static std::string g_download_dir;
 static bool g_gui_mode = false;
+static std::string g_camera_cache_dir;
 static std::string g_liveview_file;
 static LiveViewStream g_liveview_stream;
 static std::atomic<bool> g_stop{false};
@@ -2717,6 +2719,9 @@ static void run_post_cmd(const std::string &path,
 
 class QuietCallback : public SDK::IDeviceCallback {
 public:
+  CameraBrowser browser{g_camera_download_mtx, [](const std::string& value) {
+    LOGI("REMOTE/1 card " << protocol_hex(value));
+  }};
   SDK::CrDeviceHandle device_handle = 0;
   bool verbose = false;
 
@@ -2778,6 +2783,7 @@ public:
   }
 
   void OnWarningExt(CrInt32u warning, CrInt32 param1, CrInt32 param2, CrInt32 param3) override {
+    if (g_gui_mode) browser.delete_result(warning, param1, param2, param3);
     if (g_shutting_down.load()) return;
     LOGI("[CB] OnWarningExt: " << crsdk_err::warning_to_name(warning)
          << " (0x" << std::hex << warning << std::dec << ")"
@@ -2842,7 +2848,7 @@ public:
   }
 
   void schedule_playback_button_job() {
-    if (g_shutting_down.load()) return;
+    if (g_gui_mode || g_shutting_down.load()) return;
     g_downloadThreads.emplace_back([this]() {
       this->process_playback_button_job();
     });
@@ -3187,6 +3193,7 @@ public:
     if (verbose) {
       LOGI( "[CB] ContentsListChanged: notify=0x" << std::hex << notify << std::dec << " slot=" << slotNumber << " add=" << addSize );
     }
+    if (g_gui_mode) { browser.contents_changed(); return; }
     if (notify != SDK::CrNotify_RemoteTransfer_Changed_Add) return;
 
     // Was this invocation triggered by a manual sync?
@@ -3417,6 +3424,7 @@ public:
 
   void OnNotifyRemoteTransferResult(CrInt32u notify, CrInt32u per, CrChar *filename) override
   {
+    if (g_gui_mode) { browser.transfer_result(notify, per); return; }
     std::unique_lock<std::mutex> lk(dl_mtx);
 
     if (filename) last_downloaded_file = filename; else last_downloaded_file.clear();
@@ -4260,6 +4268,7 @@ int main(int argc, char **argv) {
       return 0;
     }
     else if (a == "--gui") g_gui_mode = true;
+    else if (a == "--camera-cache" && i + 1 < argc) g_camera_cache_dir = argv[++i];
     else if (a == "--liveview-file" && i + 1 < argc) g_liveview_file = argv[++i];
     else if (a == "--auth-env") {
       if (const char* value = std::getenv("SONSHELL_CAMERA_USER")) auth_user = value;
@@ -4378,6 +4387,10 @@ int main(int argc, char **argv) {
       continue;
     }
     g_connected_for_logs.store(true, std::memory_order_relaxed);
+    if (g_gui_mode) {
+      const auto serial = fetch_property(handle, SDK::CrDeviceProperty_BodySerialNumber);
+      cb.browser.start(handle, g_camera_cache_dir, serial.text.empty() ? explicit_model + ":" + explicit_host : serial.text);
+    }
 
     // Create wake pipe once per connection (or do it once at program start)
     if (g_wake_pipe[0] == -1) {
@@ -4485,7 +4498,14 @@ int main(int argc, char **argv) {
 	  
 	  return 0;
 	}},
+	{"card", [&](auto const& args)->int {
+          if (!g_gui_mode || !cb.browser.command(args)) { LOGE("Card command rejected"); return 2; }
+          return 0;
+        }},
 	{"sync", [&](auto const& args)->int {
+          if (g_gui_mode && (args.size() != 2 || args[1] != "off")) {
+            LOGE("Use the camera card tab to copy originals explicitly."); return 2;
+          }
 	  // usage: sync [N | all | star | stop]  (default = 1)
 	  int n = 1;
 	  bool all = false;
@@ -5071,6 +5091,8 @@ int main(int argc, char **argv) {
       inputThread.join();
     }
     
+    cb.browser.stop();
+
     // 2) Now log and disconnect the camera; no prompt can appear anymore.
     if (verbose) LOGI( "Shutting down connection..." );
     disconnect_and_release(handle, created, enum_list);

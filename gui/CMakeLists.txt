@@ -1,6 +1,8 @@
 find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets Network Concurrent)
 add_library(sonshell_gui_core STATIC
   src/camera_session.cpp src/camera_session.h
+  src/camera_card.cpp src/camera_card.h
+  src/camera_card_widget.cpp src/camera_card_widget.h
   src/settings_store.cpp src/settings_store.h
   src/image_viewer.cpp src/image_viewer.h
   src/photo_library.cpp src/photo_library.h

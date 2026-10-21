@@ -2,6 +2,8 @@
 #include <QGraphicsView>
 #include <QImage>
 #include <QWidget>
+#include <QPointer>
+#include <QList>
 class QGraphicsPixmapItem;
 class QLabel;
 
@@ -43,7 +45,8 @@ class ImageViewer final : public QWidget {
   ImageView* view_;
   QLabel* caption_;
   QLabel* zoom_label_;
-  QWidget* embedded_parent_ = nullptr;
+  QPointer<QWidget> embedded_parent_;
+  QList<int> embedded_sizes_;
   int embedded_index_ = -1;
   bool detached_ = false;
   bool was_maximized_ = false;

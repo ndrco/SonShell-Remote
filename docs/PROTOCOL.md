@@ -3,11 +3,12 @@
 GUI запускает backend этого проекта через QProcess (stdin/stdout pipes):
 
 ```
-sonshell --gui --auth-env --host <IPv4> --model <alias> --sync-dir <directory> --liveview-file <private-path>
+sonshell --gui --auth-env --host <IPv4> --model <alias> --sync-dir <directory> --liveview-file <private-path> --camera-cache <private-directory>
 ```
 
 `--gui` использует построчный ввод с poll, сохраняя обычный интерактивный libedit
-режим CLI. Все старые команды сохраняются. `--version` не инициализирует SDK.
+режим CLI. Обычный CLI сохраняет старые команды. В --gui sync-команды, кроме sync off,
+отвергаются: GUI использует явный card copy. `--version` не инициализирует SDK.
 GUI добавляет каталоги backend и CrAdapter в LD_LIBRARY_PATH только дочернего
 процесса: это нужно для transitive dlopen библиотек Sony.
 GUI не использует `--keepalive`: повторные подключения принадлежат CameraSession.
@@ -64,7 +65,8 @@ INFO  | [INFO] REMOTE/1 download-complete <new|sync> <hex-UTF8-absolute-path>
 не нарушают границы событий. GUI проверяет формат, диапазон процентов и размещение
 в заданном каталоге снимков. `download-complete` выдаётся после атомарной публикации,
 а не при обнаружении файла на диске. `new` — Auto Sync по событию камеры, `sync` —
-ручная загрузка/Sync All. Только `new` может запускать студийный показ.
+ручная загрузка/Sync All. В 0.3 `new` запускал студийный показ. Начиная с 0.4 GUI не использует
+эту цепочку и не запускает Auto Sync.
 
 Все SDK передачи сериализованы: callback без transfer ID всегда относится к
 одному активному файлу. Staging уникален для передачи и находится на той же ФС.
@@ -72,3 +74,51 @@ INFO  | [INFO] REMOTE/1 download-complete <new|sync> <hex-UTF8-absolute-path>
 сохраняет владение текущей передачей до terminal callback SDK; это исключает
 поздний callback отмены после запуска следующего файла. Возобновление после
 сбоя выполняется повторной загрузкой отсутствующего файла, без byte-range resume.
+
+
+## Расширение 0.4: карта камеры
+
+Команды (одна строка на файл/кадр; GUI посылает следующую после результата):
+
+```
+card list <request-id>
+card preview <request-id> <epoch> <slot> <content-id> <file-id> <screen|thumb>
+card copy <request-id> <epoch> <slot> <content-id> <file-id> <hex-UTF8-destination-directory>
+card delete <request-id> <epoch> <slot> <content-id>
+card cancel
+```
+
+ID состоит из ASCII букв/цифр/дефиса, максимум 80 символов; GUI добавляет UUID
+сеанса. Epoch равна request-id последнего list. Переподключение сбрасывает очередь.
+Старые эпохи отвергаются. Worker backend принимает не более 8 ожидающих запросов,
+GUI держит остальную очередь у себя. При ошибке удаления очередь прекращается.
+
+Строка ответа: `INFO  | [INFO] REMOTE/1 card <lowercase-hex-UTF8-JSON>`. Объект
+имеет `type` и `request`. Каждая запись каталога отдельная (до 60 000 hex символов),
+не один JSON всей карты. GUI разбирает эти строки отдельно, не печатая JSON в лог.
+
+| type | Поля и смысл |
+|---|---|
+| changed | request пустой; карта изменилась, передачи не запускаются |
+| begin | epoch, начало snapshot |
+| item | epoch, slot, id, stamp (UTC), identity, protected, deletable, files |
+| end | epoch, stale; конец каталога |
+| slot-error | slot, message; недоступный/неподдерживаемый слот, затем end |
+| progress | percent 0..100 для активной передачи |
+| preview | path в --camera-cache, size; только compressed transfer, оригинал не запрашивается |
+| copied | path, size; только проверенный и опубликованный оригинал |
+| deleted | terminal OnWarningExt DeleteContent OK для точного content/slot |
+| error | message; операция неуспешна, поздний успех не имитируется |
+| fatal | message; продолжать transfer на этом соединении нельзя, перезапустить backend |
+
+files — массив объектов `{id, format, size, path}`. size — десятичная строка,
+чтобы не терять uint64 в JSON. Числовые format соответствуют SDK (JPEG 0x3801,
+RAW 0xB101, HEIF 0xB110); сопутствующие файлы остаются в составе кадра. Список
+содержит фотографии; фильмы не включаются. id/contentId ограничены uint32.
+identity формируется из доступного serial (иначе model+host), слота, даты и
+путей/размеров; это метаданные для журнала импорта, не хеш оригинала.
+
+При недоступном compressed API возвращается error, без fallback на оригинал.
+Копирование и превью разделены от старого download-complete. GUI проверяет
+приватный путь превью/назначение копии, состояние сеанса и request ID; неизвестные
+или устаревшие события не меняют выбранный кадр/состояние операции.

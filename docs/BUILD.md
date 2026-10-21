@@ -42,7 +42,7 @@ sudo apt install dpkg-dev desktop-file-utils
 SONY_SDK_DIR=/absolute/path/RemoteCli ./scripts/package-deb.sh
 ```
 
-Результат: `build-package/sonshell-remote_0.3.0-1ubuntu24.04_amd64.deb`.
+Результат: `build-package/sonshell-remote_0.4.0-1ubuntu24.04_amd64.deb`.
 Скрипт скачивает HTML лицензии Sony в build-каталог (можно передать локальный
 SONY_SDK_LICENSE_FILE), собирает проект, выполняет тесты и CPack DEB.
 Зависимости вычисляет dpkg-shlibdeps, runtime SDK помещается в приватный

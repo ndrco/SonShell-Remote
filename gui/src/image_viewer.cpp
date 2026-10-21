@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QShortcut>
+#include <QSplitter>
 #include <QWheelEvent>
 #include <cmath>
 
@@ -105,6 +106,10 @@ void ImageViewer::toggle_fullscreen() {
     embedded_parent_ = parentWidget();
     auto* host_layout = qobject_cast<QBoxLayout*>(embedded_parent_->layout());
     embedded_index_ = host_layout ? host_layout->indexOf(this) : -1;
+    embedded_sizes_.clear();
+    if (auto* splitter = qobject_cast<QSplitter*>(embedded_parent_)) {
+      embedded_index_ = splitter->indexOf(this); embedded_sizes_ = splitter->sizes();
+    }
     if (host_layout) host_layout->removeWidget(this);
     setParent(embedded_parent_, Qt::Window);
     detached_ = true;
@@ -117,9 +122,13 @@ void ImageViewer::leave_fullscreen() {
   if (!isFullScreen() && !detached_) return;
   if (detached_) {
     hide();
+    setWindowState(Qt::WindowNoState);
     setParent(embedded_parent_, Qt::Widget);
     if (auto* host_layout = qobject_cast<QBoxLayout*>(embedded_parent_->layout()))
       host_layout->insertWidget(embedded_index_, this, 1);
+    if (auto* splitter = qobject_cast<QSplitter*>(embedded_parent_)) {
+      splitter->insertWidget(embedded_index_, this); splitter->setSizes(embedded_sizes_);
+    }
     detached_ = false;
     show();
   } else if (was_maximized_) showMaximized();
