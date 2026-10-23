@@ -16,6 +16,9 @@ class CameraCardWidget final : public QWidget {
   explicit CameraCardWidget(CameraCard* card, QWidget* parent = nullptr);
   void activated();
   void leave_fullscreen();
+  QString selected_path() const;
+ signals:
+  void selected_path_changed();
  private:
   void rebuild();
   void filter();

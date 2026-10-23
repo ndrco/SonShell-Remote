@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <poll.h>
 #include <stdexcept>
+#include <sstream>
+#include <exception>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -15,8 +17,11 @@ struct Socket {
   int fd = -1;
   ~Socket() { if (fd >= 0) ::close(fd); }
 };
-void check(sdk::CrError result) {
-  if (result != sdk::CrError_None) throw std::runtime_error("Movie SDK: " + std::to_string(result));
+void check(sdk::CrError result, const char* operation) {
+  if (result != sdk::CrError_None) {
+    std::ostringstream message; message << operation << ": Sony SDK 0x" << std::hex << result;
+    throw std::runtime_error(message.str());
+  }
 }
 std::string local_ip(const std::string& camera) {
   Socket route{::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0)};
@@ -67,41 +72,44 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
   std::memcpy(address.sun_path, path.c_str(), path.size() + 1);
   if (::connect(socket.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0) throw std::runtime_error("Не удалось подключить декодер видео");
   sdk::CrMoviePlaybackSetting setting;
-  check(setting.SetIpAddress(local_ip(host).c_str()));
+  const auto computer = local_ip(host);
+  check(setting.SetIpAddress(computer.c_str()), "SetIpAddress");
   setting.slotId = static_cast<sdk::CrSlotNumber>(slot); setting.contentsId = content; setting.fileId = file;
-  setting.downTime = 5000; setting.videoPort = setting.audioPort = setting.metaPort = 0;
-  check(sdk::SetDeviceSetting(handle, sdk::Setting_Key_EnableLiveView, 0));
-  check(sdk::SetMoviePlaybackSetting(handle, &setting, 1));
+  setting.downTime = 15000; setting.videoPort = setting.audioPort = setting.metaPort = 0;
+  check(sdk::SetDeviceSetting(handle, sdk::Setting_Key_EnableLiveView, 0), "DisableLiveView");
+  check(sdk::SetMoviePlaybackSetting(handle, &setting, 1), "SetMoviePlaybackSetting");
   {
     std::lock_guard<std::mutex> lock(mutex_);
     active_ = true; ready_ = stopped_ = ended_ = false; failure_ = 0; desired_ = -1; packets_.clear(); buffered_ = 0;
   }
   bool started = false;
-  std::string error;
+  std::exception_ptr error;
   try {
-    event("preparing"); check(sdk::ControlMoviePlayback(handle, sdk::CrMoviePlaybackControlType_Start, 0)); started = true;
+    event("preparing"); check(sdk::ControlMoviePlayback(handle, sdk::CrMoviePlaybackControlType_Start, 0), "StartMoviePlayback"); started = true;
     {
       std::unique_lock<std::mutex> lock(mutex_);
-      if (!changed_.wait_for(lock, std::chrono::seconds(7), [this] { return ready_ || failure_ || cancel_; })) throw std::runtime_error("Камера не подготовила видеопоток");
+      if (!changed_.wait_for(lock, std::chrono::seconds(20), [this] { return ready_ || failure_ || cancel_; })) throw std::runtime_error("Камера не подготовила видеопоток: нет ответа SDK за 20 с");
       if (failure_) throw std::runtime_error("Камера отказала в видеопревью: " + std::to_string(failure_));
     }
     bool play = true;
     { std::lock_guard<std::mutex> lock(mutex_); play = !cancel_; }
-    if (play) { check(sdk::ControlMoviePlayback(handle, sdk::CrMoviePlaybackControlType_Play, 0)); event("playing"); }
+    if (play) { check(sdk::ControlMoviePlayback(handle, sdk::CrMoviePlaybackControlType_Play, 0), "PlayMoviePlayback"); event("playing"); }
     auto last_data = std::chrono::steady_clock::now();
     bool paused = false;
+    size_t sent = 0;
     for (;;) {
       std::vector<unsigned char> packet; int command = -1; unsigned seek = 0;
       {
         std::unique_lock<std::mutex> lock(mutex_);
         changed_.wait_for(lock, std::chrono::milliseconds(50), [this] { return cancel_ || ended_ || failure_ || !packets_.empty() || desired_ >= 0; });
-        if (cancel_ || ended_) break;
+        if (cancel_) break;
         if (failure_) throw std::runtime_error("Сбой видеопотока: " + std::to_string(failure_));
+        if (ended_ && packets_.empty()) break;
         command = desired_; seek = seek_; desired_ = -1;
         if (!packets_.empty()) { packet = std::move(packets_.front()); buffered_ -= packet.size(); packets_.pop_front(); }
       }
       if (command >= 0) {
-        check(sdk::ControlMoviePlayback(handle, command == 2 ? sdk::CrMoviePlaybackControlType_Seek : command == 0 ? sdk::CrMoviePlaybackControlType_Pause : sdk::CrMoviePlaybackControlType_Play, seek));
+        check(sdk::ControlMoviePlayback(handle, command == 2 ? sdk::CrMoviePlaybackControlType_Seek : command == 0 ? sdk::CrMoviePlaybackControlType_Pause : sdk::CrMoviePlaybackControlType_Play, seek), "ControlMoviePlayback");
         if (command != 2) paused = command == 0;
         event(paused ? "paused" : "playing"); last_data = std::chrono::steady_clock::now();
       }
@@ -110,7 +118,7 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
       while (offset < packet.size()) {
         { std::lock_guard<std::mutex> lock(mutex_); if (cancel_) break; }
         const auto count = ::send(socket.fd, packet.data() + offset, packet.size() - offset, MSG_NOSIGNAL);
-        if (count > 0) offset += size_t(count);
+        if (count > 0) { offset += size_t(count); sent += size_t(count); }
         else if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
           pollfd waiting{socket.fd, POLLOUT, 0}; ::poll(&waiting, 1, 50);
           if (std::chrono::steady_clock::now() > write_deadline) throw std::runtime_error("Декодер не принимает видеопоток");
@@ -118,10 +126,17 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
         else throw std::runtime_error("Канал видеопревью закрыт");
       }
       if (!packet.empty()) last_data = std::chrono::steady_clock::now();
-      if (!paused && std::chrono::steady_clock::now() - last_data > std::chrono::seconds(12)) throw std::runtime_error("Нет данных видеопревью от камеры");
+      if (!paused && std::chrono::steady_clock::now() - last_data > std::chrono::seconds(12)) {
+        if (!sent) throw NoData(host, computer);
+        throw std::runtime_error("Камера перестала передавать видеоданные");
+      }
     }
-    { std::lock_guard<std::mutex> lock(mutex_); if (failure_) throw std::runtime_error("Камера завершила видеопревью: " + std::to_string(failure_)); }
-  } catch (const std::exception& reason) { error = reason.what(); }
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (failure_) throw std::runtime_error("Камера завершила видеопревью: " + std::to_string(failure_));
+      if (!sent && !cancel_) throw NoData(host, computer);
+    }
+  } catch (...) { error = std::current_exception(); }
   bool acknowledged = !started;
   if (started) {
     const auto result = sdk::ControlMoviePlayback(handle, sdk::CrMoviePlaybackControlType_Stop, 0);
@@ -130,6 +145,6 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
   }
   { std::lock_guard<std::mutex> lock(mutex_); active_ = false; cancel_ = false; packets_.clear(); buffered_ = 0; }
   if (!acknowledged) { event("fatal"); throw std::runtime_error("Камера не подтвердила остановку видеопотока"); }
-  if (!error.empty()) throw std::runtime_error(error);
+  if (error) std::rethrow_exception(error);
   event("stopped");
 }

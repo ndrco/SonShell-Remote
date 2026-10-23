@@ -244,10 +244,12 @@ void CameraCard::receive(const QJsonObject& event) {
     items_.erase(std::remove_if(items_.begin(), items_.end(), [&](const CardItem& item) { return item.key() == key; }), items_.end());
     emit catalog_changed(); finish();
   } else if (type == "error") {
-    if (playing_video()) emit movie_failed(event.value("message").toString());
+    const auto message = event.value("code") == "movie-no-data" ?
+        QString(QCoreApplication::translate("App", "Нет видеоданных от камеры. Проверь входящие TCP 55001, 55003, 55005 от %1 к %2 в брандмауэре и сети. Справка: F1 → Видео.")).arg(event.value("camera_host").toString(), event.value("computer_ip").toString()) : event.value("message").toString();
+    if (playing_video()) emit movie_failed(message);
     if (active_.kind == "delete") queue_.clear(); // Reconfirm remaining deletions after any failure.
     studio_list_ = false;
-    emit session_->log_received(QCoreApplication::translate("App", "Карта: ") + event.value("message").toString());
-    finish(event.value("message").toString());
+    emit session_->log_received(QCoreApplication::translate("App", "Карта: ") + message);
+    finish(message);
   }
 }

@@ -1,12 +1,12 @@
 # Установка на чистую Ubuntu
 
-Цель выпуска 0.4 — Ubuntu 24.04 LTS Desktop, amd64 (Intel/AMD 64-bit), X11/Wayland.
+Цель выпуска 0.6.1 — Ubuntu 24.04 LTS Desktop, amd64 (Intel/AMD 64-bit), X11/Wayland.
 Для пользователя нужен один пакет `.deb`, интернет для зависимостей Ubuntu и
 совместимая камера Sony. Компилятор, исходники и отдельная установка SDK не нужны.
 
 ```bash
 sudo apt update
-sudo apt install ./sonshell-remote_0.6.0-1ubuntu24.04_amd64.deb
+sudo apt install ./sonshell-remote_0.6.1-1ubuntu24.04_amd64.deb
 ```
 
 Открыть **SonShell Remote** из меню приложений или выполнить `sonshell-remote`.
@@ -25,6 +25,27 @@ sudo apt install ./sonshell-remote_0.6.0-1ubuntu24.04_amd64.deb
 [официальная страница Sony](https://support.d-imaging.sony.co.jp/app/sdk/en/).
 Текущая версия GUI использует IPv4/Wi-Fi/LAN; USB/discovery в плане развития.
 Настройки firewall/камеры зависят от сети; GUI показывает журнал ошибок SDK.
+
+## Сеть для воспроизведения с карты
+
+SDK Movie Playback принимает отдельные входящие TCP-соединения на 55001 (видео),
+55003 (аудио), 55005 (метаданные). Работа SSH-управления и Live View не доказывает
+доступность этих портов. Если видеоданных нет, сообщение указывает IP камеры и
+выбранный по маршруту IP компьютера. Проверь также изоляцию клиентов на роутере.
+
+Пример адресного правила UFW для камеры `10.0.1.5` и компьютера `10.0.1.84`:
+
+```bash
+sudo ufw allow proto tcp from 10.0.1.5 to 10.0.1.84 port 55001,55003,55005 comment 'SonShell Remote video'
+```
+
+Подставь свои адреса. Правило требует администратора, разрешает только эту
+камеру и эти порты; при смене DHCP-адресов его нужно обновить. Приложение и DEB
+не меняют firewall. Откат именно этого правила:
+
+```bash
+sudo ufw delete allow proto tcp from 10.0.1.5 to 10.0.1.84 port 55001,55003,55005
+```
 
 ## Удаление и откат
 

@@ -48,6 +48,11 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   setWindowTitle("SonShell Remote");
   resize(1280, 870);
   create_ui();
+  file_path_ = new QLineEdit(this); file_path_->setObjectName("file_status_path");
+  file_path_->setReadOnly(true); file_path_->setFrame(false); file_path_->setMinimumWidth(0);
+  statusBar()->addWidget(file_path_, 1);
+  connect(card_widget_, &CameraCardWidget::selected_path_changed, this, &MainWindow::update_file_path);
+  connect(tabs_, &QTabWidget::currentChanged, this, &MainWindow::update_file_path);
   load_settings();
   create_menus();
   photos_.set_auto_preview(false);
@@ -113,7 +118,8 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     if (open_after_load_ && !photo_.isNull()) open_photo();
     open_after_load_ = false;
     Q_UNUSED(new_capture);
-    statusBar()->showMessage(result.error.isEmpty() ? QCoreApplication::translate("App", "Готово: ") + QFileInfo(result.path).fileName() : result.error, 5000);
+    update_file_path();
+    if (!result.error.isEmpty()) statusBar()->showMessage(result.error, 5000);
   });
   connect(&review_, &StudioReview::photo_presented, this, [this](const MediaResult& result) {
     live_view_->set_image(result.image, QCoreApplication::translate("App", "Снимок · ") + QFileInfo(result.path).fileName() + " · " + result.source);
@@ -357,9 +363,16 @@ void MainWindow::set_photo_directory() {
     if (photo_window_) photo_window_->close();
   }
   photos_.set_directory(path); card_.set_directory(path);
+  update_file_path();
 }
 void MainWindow::load_photo(const QString& path, bool open) {
+  photo_path_ = path; update_file_path();
   decode_pending_ = true; open_after_load_ = open; photos_.load(path);
+}
+void MainWindow::update_file_path() {
+  const auto path = tabs_->currentIndex() == 1 ? card_widget_->selected_path() :
+      tabs_->currentIndex() == 2 && !photo_path_.isEmpty() ? QFileInfo(photo_path_).absoluteFilePath() : QString();
+  file_path_->setText(path); file_path_->setToolTip(path); file_path_->setCursorPosition(0);
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
   review_.cancel();

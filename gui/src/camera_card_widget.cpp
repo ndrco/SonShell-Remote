@@ -138,6 +138,7 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   connect(search_, &QLineEdit::textChanged, this, &CameraCardWidget::filter);
   connect(format_, &QComboBox::currentIndexChanged, this, &CameraCardWidget::rebuild);
   connect(list_, &QTreeWidget::itemSelectionChanged, this, [this] {
+    emit selected_path_changed();
     viewer_->view()->clear_notice(); update_marks(); request_preview();
   });
   connect(list_, &QTreeWidget::itemChanged, this, [this] { update_marks(); });
@@ -172,6 +173,13 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   rebuild();
 }
 void CameraCardWidget::leave_fullscreen() { viewer_->leave_fullscreen(); }
+QString CameraCardWidget::selected_path() const {
+  const auto* row = list_->currentItem();
+  if (!row || row->isHidden()) return {};
+  const auto key = row->data(0, Qt::UserRole).toString();
+  for (const auto& item : card_->items()) if (item.key() == key) return item.preview_file().path;
+  return {};
+}
 void CameraCardWidget::activated() { if (card_->items().isEmpty() && !card_->busy()) card_->refresh(); }
 QStringList CameraCardWidget::checked(bool rejected) const {
   QStringList keys;
@@ -224,6 +232,7 @@ void CameraCardWidget::filter() {
   }
   count_->setText(QString(QCoreApplication::translate("App", "Показано %1 из %2")).arg(visible).arg(list_->topLevelItemCount()));
   update_marks();
+  emit selected_path_changed();
 }
 void CameraCardWidget::select(const QString& mode) {
   for (int i = 0; i < list_->topLevelItemCount(); ++i) {

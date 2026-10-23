@@ -6,10 +6,17 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 class MovieStream final {
  public:
+  struct NoData : std::runtime_error {
+    std::string camera_host, computer_ip;
+    NoData(std::string camera, std::string computer)
+        : std::runtime_error("Нет видеоданных от камеры: проверь входящие TCP 55001, 55003, 55005"),
+          camera_host(std::move(camera)), computer_ip(std::move(computer)) {}
+  };
   using Event = std::function<void(const std::string&)>;
   void run(SCRSDK::CrDeviceHandle handle, const std::string& camera_host,
       unsigned slot, unsigned content, unsigned file, const std::string& socket_path, const Event& event);

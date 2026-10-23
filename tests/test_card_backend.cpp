@@ -22,6 +22,7 @@ std::atomic<bool> hold_transfer{false}, deletion_fails{false}, changed_identity{
 std::atomic<bool> preview_fails{false}, short_file{false};
 std::atomic<bool> delete_enabled{true}, protected_file{false}, video_content{false}, movie_fail{false}, movie_stop_fail{false};
 std::atomic<int> movie_starts{0}, movie_plays{0}, movie_pauses{0}, movie_seeks{0}, movie_stops{0}, local_day{0};
+std::atomic<bool> movie_end{false}, movie_no_data{false};
 std::atomic<unsigned> last_compressed_type{0};
 }
 namespace SCRSDK {
@@ -92,7 +93,8 @@ CrError ControlMoviePlayback(CrDeviceHandle, CrMoviePlaybackControlType operatio
     browser->playback_warning(CrNotify_Playback_StatusChanged);
   } else if (operation == CrMoviePlaybackControlType_Play) {
     ++movie_plays; const unsigned char bytes[] = {0, 0, 0, 1, 40, 50, 60};
-    browser->playback_data(CrMoviePlaybackDataType_Video, sizeof(bytes), bytes);
+    if (!movie_no_data) browser->playback_data(CrMoviePlaybackDataType_Video, sizeof(bytes), bytes);
+    if (movie_end || movie_no_data) browser->playback_warning(CrNotify_Playback_Result_NormalTermination);
   } else if (operation == CrMoviePlaybackControlType_Pause) ++movie_pauses;
   else if (operation == CrMoviePlaybackControlType_Seek) ++movie_seeks;
   else if (operation == CrMoviePlaybackControlType_Stop) {
@@ -128,6 +130,7 @@ class CardBackendTests final : public QObject {
     preview_fails = short_file = false; path_style = 1; slot2_lists = 0; slot2_present = slot2_ready = false;
     originals = previews = deletions = cancels = 0; hold_transfer = deletion_fails = changed_identity = protected_file = false; delete_enabled = true;
     video_content = movie_fail = movie_stop_fail = false; movie_starts = movie_plays = movie_pauses = movie_seeks = movie_stops = local_day = 0;
+    movie_end = movie_no_data = false;
     events_.clear();
     service_ = std::make_unique<CameraBrowser>(transfers_, [this](const std::string& json) {
       QMutexLocker lock(&events_mutex_); events_.append(QJsonDocument::fromJson(QByteArray::fromStdString(json)).object());
@@ -173,6 +176,27 @@ class CardBackendTests final : public QObject {
     auto args = command("movie", "failed-movie", socket.toUtf8().toHex().toStdString()); args[6] = "1";
     QVERIFY(service_->command(args)); QTRY_VERIFY(has("error", "failed-movie")); QVERIFY(!has("movie-stopped", "failed-movie"));
     QCOMPARE(originals.load(), 0);
+  }
+  void movie_natural_end_drains_packets_before_closing_socket() {
+    video_content = movie_end = true; list();
+    const auto socket = temporary_.filePath("cache/drain.sock"); QLocalServer server; QVERIFY(server.listen(socket));
+    auto args = command("movie", "drain", socket.toUtf8().toHex().toStdString()); args[6] = "1";
+    QVERIFY(service_->command(args)); QTRY_VERIFY(server.hasPendingConnections());
+    auto* connection = server.nextPendingConnection(); QTRY_VERIFY(has("movie-stopped", "drain"));
+    QTRY_COMPARE(connection->bytesAvailable(), qint64(7)); QCOMPARE(connection->readAll().size(), 7);
+    QVERIFY(!has("error", "drain")); QCOMPARE(originals.load(), 0);
+  }
+  void movie_without_data_reports_network_ports_and_confirms_stop() {
+    video_content = movie_no_data = true; list();
+    const auto socket = temporary_.filePath("cache/no-data.sock"); QLocalServer server; QVERIFY(server.listen(socket));
+    auto args = command("movie", "no-data", socket.toUtf8().toHex().toStdString()); args[6] = "1";
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("error", "no-data"));
+    bool identified = false;
+    { QMutexLocker lock(&events_mutex_); for (const auto& event : events_) if (event.value("request") == "no-data" && event.value("code") == "movie-no-data") {
+      identified = event.value("camera_host") == "127.0.0.1" && event.value("computer_ip") == "127.0.0.1";
+      QVERIFY(event.value("message").toString().contains("55001"));
+    } }
+    QVERIFY(identified); QCOMPARE(movie_stops.load(), 1); QVERIFY(!has("movie-stopped", "no-data")); QCOMPARE(originals.load(), 0);
   }
   void unconfirmed_movie_stop_forces_session_reset() {
     video_content = true; movie_stop_fail = true; list();

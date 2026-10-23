@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QRegularExpression>
 #include <csignal>
 #include <algorithm>
 
@@ -25,10 +26,15 @@ VideoPreview::VideoPreview(QObject* parent) : QObject(parent) {
     socket_ = connection;
     connection->setReadBufferSize(256 * 1024);
     auto pump = [this] {
-      if (!socket_ || decoder_.state() != QProcess::Running) return;
+      if (!socket_ || intentional_) return;
+      if (!stream_started_ && socket_->bytesAvailable()) {
+        stream_started_ = true;
+        launch({"-f", "hevc", "-probesize", "8388608", "-analyzeduration", "500000", "-protocol_whitelist", "pipe", "-i", "pipe:0"});
+      }
+      if (decoder_.state() != QProcess::Running) return;
       while (socket_->bytesAvailable() && decoder_.bytesToWrite() < 256 * 1024)
         decoder_.write(socket_->read(64 * 1024));
-      if (socket_->state() == QLocalSocket::UnconnectedState && !socket_->bytesAvailable()) decoder_.closeWriteChannel();
+      if (socket_->state() == QLocalSocket::UnconnectedState && !socket_->bytesAvailable() && !decoder_.bytesToWrite()) decoder_.closeWriteChannel();
     };
     connect(connection, &QLocalSocket::readyRead, this, pump);
     connect(&decoder_, &QProcess::bytesWritten, connection, [pump](qint64) { pump(); });
@@ -51,14 +57,14 @@ void VideoPreview::stop() {
     if (paused_) ::kill(pid_t(decoder_.processId()), SIGCONT);
     decoder_.kill(); decoder_.waitForFinished(500);
   }
-  paused_ = false; frames_.clear();
+  paused_ = false; stream_started_ = false; frames_.clear(); frame_size_ = {}; payload_size_ = 0;
   if (decoder_.isOpen()) { decoder_.readAllStandardOutput(); decoder_.readAllStandardError(); }
 }
 void VideoPreview::launch(const QStringList& input) {
   intentional_ = false; received_ = false; diagnostic_.clear();
   decoder_.setProgram(QStandardPaths::findExecutable("ffmpeg"));
   decoder_.setArguments(QStringList{"-hide_banner", "-loglevel", "error", "-threads", "2", "-filter_threads", "1"} + input +
-      QStringList{"-an", "-vf", "fps=12,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease", "-c:v", "mjpeg", "-q:v", "5", "-f", "image2pipe", "pipe:1"});
+      QStringList{"-an", "-fps_mode", "passthrough", "-pix_fmt", "rgb24", "-c:v", "ppm", "-threads", "1", "-f", "image2pipe", "pipe:1"});
   decoder_.start();
 }
 void VideoPreview::play_local(const QString& path, int seconds) {
@@ -69,7 +75,9 @@ void VideoPreview::play_local(const QString& path, int seconds) {
 bool VideoPreview::listen(const QString& path) {
   stop(); server_.setSocketOptions(QLocalServer::UserAccessOption);
   if (!server_.listen(path)) { emit failed(server_.errorString()); return false; }
-  launch({"-probesize", "65536", "-analyzeduration", "1000000", "-protocol_whitelist", "pipe", "-i", "pipe:0"});
+  // No decoder until data arrives. A blocked camera must report the SDK/network
+  // error, rather than an unrelated FFmpeg error about an empty input stream.
+  intentional_ = false;
   return true;
 }
 void VideoPreview::pause_local(bool paused) {
@@ -80,18 +88,29 @@ void VideoPreview::read_frames() {
   const auto bytes = decoder_.isOpen() ? decoder_.readAllStandardOutput() : QByteArray();
   if (intentional_) return;
   frames_ += bytes;
-  if (frames_.size() > 8 * 1024 * 1024) { stop(); emit failed(QCoreApplication::translate("App", "Превышен лимит буфера видеопревью")); return; }
-  QByteArray latest;
+  // FFmpeg emits binary PPM: the original frame size/rate and uncompressed RGB.
+  // Parse the bounded header separately; JPEG re-encoding used to lose detail.
+  constexpr qint64 max_frame_bytes = 128 * 1024 * 1024;
+  static const QRegularExpression header("\\AP6\\n([0-9]+) ([0-9]+)\\n255\\n");
   for (;;) {
-    const auto start = frames_.indexOf(QByteArray::fromHex("ffd8"));
-    if (start < 0) { if (frames_.size() > 1) frames_ = frames_.right(1); break; }
-    if (start > 0) frames_.remove(0, start);
-    const auto end = frames_.indexOf(QByteArray::fromHex("ffd9"), 2);
-    if (end < 0) break;
-    latest = frames_.left(end + 2); frames_.remove(0, end + 2);
-  }
-  if (!latest.isEmpty()) {
-    const auto image = QImage::fromData(latest, "JPEG");
+    if (!payload_size_) {
+      const auto match = header.match(QString::fromLatin1(frames_.left(80)));
+      if (!match.hasMatch()) {
+        if (frames_.size() < 80) break;
+        stop(); emit failed(QCoreApplication::translate("App", "Не удалось декодировать видео")); return;
+      }
+      const auto width = match.captured(1).toInt(), height = match.captured(2).toInt();
+      const qint64 pixels = qint64(width) * height;
+      if (width <= 0 || height <= 0 || pixels > max_frame_bytes / 3) {
+        stop(); emit failed(QCoreApplication::translate("App", "Превышен лимит буфера видеопревью")); return;
+      }
+      frame_size_ = {width, height}; payload_size_ = pixels * 3;
+      frames_.remove(0, match.capturedLength());
+    }
+    if (frames_.size() < payload_size_) break;
+    const auto image = QImage(reinterpret_cast<const uchar*>(frames_.constData()), frame_size_.width(), frame_size_.height(), frame_size_.width() * 3, QImage::Format_RGB888).copy();
+    frames_.remove(0, payload_size_); payload_size_ = 0;
     if (!image.isNull()) { received_ = true; emit frame_ready(image); }
+    if (intentional_) return;
   }
 }

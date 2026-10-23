@@ -12,6 +12,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
+#include <QLineEdit>
 #include <QLocalSocket>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -74,13 +75,47 @@ class VideoTests final : public QObject {
     player.pause_local(false); QTRY_VERIFY(frames.size() >= 3); player.stop();
     const auto before = frames.size(); QTest::qWait(100); QCOMPARE(frames.size(), before); QCOMPARE(errors.size(), 0);
   }
+  void local_video_keeps_resolution_frame_rate_and_decoded_pixels() {
+    const auto path = temporary_.filePath("native.mp4");
+    QProcess encoder;
+    encoder.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=24", "-t", "1", "-an", "-threads", "1", "-c:v", "libx264", "-preset", "ultrafast", path});
+    QVERIFY(encoder.waitForFinished(20000)); QCOMPARE(encoder.exitCode(), 0);
+    QProcess reference;
+    reference.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-threads", "2", "-i", path, "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-threads", "1", "pipe:1"});
+    QVERIFY(reference.waitForFinished(10000)); QCOMPARE(reference.exitCode(), 0);
+    const auto rgb = reference.readAllStandardOutput(); QCOMPARE(rgb.size(), 1920 * 1080 * 3);
+    VideoPreview player; QSignalSpy done(&player, &VideoPreview::finished), errors(&player, &VideoPreview::failed);
+    int count = 0; QImage first; bool native = true;
+    connect(&player, &VideoPreview::frame_ready, this, [&](const QImage& image) {
+      if (!count) first = image;
+      ++count; native = native && image.size() == QSize(1920, 1080);
+    });
+    player.play_local(path); QTRY_COMPARE_WITH_TIMEOUT(done.size(), 1, 10000);
+    QCOMPARE(errors.size(), 0); QVERIFY(native); QCOMPARE(count, 24);
+    QCOMPARE(first.format(), QImage::Format_RGB888);
+    QCOMPARE(QByteArray(reinterpret_cast<const char*>(first.constBits()), first.sizeInBytes()), rgb);
+  }
+  void invalid_local_video_reports_decoder_error() {
+    const auto path = temporary_.filePath("broken.mp4"); QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly)); file.write("not a video"); file.close();
+    VideoPreview player; QSignalSpy errors(&player, &VideoPreview::failed);
+    player.play_local(path); QTRY_COMPARE(errors.size(), 1); QVERIFY(!player.running());
+  }
   void h265_stream_decodes_and_drains_on_socket_end() {
     VideoPreview player; QSignalSpy frames(&player, &VideoPreview::frame_ready), errors(&player, &VideoPreview::failed), done(&player, &VideoPreview::finished);
     const auto socket = temporary_.filePath("test.sock"); QVERIFY(player.listen(socket));
     QLocalSocket sender; sender.connectToServer(socket); QVERIFY(sender.waitForConnected(2000));
     QFile source(hevc_); QVERIFY(source.open(QIODevice::ReadOnly)); const auto bytes = source.readAll();
-    QCOMPARE(sender.write(bytes), qint64(bytes.size())); sender.disconnectFromServer();
-    QTRY_VERIFY(frames.size() > 0); QTRY_COMPARE(done.size(), 1); QCOMPARE(errors.size(), 0);
+    QCOMPARE(sender.write(bytes), qint64(bytes.size()));
+    QTRY_VERIFY(frames.size() > 0); QCOMPARE(done.size(), 0); // Start before EOF, including short clips.
+    sender.disconnectFromServer(); QTRY_COMPARE(done.size(), 1); QCOMPARE(errors.size(), 0); QCOMPARE(frames.size(), 24);
+  }
+  void empty_camera_stream_does_not_start_decoder_or_mask_network_error() {
+    VideoPreview player; QSignalSpy errors(&player, &VideoPreview::failed), frames(&player, &VideoPreview::frame_ready);
+    const auto path = temporary_.filePath("empty.sock"); QVERIFY(player.listen(path)); QVERIFY(!player.running());
+    QLocalSocket sender; sender.connectToServer(path); QVERIFY(sender.waitForConnected(2000));
+    QTest::qWait(50); sender.disconnectFromServer(); QTest::qWait(100);
+    QVERIFY(!player.running()); QCOMPARE(errors.size(), 0); QCOMPARE(frames.size(), 0); player.stop();
   }
   void main_window_stops_liveview_for_movie_and_restores_it_on_tab_change() {
     QTemporaryDir root; AppSettings settings; settings.host = "127.0.0.1"; settings.folder = root.path(); settings.sdk_terms_accepted = true;
@@ -92,6 +127,9 @@ class VideoTests final : public QObject {
     auto* tabs = window.findChild<QTabWidget*>("main_tabs"); tabs->setCurrentIndex(1);
     auto* list = window.findChild<QTreeWidget*>("card_items"); QTRY_COMPARE(list->topLevelItemCount(), 2);
     list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card->busy());
+    auto* status_path = window.findChild<QLineEdit*>("file_status_path"); QVERIFY(status_path);
+    QCOMPARE(status_path->text(), QString("PRIVATE/M4ROOT/CLIP/C0001.MP4"));
+    QVERIFY(status_path->isReadOnly());
     auto* viewer = window.findChild<ImageViewer*>("card_preview");
     QSignalSpy frames(viewer->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
     viewer->findChild<QPushButton*>("movie_play")->click(); QTRY_VERIFY(frames.size() > 0);
@@ -99,6 +137,18 @@ class VideoTests final : public QObject {
     tabs->setCurrentIndex(0); QTRY_VERIFY(!card->playing_video());
     QTRY_VERIFY(window.findChild<QPushButton*>("command_shoot")->isEnabled());
     QTRY_VERIFY(commands().count("monitor start") >= 2);
+    window.close();
+  }
+  void local_file_status_contains_absolute_path_and_survives_tab_changes() {
+    QTemporaryDir root; const auto path = root.filePath("2026-10-22/Slot_1/CLIP/C0001.MP4");
+    QVERIFY(QDir().mkpath(QFileInfo(path).absolutePath())); QVERIFY(QFile::copy(mp4_, path));
+    AppSettings settings; settings.folder = root.path(); QVERIFY(SettingsStore().save(settings));
+    MainWindow window(FAKE_BACKEND_PATH); window.show();
+    auto* tabs = window.findChild<QTabWidget*>("main_tabs"); tabs->setCurrentIndex(2);
+    auto* status_path = window.findChild<QLineEdit*>("file_status_path"); QVERIFY(status_path);
+    QTRY_COMPARE(status_path->text(), path); QCOMPARE(status_path->toolTip(), path);
+    tabs->setCurrentIndex(0); QCOMPARE(status_path->text(), QString());
+    tabs->setCurrentIndex(2); QCOMPARE(status_path->text(), path);
     window.close();
   }
   void remote_video_filter_preview_marks_copy_and_date_ledger() {

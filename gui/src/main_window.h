@@ -39,6 +39,7 @@ class MainWindow final : public QMainWindow {
   void update_frame();
   void set_photo_directory();
   void load_photo(const QString& path, bool open = false);
+  void update_file_path();
   void send(const QString& command);
   QPushButton* command_button(const QString& label, const QString& command, QWidget* parent);
   QWidget* setting_row(const QString& initial, const QString& command, QWidget* parent);
@@ -50,7 +51,7 @@ class MainWindow final : public QMainWindow {
   CameraCard card_;
   PhotoLibrary photos_;
   StudioReview review_;
-  QLineEdit *host_, *model_, *user_, *password_, *folder_;
+  QLineEdit *host_, *model_, *user_, *password_, *folder_, *file_path_;
   QCheckBox *remember_, *auto_liveview_, *auto_reconnect_;
   QPushButton *connect_button_, *browse_;
   QCheckBox *studio_, *hold_;

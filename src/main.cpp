@@ -2779,13 +2779,13 @@ public:
   void OnWarning(CrInt32u w) override {
     if (g_gui_mode) browser.playback_warning(w);
     if (g_shutting_down.load()) return;
-    if (verbose) {
+    if (verbose || (g_gui_mode && w >= SDK::CrWarning_Playback_Result_Invalid && w <= SDK::CrWarning_Playback_Result_PlaybackInfo_Error)) {
       LOGI( "[CB] OnWarning: " << crsdk_err::warning_to_name(w) << " (0x" << std::hex << w << std::dec << ")" );
     }
   }
 
   void OnWarningExt(CrInt32u warning, CrInt32 param1, CrInt32 param2, CrInt32 param3) override {
-    if (g_gui_mode) browser.delete_result(warning, param1, param2, param3);
+    if (g_gui_mode) { browser.delete_result(warning, param1, param2, param3); browser.playback_warning(warning); }
     if (g_shutting_down.load()) return;
     LOGI("[CB] OnWarningExt: " << crsdk_err::warning_to_name(warning)
          << " (0x" << std::hex << warning << std::dec << ")"
@@ -3538,7 +3538,11 @@ public:
   void OnNotifyFTPTransferResult(CrInt32u, CrInt32u, CrInt32u) override {}
   void OnNotifyRemoteFirmwareUpdateResult(CrInt32u, const void *) override {}
   void OnReceivePlaybackTimeCode(CrInt32u) override {}
-  void OnReceivePlaybackData(CrInt8u type, CrInt32 size, CrInt8u* bytes, CrInt64, CrInt64, CrInt32, CrInt32) override {
+  void OnReceivePlaybackData(CrInt8u type, CrInt32 size, CrInt8u* bytes, CrInt64 pts, CrInt64 dts, CrInt32 param1, CrInt32 param2) override {
+    if (g_gui_mode) {
+      static std::atomic<unsigned> reported{0};
+      if (reported.fetch_add(1) < 6) LOGI("[movie] Playback packet: type=" << unsigned(type) << " bytes=" << size << " pts=" << pts << " dts=" << dts << " param1=" << param1 << " param2=" << param2);
+    }
     if (g_gui_mode) browser.playback_data(type, size, bytes);
   }
   void OnNotifyMonitorUpdated(CrInt32u, CrInt32u) override {}

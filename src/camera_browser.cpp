@@ -125,7 +125,10 @@ void CameraBrowser::run() {
       if (stopping_) break;
       args = std::move(queue_.front()); queue_.pop_front(); canceled_ = false; movie_.reset();
     }
-    try { execute(args); } catch (const std::exception& e) { error(args[2], e.what()); }
+    try { execute(args); }
+    catch (const MovieStream::NoData& e) {
+      event("error", args[2], "\"code\":\"movie-no-data\",\"camera_host\":" + json(e.camera_host) + ",\"computer_ip\":" + json(e.computer_ip) + ",\"message\":" + json(e.what()));
+    } catch (const std::exception& e) { error(args[2], e.what()); }
   }
 }
 bool CameraBrowser::enabled(unsigned code) {

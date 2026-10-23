@@ -5,7 +5,7 @@
 #include <QPointer>
 #include <QProcess>
 
-// Bounded silent preview. The decoder never receives a camera credential or URL.
+// Native-size silent video. The decoder never receives a camera credential or URL.
 class VideoPreview final : public QObject {
   Q_OBJECT
  public:
@@ -27,5 +27,8 @@ class VideoPreview final : public QObject {
   QLocalServer server_;
   QPointer<QLocalSocket> socket_;
   QByteArray frames_, diagnostic_;
+  QSize frame_size_;
+  qsizetype payload_size_ = 0;
   bool intentional_ = false, paused_ = false, received_ = false;
+  bool stream_started_ = false;
 };

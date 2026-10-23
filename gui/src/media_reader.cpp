@@ -99,16 +99,17 @@ MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCa
   if (canceled(cancel)) { result.error = QCoreApplication::translate("App", "Чтение отменено"); return result; }
   if (result.video) {
     QProcess decoder;
-    decoder.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-threads", "1", "-filter_threads", "1", "-protocol_whitelist", "file,pipe", "-i", before.absoluteFilePath(),
-        "-frames:v", "1", "-vf", thumbnail ? "scale=w='min(192,iw)':h='min(128,ih)':force_original_aspect_ratio=decrease" : "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease",
-        "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"});
+    QStringList args{"-hide_banner", "-loglevel", "error", "-threads", "1", "-filter_threads", "1", "-protocol_whitelist", "file,pipe", "-i", before.absoluteFilePath(), "-frames:v", "1"};
+    if (thumbnail) args << "-vf" << "scale=w='min(192,iw)':h='min(128,ih)':force_original_aspect_ratio=decrease";
+    args << "-f" << "image2pipe" << "-c:v" << "png" << "-threads" << "1" << "pipe:1";
+    decoder.start("ffmpeg", args);
     QByteArray bytes; QElapsedTimer elapsed; elapsed.start();
     while (decoder.state() != QProcess::NotRunning) {
       decoder.waitForFinished(40); bytes += decoder.readAllStandardOutput();
-      if (canceled(cancel) || elapsed.elapsed() > 12000 || bytes.size() > 8 * 1024 * 1024) { decoder.kill(); decoder.waitForFinished(500); break; }
+      if (canceled(cancel) || elapsed.elapsed() > 12000 || bytes.size() > 128 * 1024 * 1024) { decoder.kill(); decoder.waitForFinished(500); break; }
     }
     bytes += decoder.readAllStandardOutput();
-    result.image = QImage::fromData(bytes, "JPEG");
+    result.image = QImage::fromData(bytes, "PNG");
     result.source = QCoreApplication::translate("App", "Видео · первый кадр");
   } else if (raw) {
     QByteArray best;

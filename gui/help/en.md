@@ -94,11 +94,23 @@ thumbnail; the SDK's larger screennail is available only for photos.
 
 Play streams from the camera without copying the original. Pause, Stop and
 seeking to a specified second are available. This is a **silent preview**, limited
-to 1280×720 and 12 fps; the original audio remains unchanged. SDK/firmware support
+only by the received stream's resolution and frame rate; the original audio remains unchanged. SDK/firmware support
 and reachable network ports are required. Camera/decoder failures are shown.
 Live View stops during streaming and resumes afterwards if previously enabled.
 Changing tabs or items stops the stream. Stop playback before copying/deleting.
 Space/Delete marking works over the video as well.
+
+**No video data from camera:** control and Live View may work while the firewall
+blocks the separate movie stream. Allow incoming **TCP 55001, 55003, 55005** from
+the camera IP to the computer IP. The error shows both addresses. Check firewall
+rules and network client isolation. The application does not change system rules.
+Example for UFW (replace the addresses; administrator privileges required):
+
+```bash
+sudo ufw allow proto tcp from 10.0.1.5 to 10.0.1.84 port 55001,55003,55005 comment 'SonShell Remote video'
+```
+
+Undo with the same command using `delete allow` instead of `allow`. Keep the firewall enabled.
 
 In full screen, the filename and COPY/REJECT states remain visible over the image.
 A separate overlay confirms each key action or explains why a protected item
@@ -110,3 +122,7 @@ computer's current date is never substituted. Old copies are preserved and still
 count towards Copy new. The local gallery shows imported MP4/MOV/M4V, reads the
 first frame in the background and plays video on request. Photos and videos with
 the same base name remain separate items.
+Local playback keeps the original resolution and frame rate without JPEG
+re-encoding. The first frame is read at its original size too. The main window's
+bottom status line shows the selected file's full camera or local path. Select
+and copy it; long paths scroll and are also available in the tooltip.
