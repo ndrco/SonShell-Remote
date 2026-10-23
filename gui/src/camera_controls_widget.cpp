@@ -29,10 +29,11 @@ CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* c
       request("set", editor->property("sdk_code").toString() + ' ' + editor->itemData(index).toString());
     });
   }
-  mouse_af_ = new QCheckBox(QCoreApplication::translate("App", "Выбирать точку AF мышью"), this); mouse_af_->setObjectName("mouse_af");
-  mouse_af_->setToolTip(QCoreApplication::translate("App", "Клик задаёт центр области AF; перетаскивание перемещает изображение. Для наведения резкости нажми «Автофокус»."));
+  mouse_af_ = new QCheckBox(QCoreApplication::translate("App", "Автофокус по клику"), this); mouse_af_->setObjectName("mouse_af");
+  mouse_af_->setToolTip(QCoreApplication::translate("App", "Клик выбирает точку и запускает автофокус. Перетаскивание перемещает изображение."));
   layout->addRow(mouse_af_);
   message_ = new QLabel(QCoreApplication::translate("App", "Подключи камеру для чтения доступных параметров"), this);
+  message_->setObjectName("controls_message");
   message_->setWordWrap(true); message_->setTextFormat(Qt::PlainText); layout->addRow(message_);
   auto* refresh = new QPushButton(QCoreApplication::translate("App", "Прочитать параметры"), this); layout->addRow(refresh);
   refresh_timer_.setSingleShot(true); refresh_timer_.setInterval(250);
@@ -88,17 +89,21 @@ CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* c
         editor->setToolTip(editor->property("writable").toBool() ? QCoreApplication::translate("App", "Значения предоставлены камерой") : QCoreApplication::translate("App", "SDK не разрешает менять этот параметр в текущем режиме"));
       }
       available_af_ = event.value("af").toBool();
-      message_->setText(available_af_ ? QCoreApplication::translate("App", "Точка AF доступна в Live View. Клик выбирает область; кнопка AF наводит резкость.") :
-          QCoreApplication::translate("App", "Точка AF недоступна: выбери подвижную область фокуса на камере и включи Live View."));
+      message_->setText(available_af_ ? QCoreApplication::translate("App", "Клик в Live View выбирает точку и запускает автофокус.") :
+          QCoreApplication::translate("App", "Автофокус по клику недоступен: включи режим AF, подвижную область фокуса и Live View."));
       if (!last_error_.isEmpty()) message_->setText(last_error_);
     } else if (type == "error") {
       const auto reason = event.value("message").toString();
       const auto description = reason == "af-outside" ? QCoreApplication::translate("App", "Точка за пределами допустимой области AF") :
-          reason == "read-only" ? QCoreApplication::translate("App", "SDK не разрешает менять этот параметр в текущем режиме") : reason;
+          reason == "read-only" ? QCoreApplication::translate("App", "SDK не разрешает менять этот параметр в текущем режиме") :
+          reason == "af-unavailable" ? QCoreApplication::translate("App", "Автофокус недоступен в текущем режиме камеры") :
+          reason.startsWith("af-press:") ? QString(QCoreApplication::translate("App", "Точка перемещена, но запуск AF отклонён (SDK %1)")).arg(reason.mid(9)) :
+          reason.startsWith("af-release:") ? QString(QCoreApplication::translate("App", "Не удалось подтвердить отпускание AF (SDK %1). Переподключи камеру.")).arg(reason.mid(11)) : reason;
       last_error_ = QCoreApplication::translate("App", "Команда отклонена камерой: ") + description;
       message_->setText(last_error_); dirty_ = operation != "list";
     } else {
-      message_->setText(QCoreApplication::translate("App", "Настройка принята SDK; это не подтверждение резкости.")); dirty_ = true;
+      message_->setText(operation == "af" ? QCoreApplication::translate("App", "Точка выбрана, команда автофокуса принята камерой.") :
+          QCoreApplication::translate("App", "Настройка принята SDK; это не подтверждение резкости.")); dirty_ = true;
     }
     update_enabled(); if (dirty_ && !refresh_timer_.isActive()) refresh_timer_.start();
   });

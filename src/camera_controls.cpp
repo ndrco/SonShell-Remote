@@ -5,11 +5,14 @@
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <chrono>
+#include <thread>
 
 namespace {
 namespace sdk = SCRSDK;
 const std::vector<CrInt32u> codes{sdk::CrDeviceProperty_FocusMode, sdk::CrDeviceProperty_FocusArea,
-    sdk::CrDeviceProperty_WhiteBalance, sdk::CrDeviceProperty_DriveMode, sdk::CrDeviceProperty_AF_Area_Position};
+    sdk::CrDeviceProperty_WhiteBalance, sdk::CrDeviceProperty_DriveMode, sdk::CrDeviceProperty_AF_Area_Position,
+    sdk::CrDeviceProperty_S1};
 std::uint64_t number(const std::string& text) {
   if (text.empty() || text.find_first_not_of("0123456789") != std::string::npos) throw std::runtime_error("invalid-value");
   size_t used = 0; const auto value = std::stoull(text, &used);
@@ -58,6 +61,40 @@ std::vector<std::uint64_t> choices(const sdk::CrDeviceProperty& property) {
   return out;
 }
 struct Bounds { int left = 0, top = 0, right = 639, bottom = 479; bool valid = false; };
+bool focus_available(const Properties& properties) {
+  const auto* mode = properties.find(sdk::CrDeviceProperty_FocusMode);
+  const auto* half_press = properties.find(sdk::CrDeviceProperty_S1);
+  if (!mode || !mode->IsGetEnableCurrentValue() || !half_press || !half_press->IsSetEnableCurrentValue()) return false;
+  switch (mode->GetCurrentValue()) {
+    case sdk::CrFocus_AF_S: case sdk::CrFocus_AF_C: case sdk::CrFocus_AF_A:
+    case sdk::CrFocus_AF_D: case sdk::CrFocus_DMF: return true;
+    default: return false;
+  }
+}
+struct HalfPress {
+  sdk::CrDeviceHandle handle;
+  bool armed = false;
+  sdk::CrError release() {
+    sdk::CrDeviceProperty property;
+    property.SetCode(sdk::CrDeviceProperty_S1); property.SetValueType(sdk::CrDataType_UInt16);
+    property.SetCurrentValue(sdk::CrLockIndicator_Unlocked);
+    const auto error = sdk::SetDeviceProperty(handle, &property);
+    if (error == sdk::CrError_None) armed = false;
+    return error;
+  }
+  ~HalfPress() { if (armed) release(); }
+};
+void focus_once(sdk::CrDeviceHandle handle) {
+  HalfPress press{handle, true}; // Also release after an ambiguous failed press.
+  sdk::CrDeviceProperty property;
+  property.SetCode(sdk::CrDeviceProperty_S1); property.SetValueType(sdk::CrDataType_UInt16);
+  property.SetCurrentValue(sdk::CrLockIndicator_Locked);
+  const auto error = sdk::SetDeviceProperty(handle, &property);
+  if (error != sdk::CrError_None) throw std::runtime_error("af-press:" + std::to_string(error));
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  const auto released = press.release();
+  if (released != sdk::CrError_None) throw std::runtime_error("af-release:" + std::to_string(released));
+}
 Bounds af_bounds(sdk::CrDeviceHandle handle) {
   sdk::CrLiveViewProperty* data = nullptr; CrInt32 count = 0;
   CrInt32u code = sdk::CrLiveViewProperty_AF_Area_Position;
@@ -98,7 +135,7 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
       std::ostringstream out; out << "{\"type\":\"snapshot\",\"request\":" << quoted(request) << ",\"properties\":[";
       bool first = true;
       for (auto code : codes) {
-        if (code == sdk::CrDeviceProperty_AF_Area_Position) continue;
+        if (code == sdk::CrDeviceProperty_AF_Area_Position || code == sdk::CrDeviceProperty_S1) continue;
         const auto* property = properties.find(code); if (!property) continue;
         const auto values = choices(*property);
         const std::string name = code == sdk::CrDeviceProperty_FocusMode ? "focus_mode" : code == sdk::CrDeviceProperty_FocusArea ? "focus_area" : code == sdk::CrDeviceProperty_WhiteBalance ? "white_balance" : "drive_mode";
@@ -116,7 +153,7 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
         out << "]}";
       }
       const auto* position = properties.find(sdk::CrDeviceProperty_AF_Area_Position);
-      const bool af = position && position->IsSetEnableCurrentValue() && af_bounds(handle).valid;
+      const bool af = position && position->IsSetEnableCurrentValue() && af_bounds(handle).valid && focus_available(properties);
       out << "],\"af\":" << (af ? "true" : "false") << '}';
       if (out.str().size() > 29000) throw std::runtime_error("capabilities-too-large");
       return out.str();
@@ -124,7 +161,7 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
     sdk::CrDeviceProperty change;
     if (args[1] == "set" && args.size() == 5) {
       const auto raw_code = number(args[3]);
-      if (raw_code > 0xffffffffu || raw_code == sdk::CrDeviceProperty_AF_Area_Position) throw std::runtime_error("unsupported");
+      if (raw_code > 0xffffffffu || raw_code == sdk::CrDeviceProperty_AF_Area_Position || raw_code == sdk::CrDeviceProperty_S1) throw std::runtime_error("unsupported");
       const auto* property = properties.find(unsigned(raw_code));
       if (!property || !property->IsSetEnableCurrentValue()) throw std::runtime_error("read-only");
       const auto value = number(args[4]); const auto values = choices(*property);
@@ -137,11 +174,13 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
       const auto x = number(args[3]), y = number(args[4]);
       if (x < unsigned(bounds.left) || x > unsigned(bounds.right) || y < unsigned(bounds.top) || y > unsigned(bounds.bottom))
         throw std::runtime_error("af-outside");
+      if (!focus_available(properties)) throw std::runtime_error("af-unavailable");
       change.SetCode(sdk::CrDeviceProperty_AF_Area_Position); change.SetValueType(sdk::CrDataType_UInt32);
       change.SetCurrentValue((x << 16) | y);
     } else throw std::runtime_error("invalid-command");
     const auto error = sdk::SetDeviceProperty(handle, &change);
     if (error != sdk::CrError_None) throw std::runtime_error("sdk:" + std::to_string(error));
+    if (args[1] == "af") focus_once(handle);
     return "{\"type\":\"applied\",\"request\":" + quoted(request) + "}";
   } catch (const std::exception& error) {
     return "{\"type\":\"error\",\"request\":" + quoted(request) + ",\"message\":" + quoted(error.what()) + "}";

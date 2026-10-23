@@ -4,6 +4,39 @@
   <context>
     <name>App</name>
     <message>
+      <source>Автофокус по клику</source>
+      <translation>Click to focus</translation>
+    </message>
+    <message>
+      <source>Клик выбирает точку и запускает автофокус. Перетаскивание перемещает изображение.</source>
+      <translation>Click to select a point and start autofocus. Drag to pan the image.</translation>
+    </message>
+    <message>
+      <source>Клик в Live View выбирает точку и запускает автофокус.</source>
+      <translation>Click in Live View to select a point and start autofocus.</translation>
+    </message>
+    <message>
+      <source>Автофокус по клику недоступен: включи режим AF, подвижную область фокуса и Live View.</source>
+      <translation>Click to focus is unavailable: enable an AF mode, a movable focus area and Live View.</translation>
+    </message>
+    <message>
+      <source>Автофокус недоступен в текущем режиме камеры</source>
+      <translation>Autofocus is unavailable in the current camera mode</translation>
+    </message>
+    <message>
+      <source>Точка перемещена, но запуск AF отклонён (SDK %1)</source>
+      <translation>Point moved, but starting AF was rejected (SDK %1)</translation>
+    </message>
+    <message>
+      <source>Не удалось подтвердить отпускание AF (SDK %1). Переподключи камеру.</source>
+      <translation>AF release could not be confirmed (SDK %1). Reconnect the camera.</translation>
+    </message>
+    <message>
+      <source>Точка выбрана, команда автофокуса принята камерой.</source>
+      <translation>Point selected; the camera accepted the autofocus command.</translation>
+    </message>
+
+    <message>
       <source>Видео · %1 × %2 · без звука</source>
       <translation>Video · %1 × %2 · no audio</translation>
     </message>

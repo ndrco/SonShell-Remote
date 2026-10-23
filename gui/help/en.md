@@ -57,10 +57,13 @@ white balance and drive mode. Changing the physical camera mode may change
 availability. Use Read settings to refresh manually if necessary.
 
 To choose an AF area, enable Live View, choose a movable AF area such as Spot/Zone
-if supported, then enable Select AF point with mouse. Click to set the frame
-center; dragging still pans. Clicks outside the image are ignored. Coordinates
+if supported, then enable Click to focus. A click sets the frame center and starts autofocus;
+dragging still pans. Clicks outside the image are ignored. Coordinates
 outside the permitted AF frame bounds are rejected. Autofocus performs a
-half-press. An accepted point does not confirm sharp focus. The application does
+half-press without taking a photo and releases it after one second; clicking
+performs the same action after setting the point. Manual focus or unavailable AF
+disables this action. A rejected AF start after moving the point is shown separately.
+An accepted command does not confirm sharp focus. The application does
 not change exposure mode or the physical focus switch to enable this feature.
 
 Studio mode briefly shows a compressed preview after capture, then returns to

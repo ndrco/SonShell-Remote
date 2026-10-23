@@ -30,7 +30,7 @@ class ControlsTests final : public QObject {
     qputenv("REMOTE_TEST_RECORD", temporary_.filePath("commands.jsonl").toUtf8());
   }
   void cleanup() {
-    for (const auto* key : {"REMOTE_TEST_RECORD", "REMOTE_TEST_CONTROLS_READONLY", "REMOTE_TEST_CONTROLS_FAIL", "REMOTE_TEST_CONTROLS_LIST_FAIL"}) qunsetenv(key);
+    for (const auto* key : {"REMOTE_TEST_RECORD", "REMOTE_TEST_CONTROLS_READONLY", "REMOTE_TEST_CONTROLS_FAIL", "REMOTE_TEST_CONTROLS_LIST_FAIL", "REMOTE_TEST_AF_FAIL", "REMOTE_TEST_AF_UNAVAILABLE"}) qunsetenv(key);
   }
   void image_coordinates_exclude_margins_and_follow_zoom_and_pan() {
     ImageView view; view.resize(1000, 400); view.show();
@@ -84,6 +84,27 @@ class ControlsTests final : public QObject {
     QTRY_VERIFY(commands().contains("controls list")); QTest::qWait(800);
     QCOMPARE(commands().count("controls list"), 1);
     QVERIFY(!controls.findChild<QComboBox*>("focus_mode")->isEnabled());
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void rejected_autofocus_is_explained_after_point_was_moved() {
+    qputenv("REMOTE_TEST_AF_FAIL", "1");
+    CameraSession session; CameraCard card(&session); CameraControlsWidget controls(&session, &card);
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
+    controls.set_live(true); auto* af = controls.findChild<QCheckBox*>("mouse_af");
+    QTRY_VERIFY(af->isEnabled()); af->setChecked(true); controls.select_point({0.5, 0.5});
+    auto* message = controls.findChild<QLabel*>("controls_message");
+    QTRY_VERIFY(message->text().contains(QString::fromUtf8("запуск AF отклонён")));
+    QTest::qWait(500); QVERIFY(message->text().contains(QString::fromUtf8("запуск AF отклонён")));
+    QVERIFY(message->text().contains("32768"));
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void unavailable_autofocus_does_not_offer_click_action() {
+    qputenv("REMOTE_TEST_AF_UNAVAILABLE", "1");
+    CameraSession session; CameraCard card(&session); CameraControlsWidget controls(&session, &card);
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
+    controls.set_live(true); QTRY_VERIFY(controls.findChild<QComboBox*>("focus_mode")->isEnabled());
+    QVERIFY(!controls.findChild<QCheckBox*>("mouse_af")->isEnabled());
+    controls.select_point({0.5, 0.5}); QVERIFY(!commands().contains("controls af"));
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void rejected_setting_restores_camera_value_and_keeps_error_visible() {

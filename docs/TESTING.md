@@ -403,3 +403,27 @@ SHA256SUMS-0.6.1.txt, RELEASE-0.6.1.txt. Логи: build-package/release-0.6.1.l
 final-video-0.6.1.log, local-view-quality-0.6.1.log; build-clean/verify-0.6.1.log,
 fresh-runtime-0.6.1.log, upgrade-0.6.1.log. Личные файлы, SDK и диагностика с камеры
 не входят в репозиторий.
+
+
+## Версия 0.6.2 — 2026-10-23
+
+- Release CMake build и CTest: 8/8, 67 Qt-сценариев без init/cleanup плюс проверка
+  перевода. SDK backend 2.02 собран headless и с OpenCV.
+- Подменённый SDK проверяет порядок AF_Area_Position → S1 Locked → S1 Unlocked,
+  отсутствие S1 при ошибке координат/установки точки, отключение в MF/недоступном
+  S1, отпускание после отказа нажатия и повтор после отказа отпускания. S1 не
+  доступен через generic controls set. GUI показывает отдельный отказ AF после
+  перемещения точки и сохраняет ошибку после обновления snapshot.
+- Controls GUI и backend повторены под ASan: 2/2 набора без ошибок доступа,
+  detect_leaks=0. Это не проверка утечек.
+- Попытка аппаратной проверки через тот же CameraControlsWidget/CameraSession
+  не дошла до AF: камера 10.0.1.5 недоступна, SDK SSH ServerConnectFailed 0x8214.
+  Запуск фокусировки на физической камере не объявляется проверенным.
+- DEB 0.6.2 проверяется установкой/обновлением 0.6.1 → 0.6.2 в изолированном
+  Ubuntu Base 24.04.5 amd64 с runtime зависимостями, установленными при чистой
+  проверке 0.6.1. Зависимости не менялись. Проверяются RU/EN, версии, SDK loader,
+  хеши установленных бинарников и удаление. Хостовые настройки/службы не меняются.
+
+Артефакт: build-package/sonshell-remote_0.6.2-1ubuntu24.04_amd64.deb. Логи:
+build-package/release-0.6.2.log, build-asan/af-tests.log,
+build-asan-backend/af-tests.log, build-clean/verify-final-0.6.2.log.

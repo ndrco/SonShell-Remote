@@ -1,12 +1,12 @@
 # Установка на чистую Ubuntu
 
-Цель выпуска 0.6.1 — Ubuntu 24.04 LTS Desktop, amd64 (Intel/AMD 64-bit), X11/Wayland.
+Цель выпуска 0.6.2 — Ubuntu 24.04 LTS Desktop, amd64 (Intel/AMD 64-bit), X11/Wayland.
 Для пользователя нужен один пакет `.deb`, интернет для зависимостей Ubuntu и
 совместимая камера Sony. Компилятор, исходники и отдельная установка SDK не нужны.
 
 ```bash
 sudo apt update
-sudo apt install ./sonshell-remote_0.6.1-1ubuntu24.04_amd64.deb
+sudo apt install ./sonshell-remote_0.6.2-1ubuntu24.04_amd64.deb
 ```
 
 Открыть **SonShell Remote** из меню приложений или выполнить `sonshell-remote`.

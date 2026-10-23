@@ -61,8 +61,11 @@ for line in sys.stdin:
                     writable=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')),
                     current='1', values=[dict(value='1', label='Single'), dict(value='2', label='Continuous')]))
             event('snapshot', request, channel='controls', properties=properties,
-                  af=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')))
+                  af=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY') or os.environ.get('REMOTE_TEST_AF_UNAVAILABLE')))
         else:
+            if operation == 'af' and os.environ.get('REMOTE_TEST_AF_FAIL'):
+                event('error', request, channel='controls', message='af-press:32768')
+                continue
             event('error' if os.environ.get('REMOTE_TEST_CONTROLS_FAIL') else 'applied', request,
                   channel='controls', message='read-only')
     if command == 'shoot':
