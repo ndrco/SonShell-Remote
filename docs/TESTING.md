@@ -320,3 +320,20 @@ Release: CTest 8/8, 56 случаев Qt без init/cleanup и проверка
 36,46 с. ASan GUI/каталог 6/6 и backend 2/2; после финальных изменений повторены
 camera-card-tests, controls-tests, video-tests (3/3, 11,28 с). Leak detection
 отключён; ошибок доступа нет. Headless и OpenCV backend собраны.
+
+### Установка выпуска 0.6
+
+Заново распакован официальный Ubuntu Base 24.04.5 amd64 в `build-clean/rootfs-0.6`
+с проверкой tar.gz по SHA256SUMS. Apt установил все runtime зависимости с нуля,
+включая FFmpeg. В отдельном bwrap namespace без доступа к рабочему дереву и SDK
+проверены GUI/backend 0.6.0, русский/английский запуск до контрольного timeout,
+переведённый --help, ldd без отсутствующих библиотек, ExifTool и реальный
+цикл H.265 encode/decode → JPEG. Подключение SDK к изолированному loopback даёт
+ожидаемый CrError_Connect_ConnectIP/код 2; камера и сеть пользователя не используются.
+Хеши установленных GUI/backend совпали с DEB. Дополнительно пройдены установка
+0.5.0 → обновление 0.6.0 → apt remove. Настройки и службы хоста не менялись.
+
+Пакет: `build-package/sonshell-remote_0.6.0-1ubuntu24.04_amd64.deb`.
+Логи: `build-clean/fresh-install-0.6.log`, `fresh-runtime-0.6.log`,
+`upgrade-0.6.log`, `verify-0.6.log`; контрольная сумма/commit —
+`build-package/SHA256SUMS-0.6.0.txt` и `RELEASE-0.6.0.txt`.
