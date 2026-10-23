@@ -53,10 +53,11 @@ PhotoLibrary::Snapshot PhotoLibrary::read_directory(const QString& directory, co
     if (previous.value(path) != stamp) continue;
     if ((info.suffix().compare("jpg", Qt::CaseInsensitive) == 0 || info.suffix().compare("jpeg", Qt::CaseInsensitive) == 0)
         && !MediaReader::is_complete_jpeg(path)) continue;
-    const QString key = info.absolutePath() + '/' + info.completeBaseName().toCaseFolded();
+    const QString key = MediaReader::group_key(path);
     auto& item = groups[key];
     item.key = key; item.name = info.completeBaseName();
-    if (MediaReader::is_raw(path)) item.raw_path = path;
+    if (MediaReader::is_video(path)) item.video_path = path;
+    else if (MediaReader::is_raw(path)) item.raw_path = path;
     else if (item.jpeg_path.isEmpty() || path < item.jpeg_path) item.jpeg_path = path;
     item.modified = std::max(item.modified, info.lastModified());
     item.signature += path + ':' + stamp + ';';

@@ -7,6 +7,9 @@ import select
 import signal
 import sys
 import time
+import socket
+import threading
+import datetime
 
 args = sys.argv[1:]
 record = os.environ.get('REMOTE_TEST_RECORD')
@@ -40,6 +43,7 @@ if captured and not fixture:
                  files=[dict(id=1, format=0x3801, size=str(Path(captured).stat().st_size), path='DCIM/100MSDCF/снимок 1.jpg', source=captured)])]
 epoch = ''
 pending = None
+movie = None
 for line in sys.stdin:
     command = line.strip()
     record_event({'command': command})
@@ -73,9 +77,17 @@ for line in sys.stdin:
             event('item', epoch, epoch=epoch, **clean)
         event('end', epoch, epoch=epoch, stale=False)
     elif command == 'card cancel':
+        if movie:
+            movie['stop'].set()
+            event('movie-stopped', movie['request'])
+            movie = None
         if pending:
             event('error', pending, message='Передача отменена')
             pending = None
+    elif len(parts) >= 3 and parts[1] in ('movie-play', 'movie-pause', 'movie-seek'):
+        if movie and parts[2] == movie['request']:
+            movie['pause'] = parts[1] == 'movie-pause'
+            event('movie-state', parts[2], state='paused' if movie['pause'] else 'playing')
     elif len(parts) >= 6 and parts[0] == 'card':
         kind, request, revision, slot, content = parts[1:6]
         item = next((item for item in card if item['slot'] == int(slot) and item['id'] == int(content)), None)
@@ -93,7 +105,25 @@ for line in sys.stdin:
         if not file:
             event('error', request, message='Нет файла')
             continue
-        if kind == 'preview':
+        if kind == 'movie':
+            print('INFO  | [INFO] REMOTE/1 liveview-stopped', flush=True)
+            connection = socket.socket(socket.AF_UNIX); connection.settimeout(0.2)
+            connection.connect(bytes.fromhex(parts[7]).decode())
+            movie = dict(request=request, stop=threading.Event(), pause=False)
+            def stream(state=movie, client=connection):
+                try:
+                    source = Path(os.environ['REMOTE_TEST_HEVC']).read_bytes() * 20
+                    for offset in range(0, len(source), 1024):
+                        while state['pause'] and not state['stop'].is_set(): time.sleep(0.01)
+                        if state['stop'].is_set(): break
+                        client.sendall(source[offset:offset+1024]); time.sleep(0.02)
+                except (OSError, KeyError): pass
+                finally:
+                    client.close()
+                    if not state['stop'].is_set(): event('movie-stopped', state['request'])
+            threading.Thread(target=stream, daemon=True).start()
+            event('movie-state', request, state='playing')
+        elif kind == 'preview':
             if os.environ.get('REMOTE_TEST_PREVIEW_DELAY'):
                 time.sleep(float(os.environ['REMOTE_TEST_PREVIEW_DELAY']))
             source = os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
@@ -109,7 +139,10 @@ for line in sys.stdin:
                 pending = request
                 continue
             root = Path(bytes.fromhex(parts[7]).decode())
-            target = root / ('Slot_' + slot) / file['path']
+            capture_date = item.get('capture_date') or item.get('stamp', '')[:10]
+            try: datetime.date.fromisoformat(capture_date)
+            except ValueError: capture_date = 'Unknown-Date'
+            target = root / capture_date / ('Slot_' + slot) / file['path']
             target.parent.mkdir(parents=True, exist_ok=True)
             base = target
             n = 1

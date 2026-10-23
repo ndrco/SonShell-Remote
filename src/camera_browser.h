@@ -1,6 +1,8 @@
 #pragma once
 #include "CRSDK/CameraRemote_SDK.h"
+#include "movie_stream.h"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -17,18 +19,20 @@ class CameraBrowser final {
   using Output = std::function<void(const std::string&)>;
   CameraBrowser(std::mutex& transfers, Output output);
   ~CameraBrowser();
-  void start(SCRSDK::CrDeviceHandle handle, std::string cache, std::string identity);
+  void start(SCRSDK::CrDeviceHandle handle, std::string cache, std::string identity, std::string camera_host = {});
   void stop();
   bool command(const std::vector<std::string>& args);
   bool transfer_result(CrInt32u notify, CrInt32u percent);
   void delete_result(CrInt32u warning, CrInt32 result, CrInt32 content, CrInt32 slot);
   void contents_changed();
+  void playback_warning(unsigned warning) { movie_.warning(warning); }
+  void playback_data(unsigned type, int size, const unsigned char* data) { movie_.data(type, size, data); }
  private:
   struct File { unsigned id, format; unsigned long long size; std::string path; };
   struct Content {
     unsigned slot, id;
     bool protected_file, deletable;
-    std::string stamp, signature;
+    std::string stamp, signature, capture_date;
     std::vector<File> files;
   };
   void run();
@@ -44,7 +48,8 @@ class CameraBrowser final {
   std::mutex& transfers_;
   Output output_;
   SCRSDK::CrDeviceHandle handle_ = 0;
-  std::string cache_, identity_, epoch_;
+  std::string cache_, identity_, epoch_, camera_host_, movie_request_;
+  MovieStream movie_;
   std::map<std::string, Content> catalog_;
   std::thread worker_;
   std::mutex queue_mutex_, result_mutex_;
@@ -56,4 +61,5 @@ class CameraBrowser final {
   bool transferring_ = false, deleting_ = false, terminal_ = false;
   unsigned result_ = 0, delete_slot_ = 0, delete_content_ = 0, progress_ = 101;
   std::string active_request_;
+  std::chrono::steady_clock::time_point transfer_activity_;
 };

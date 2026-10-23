@@ -28,7 +28,7 @@ class GalleryFilter final : public QSortFilterProxyModel {
   bool filterAcceptsRow(int row, const QModelIndex& parent) const override {
     const auto index = sourceModel()->index(row, 0, parent);
     const auto type = index.data(GalleryModel::FormatRole).toString();
-    const bool matches = format.isEmpty() || (format == "JPEG" ? type.contains("JPEG") :
+    const bool matches = format.isEmpty() || (format == "video" && (type == "MP4" || type == "MOV" || type == "M4V")) || (format == "JPEG" ? type.contains("JPEG") :
         (format == "RAW" ? type.contains("RAW") : type == format));
     return matches && QSortFilterProxyModel::filterAcceptsRow(row, parent);
   }
@@ -48,10 +48,10 @@ QVariant GalleryModel::data(const QModelIndex& index, int role) const {
   const auto& item = items_[index.row()];
   switch (role) {
     case Qt::DisplayRole: return item.name + "\n" + item.format();
-    case Qt::ToolTipRole: return item.jpeg_path + (item.raw_path.isEmpty() ? "" : '\n' + item.raw_path);
+    case Qt::ToolTipRole: return item.path() + (item.raw_path.isEmpty() ? "" : '\n' + item.raw_path);
     case KeyRole: return item.key;
     case PathRole: return item.path();
-    case SearchRole: return item.name + ' ' + item.jpeg_path + ' ' + item.raw_path;
+    case SearchRole: return item.name + ' ' + item.path() + ' ' + item.raw_path;
     case FormatRole: return item.format();
     case DateRole: return item.modified.toMSecsSinceEpoch();
     case Qt::DecorationRole: {
@@ -96,7 +96,7 @@ GalleryWidget::GalleryWidget(QWidget* parent) : QWidget(parent), model_(this) {
   auto* layout = new QVBoxLayout(this);
   auto* filters = new QHBoxLayout;
   search_ = new QLineEdit(this); search_->setObjectName("gallery_search"); search_->setPlaceholderText(QCoreApplication::translate("App", "Поиск по имени или пути"));
-  format_ = new QComboBox(this); format_->setObjectName("gallery_format"); format_->addItems({QCoreApplication::translate("App", "Все форматы"), "JPEG", "RAW", "RAW+JPEG"});
+  format_ = new QComboBox(this); format_->setObjectName("gallery_format"); format_->addItems({QCoreApplication::translate("App", "Все форматы"), "JPEG", "RAW", "RAW+JPEG"}); format_->addItem(QCoreApplication::translate("App", "Видео"), "video");
   sort_ = new QComboBox(this); sort_->addItems({QCoreApplication::translate("App", "Сначала новые"), QCoreApplication::translate("App", "Сначала старые"), QCoreApplication::translate("App", "По имени")});
   filters->addWidget(search_, 1); filters->addWidget(format_); filters->addWidget(sort_);
   layout->addLayout(filters);
@@ -126,7 +126,7 @@ GalleryWidget::GalleryWidget(QWidget* parent) : QWidget(parent), model_(this) {
   auto count = [this] { count_->setText(QString(QCoreApplication::translate("App", "Снимков: %1 / %2")).arg(proxy_->rowCount()).arg(model_.rowCount())); };
   connect(search_, &QLineEdit::textChanged, this, [this, count](const QString& text) { proxy_->setFilterFixedString(text); count(); });
   connect(format_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, proxy, count](int index) {
-    proxy->format = index == 0 ? QString() : format_->currentText(); proxy->refresh(); count();
+    proxy->format = index == 0 ? QString() : format_->currentData().isNull() ? format_->currentText() : format_->currentData().toString(); proxy->refresh(); count();
   });
   connect(sort_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
     proxy_->setSortRole(index == 2 ? GalleryModel::KeyRole : GalleryModel::DateRole);
@@ -161,13 +161,14 @@ void GalleryWidget::set_items(const MediaItems& items) {
   }
 }
 void GalleryWidget::show_photo(const MediaResult& result) {
+  viewer_->set_local_video(result.video ? result.path : QString());
   viewer_->set_image(result.image, QFileInfo(result.path).fileName() + " · " + (result.error.isEmpty() ? result.source : result.error));
   metadata_->setPlainText(result.error.isEmpty() ? result.metadata.join('\n') : result.error);
 }
 
 void GalleryWidget::select_path(const QString& path) {
   const QFileInfo file(path);
-  const QString key = file.absolutePath() + '/' + file.completeBaseName().toCaseFolded();
+  const QString key = MediaReader::group_key(path);
   QSignalBlocker guard(list_->selectionModel());
   for (int row = 0; row < proxy_->rowCount(); ++row) {
     const auto index = proxy_->index(row, 0);

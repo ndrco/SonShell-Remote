@@ -17,6 +17,7 @@
 #include <QTreeWidget>
 #include <QLineEdit>
 #include <QProgressBar>
+#include <QLabel>
 
 class CameraCardTests final : public QObject {
   Q_OBJECT
@@ -78,16 +79,16 @@ class CameraCardTests final : public QObject {
     QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
     QSignalSpy copied(&card, &CameraCard::copied);
     card.copy({"1:1"}, "jpeg", CameraCard::CopyMode::Selected); QTRY_COMPARE(copied.size(), 1); QTRY_VERIFY(!card.busy());
-    QVERIFY(QFileInfo::exists(folder.filePath("Slot_1/DCIM/100MSDCF/кадр 1.JPG")));
+    QVERIFY(QFileInfo::exists(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/кадр 1.JPG")));
     const auto item = card.items().at(2); QCOMPARE(item.key(), QString("1:1"));
     QVERIFY(!card.is_new(item, "jpeg")); QVERIFY(card.is_new(item, "all"));
     card.copy({}, "all", CameraCard::CopyMode::New); QTRY_COMPARE(copied.size(), 4); QTRY_VERIFY(!card.busy());
     card.copy({}, "all", CameraCard::CopyMode::New); QTest::qWait(100); QCOMPARE(copied.size(), 4);
     // Removing a completed local file makes just that file new again.
-    QVERIFY(QFile::remove(folder.filePath("Slot_1/DCIM/100MSDCF/кадр 1.ARW")));
+    QVERIFY(QFile::remove(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/кадр 1.ARW")));
     card.copy({}, "raw", CameraCard::CopyMode::New); QTRY_COMPARE(copied.size(), 5); QTRY_VERIFY(!card.busy());
     card.copy({}, "all", CameraCard::CopyMode::All); QTRY_COMPARE(copied.size(), 9); QTRY_VERIFY(!card.busy());
-    QVERIFY(QFileInfo::exists(folder.filePath("Slot_1/DCIM/100MSDCF/кадр 1_1.JPG")));
+    QVERIFY(QFileInfo::exists(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/кадр 1_1.JPG")));
     // A new controller reloads the ledger; no duplicate transfers after restart.
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
     CameraSession second_session; CameraCard second(&second_session); connect_card(second_session, second, folder.path());
@@ -165,10 +166,15 @@ class CameraCardTests final : public QObject {
     list->setCurrentItem(row, 2); QTest::keyClick(list, Qt::Key_Space); QCOMPARE(row->checkState(0), Qt::Unchecked);
     viewer->toggle_fullscreen(); QTest::qWait(30);
     QTest::keyClick(viewer->view(), Qt::Key_Space); QCOMPARE(row->checkState(0), Qt::Checked);
+    auto* notice = viewer->findChild<QLabel*>("action_overlay"); auto* marks = viewer->findChild<QLabel*>("selection_overlay");
+    QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("Выбрано для копирования")));
+    QVERIFY(marks->isVisible()); QVERIFY(marks->text().contains(QString::fromUtf8("КОПИЯ: выбрано")));
     QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(row->checkState(1), Qt::Unchecked);
+    QVERIFY(notice->text().contains(QString::fromUtf8("Отметка брака снята")));
     // Protected photos remain unmarked; Delete never sends a deletion command.
     list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card.busy());
     QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(list->currentItem()->checkState(1), Qt::Unchecked);
+    QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("защищён")));
     QVERIFY(!commands().contains("card delete"));
     viewer->leave_fullscreen(); widget.activateWindow(); QTest::qWait(30);
     auto* search = widget.findChild<QLineEdit*>(); search->setText("кадр"); search->setCursorPosition(0); search->setFocus();

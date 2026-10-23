@@ -54,6 +54,11 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   review_.setObjectName("studio_review");
   review_.configure(studio_->isChecked(), review_seconds_->value());
   card_.set_studio(studio_->isChecked());
+  connect(&card_, &CameraCard::movie_viewing, this, [this](bool active) {
+    for (auto* action : camera_actions_) action->setEnabled(!active && session_.state() == CameraSession::State::Connected);
+    if (active) { resume_liveview_ = liveview_running_; review_.cancel(); }
+    else if (resume_liveview_ && session_.state() == CameraSession::State::Connected) { resume_liveview_ = false; send("monitor start"); }
+  });
   connect(&card_, &CameraCard::copied, this, [this](const QString& path) { photos_.completed_download(path, false); });
   connect(&card_, &CameraCard::busy_changed, this, [this](bool busy) { browse_->setEnabled(!busy); folder_->setEnabled(!busy); });
   connect(&card_, &CameraCard::studio_ready, this, [this](const QImage& image, const QString& name) {
@@ -101,7 +106,10 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     gallery_->select_path(result.path);
     photo_caption_ = QFileInfo(result.path).fileName() + " · " + result.source;
     gallery_->show_photo(result);
-    if (photo_window_ && !result.image.isNull()) photo_window_->set_image(photo_, photo_caption_);
+    if (photo_window_ && !result.image.isNull()) {
+      photo_window_->set_local_video(result.video ? result.path : QString());
+      photo_window_->set_image(photo_, photo_caption_);
+    }
     if (open_after_load_ && !photo_.isNull()) open_photo();
     open_after_load_ = false;
     Q_UNUSED(new_capture);
@@ -218,7 +226,7 @@ void MainWindow::create_ui() {
   gallery_ = new GalleryWidget(tabs); photo_view_ = gallery_->viewer();
   card_widget_ = new CameraCardWidget(&card_, tabs); card_widget_->setEnabled(false);
   tabs->addTab(live_host, "Live View"); tabs->addTab(card_widget_, QCoreApplication::translate("App", "В камере")); tabs->addTab(gallery_, QCoreApplication::translate("App", "На компьютере · EXIF"));
-  connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) { if (index == 1) card_widget_->activated(); });
+  connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) { if (index == 1) card_widget_->activated(); else if (card_.playing_video()) card_.cancel(); });
   right_layout->addWidget(tabs, 4);
   log_ = new QPlainTextEdit(right); log_->setReadOnly(true); log_->setMaximumBlockCount(1500);
   log_->setPlaceholderText(QCoreApplication::translate("App", "Журнал соединения и передачи файлов")); log_->setMaximumHeight(180);
@@ -328,6 +336,7 @@ void MainWindow::open_photo() {
     connect(photo_window_, &ImageViewer::navigate_requested, gallery_, &GalleryWidget::navigate);
     photo_window_->resize(1100, 800);
   }
+  photo_window_->set_local_video(MediaReader::is_video(photo_path_) ? photo_path_ : QString());
   photo_window_->set_image(photo_, photo_caption_);
   photo_window_->show(); photo_window_->view()->actual_size(); photo_window_->raise(); photo_window_->activateWindow();
 }

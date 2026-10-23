@@ -68,7 +68,7 @@ add_custom_target(sonshell_generate_sdk_maps
   DEPENDS "${PROP_GENERATED}" "${ERROR_GENERATED}"
 )
 
-add_executable(sonshell src/main.cpp src/live_view_stream.cpp src/camera_browser.cpp src/camera_controls.cpp)
+add_executable(sonshell src/main.cpp src/live_view_stream.cpp src/camera_browser.cpp src/camera_controls.cpp src/movie_stream.cpp)
 add_dependencies(sonshell sonshell_generate_sdk_maps)
 target_compile_definitions(sonshell PRIVATE SONSHELL_REMOTE_VERSION="${PROJECT_VERSION}")
 

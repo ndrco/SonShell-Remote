@@ -1,5 +1,7 @@
 #include <QCoreApplication>
 #include "image_viewer.h"
+#include "video_preview.h"
+#include <QSpinBox>
 #include <QBoxLayout>
 #include <QCloseEvent>
 #include <QGraphicsPixmapItem>
@@ -10,6 +12,7 @@
 #include <QSplitter>
 #include <QWheelEvent>
 #include <cmath>
+#include <algorithm>
 #include <QApplication>
 #include <QMouseEvent>
 
@@ -24,7 +27,31 @@ ImageView::ImageView(QWidget* parent) : QGraphicsView(parent) {
   setResizeAnchor(QGraphicsView::AnchorViewCenter);
   setRenderHint(QPainter::SmoothPixmapTransform);
   setMinimumSize(200, 140);
+  marks_ = new QLabel(viewport()); marks_->setObjectName("selection_overlay");
+  notice_ = new QLabel(viewport()); notice_->setObjectName("action_overlay");
+  for (auto* label : {marks_, notice_}) {
+    label->setTextFormat(Qt::PlainText); label->setWordWrap(true); label->hide();
+    label->setAttribute(Qt::WA_TransparentForMouseEvents);
+    label->setStyleSheet("QLabel { background: rgba(12, 18, 28, 225); color: white; border: 1px solid #91a4bd; border-radius: 7px; padding: 10px; font-size: 16px; font-weight: bold; }");
+  }
+  notice_->setAlignment(Qt::AlignCenter);
+  notice_timer_.setSingleShot(true); notice_timer_.setInterval(2300);
+  connect(&notice_timer_, &QTimer::timeout, notice_, &QWidget::hide);
 }
+void ImageView::position_overlays() {
+  if (!marks_ || !notice_) return;
+  const int width = std::max(40, viewport()->width() - 32);
+  for (auto* label : {marks_, notice_}) { label->setFixedWidth(width); label->adjustSize(); label->raise(); }
+  marks_->move(16, 16);
+  notice_->move(16, std::max(16, (viewport()->height() - notice_->height()) / 2));
+}
+void ImageView::set_marks(const QString& text) {
+  marks_->setText(text); marks_->setVisible(!text.isEmpty()); position_overlays();
+}
+void ImageView::show_notice(const QString& text) {
+  notice_->setText(text); notice_->show(); position_overlays(); notice_timer_.start();
+}
+void ImageView::clear_notice() { notice_timer_.stop(); notice_->hide(); }
 
 void ImageView::set_image(const QImage& image) {
   const bool changed_size = item_->pixmap().size() != image.size();
@@ -53,6 +80,7 @@ void ImageView::zoom(double factor) {
 void ImageView::resizeEvent(QResizeEvent* event) {
   QGraphicsView::resizeEvent(event);
   if (fit_) fit_image();
+  position_overlays();
 }
 void ImageView::wheelEvent(QWheelEvent* event) {
   zoom(std::pow(1.0015, event->angleDelta().y()));
@@ -102,6 +130,27 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   add(QCoreApplication::translate("App", "Полный экран · F11"), [this] { toggle_fullscreen(); });
   layout->addLayout(bar);
   layout->addWidget(view_, 1);
+  video_ = new VideoPreview(this);
+  connect(video_, &VideoPreview::frame_ready, view_, &ImageView::set_image);
+  connect(video_, &VideoPreview::failed, this, [this](const QString& error) { view_->show_notice(error); emit movie_failed(); });
+  video_bar_ = new QWidget(this); video_bar_->setObjectName("movie_controls");
+  auto* video_layout = new QHBoxLayout(video_bar_); video_layout->setContentsMargins(0, 0, 0, 0);
+  auto* play = new QPushButton(QCoreApplication::translate("App", "Воспроизвести"), video_bar_); play->setObjectName("movie_play");
+  auto* pause = new QPushButton(QCoreApplication::translate("App", "Пауза"), video_bar_); pause->setObjectName("movie_pause");
+  auto* stop = new QPushButton(QCoreApplication::translate("App", "Стоп"), video_bar_); stop->setObjectName("movie_stop");
+  auto* seek = new QSpinBox(video_bar_); seek->setRange(0, 86400); seek->setSuffix(QCoreApplication::translate("App", " с"));
+  auto* jump = new QPushButton(QCoreApplication::translate("App", "Перейти"), video_bar_);
+  auto* silent = new QLabel(QCoreApplication::translate("App", "Видео · без звука"), video_bar_);
+  for (auto* widget : QList<QWidget*>{play, pause, stop, seek, jump, silent}) video_layout->addWidget(widget);
+  connect(play, &QPushButton::clicked, this, [this] {
+    if (remote_video_) emit movie_play_requested(); else if (video_->running()) video_->pause_local(false); else video_->play_local(video_path_);
+  });
+  connect(pause, &QPushButton::clicked, this, [this] { if (remote_video_) emit movie_pause_requested(); else video_->pause_local(true); });
+  connect(stop, &QPushButton::clicked, this, [this] { if (remote_video_) emit movie_stop_requested(); else video_->stop(); });
+  connect(jump, &QPushButton::clicked, this, [this, seek] {
+    if (remote_video_) emit movie_seek_requested(seek->value()); else video_->play_local(video_path_, seek->value());
+  });
+  video_bar_->hide(); layout->addWidget(video_bar_);
   connect(view_, &ImageView::zoom_changed, this, [this] {
     zoom_label_->setText(QString::number(qRound(view_->zoom_factor() * 100)) + "%");
   });
@@ -125,6 +174,15 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   escape->setContext(Qt::WidgetWithChildrenShortcut);
   connect(escape, &QShortcut::activated, this, &ImageViewer::leave_fullscreen);
 }
+void ImageViewer::stop_video() { video_->stop(); }
+void ImageViewer::set_local_video(const QString& path) {
+  stop_video(); remote_video_ = false; video_path_ = path; video_bar_->setVisible(!path.isEmpty());
+}
+void ImageViewer::set_remote_video(bool enabled) {
+  stop_video(); remote_video_ = enabled; video_path_.clear(); video_bar_->setVisible(enabled);
+}
+bool ImageViewer::prepare_stream(const QString& socket_path) { return video_->listen(socket_path); }
+void ImageViewer::set_video_controls_enabled(bool enabled) { video_bar_->setEnabled(enabled); }
 void ImageViewer::set_navigation_enabled(bool enabled) {
   for (auto* shortcut : navigation_) shortcut->setEnabled(enabled);
 }

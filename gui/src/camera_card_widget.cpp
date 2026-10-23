@@ -23,6 +23,10 @@
 #include <algorithm>
 
 namespace {
+QString preview_caption(const QTreeWidgetItem* row) {
+  return row->data(2, Qt::UserRole).toString() + (row->data(2, Qt::UserRole + 1).toStringList().contains("video") ?
+      QCoreApplication::translate("App", " · видео: миниатюра камеры") : QCoreApplication::translate("App", " · сжатое превью камеры · 100% относится к превью"));
+}
 class CardCheckDelegate final : public QStyledItemDelegate {
  public:
   explicit CardCheckDelegate(QObject* parent) : QStyledItemDelegate(parent) {}
@@ -74,7 +78,9 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   add(QCoreApplication::translate("App", "Обновить карту"), "card_refresh", [this] { card_->refresh(); });
   search_ = new QLineEdit(this); search_->setPlaceholderText(QCoreApplication::translate("App", "Имя, дата или слот")); tools->addWidget(search_, 1);
   format_ = new QComboBox(this); format_->setObjectName("card_format");
-  format_->addItem("RAW + JPEG / HEIF", "all"); format_->addItem(QCoreApplication::translate("App", "Только RAW"), "raw"); format_->addItem(QCoreApplication::translate("App", "Только JPEG"), "jpeg");
+  format_->addItem(QCoreApplication::translate("App", "Фото и видео"), "all");
+  format_->addItem(QCoreApplication::translate("App", "Только фото"), "photo");
+  format_->addItem(QCoreApplication::translate("App", "Только видео"), "video"); format_->addItem(QCoreApplication::translate("App", "Только RAW"), "raw"); format_->addItem(QCoreApplication::translate("App", "Только JPEG"), "jpeg");
   tools->addWidget(format_); actions_.append(format_); layout->addLayout(tools);
   auto* selection = new QHBoxLayout; tools = selection;
   add(QCoreApplication::translate("App", "Отметить все"), "card_select_all", [this] { select("all"); });
@@ -83,7 +89,7 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   count_ = new QLabel(this); selection->addWidget(count_, 1); layout->addLayout(selection);
   auto* split = new QSplitter(this);
   list_ = new QTreeWidget(split); list_->setObjectName("card_items"); list_->setColumnCount(3);
-  list_->setHeaderLabels({QCoreApplication::translate("App", "Копия"), QCoreApplication::translate("App", "Брак"), QCoreApplication::translate("App", "Кадр на карте")});
+  list_->setHeaderLabels({QCoreApplication::translate("App", "Копия"), QCoreApplication::translate("App", "Брак"), QCoreApplication::translate("App", "Фото / видео на карте")});
   list_->setIconSize({72, 48}); list_->setRootIsDecorated(false); list_->setUniformRowHeights(true);
   list_->setSelectionMode(QAbstractItemView::SingleSelection);
   auto* checks = new CardCheckDelegate(list_);
@@ -100,6 +106,17 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   }
   list_->header()->setStretchLastSection(true);
   viewer_ = new ImageViewer(split); viewer_->setObjectName("card_preview");
+  connect(viewer_, &ImageViewer::movie_play_requested, this, &CameraCardWidget::play_movie);
+  connect(viewer_, &ImageViewer::movie_pause_requested, this, [this] { card_->movie_control("pause"); });
+  connect(viewer_, &ImageViewer::movie_seek_requested, this, [this](int seconds) { card_->movie_control("seek", seconds); });
+  connect(viewer_, &ImageViewer::movie_stop_requested, this, [this] { if (card_->playing_video()) card_->cancel(); });
+  connect(viewer_, &ImageViewer::movie_failed, this, [this] { if (card_->playing_video()) card_->cancel(); });
+  connect(card_, &CameraCard::movie_failed, this, [this](const QString& message) { viewer_->stop_video(); viewer_->view()->show_notice(message); });
+  connect(card_, &CameraCard::movie_state, this, [this](const QString& state) {
+    if (auto* row = list_->currentItem()) viewer_->set_caption(row->data(2, Qt::UserRole).toString() + QCoreApplication::translate("App", " · потоковый просмотр с камеры"));
+    viewer_->view()->show_notice(state == "paused" ? QCoreApplication::translate("App", "Видео: пауза") :
+        state == "preparing" ? QCoreApplication::translate("App", "Подготовка видеопотока…") : QCoreApplication::translate("App", "Видео: воспроизведение"));
+  });
   viewer_->set_navigation_enabled(true);
   viewer_->set_marking_enabled(true);
   connect(viewer_, &ImageViewer::mark_requested, this, &CameraCardWidget::toggle_mark);
@@ -120,13 +137,17 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   status_ = new QLabel(QCoreApplication::translate("App", "Подключи камеру и обнови список карты"), this); status_->setWordWrap(true); status_->setTextFormat(Qt::PlainText); layout->addWidget(status_);
   connect(search_, &QLineEdit::textChanged, this, &CameraCardWidget::filter);
   connect(format_, &QComboBox::currentIndexChanged, this, &CameraCardWidget::rebuild);
-  connect(list_, &QTreeWidget::itemSelectionChanged, this, &CameraCardWidget::request_preview);
+  connect(list_, &QTreeWidget::itemSelectionChanged, this, [this] {
+    viewer_->view()->clear_notice(); update_marks(); request_preview();
+  });
+  connect(list_, &QTreeWidget::itemChanged, this, [this] { update_marks(); });
   connect(list_, &QTreeWidget::itemDoubleClicked, this, [this] { viewer_->toggle_fullscreen(); });
   connect(card_, &CameraCard::catalog_changed, this, &CameraCardWidget::rebuild);
   connect(card_, &CameraCard::status_changed, status_, &QLabel::setText);
   connect(card_, &CameraCard::busy_changed, this, [this](bool busy) {
     for (auto* action : actions_) action->setEnabled(!busy);
     list_->setEnabled(!busy || card_->previewing()); cancel_->setEnabled(busy);
+    viewer_->set_video_controls_enabled(!busy || card_->playing_video());
     if (!busy && !pending_preview_.isEmpty()) QTimer::singleShot(0, this, &CameraCardWidget::request_preview);
   });
   connect(card_, &CameraCard::progress_changed, this, [this](int done, int total, int percent) {
@@ -143,7 +164,7 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
       row->setIcon(2, QPixmap::fromImage(image.scaled(72, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
       if (row == list_->currentItem()) {
         displayed_ = key;
-        viewer_->set_image(image, row->data(2, Qt::UserRole).toString() + QCoreApplication::translate("App", " · сжатое превью камеры · 100% относится к превью"));
+        viewer_->set_image(image, preview_caption(row));
       }
       break;
     }
@@ -171,6 +192,14 @@ void CameraCardWidget::rebuild() {
     if (item.deletable && !item.protected_file) row->setCheckState(1, rejected.contains(item.key()) ? Qt::Checked : Qt::Unchecked);
     const auto title = item.name() + " · " + item.format();
     row->setData(2, Qt::UserRole, title);
+    QStringList formats;
+    for (const auto& file : item.files) {
+      if (file.format == 0xb982) formats << "video";
+      if (file.format == 0xb101) formats << "raw" << "photo";
+      if (file.format == 0x3801) formats << "jpeg" << "photo";
+      if (file.format == 0xb110) formats << "photo";
+    }
+    row->setData(2, Qt::UserRole + 1, formats);
     row->setText(2, title + QString(QCoreApplication::translate("App", "\nСлот %1 · %2 UTC\n")).arg(item.slot).arg(QString(item.stamp).replace('T', ' ')) +
         (card_->is_new(item, format_->currentData().toString()) ? QCoreApplication::translate("App", "Новый") : QCoreApplication::translate("App", "Скопирован")) +
         QString(item.protected_file ? QCoreApplication::translate("App", " · защищён") : !item.deletable ? QCoreApplication::translate("App", " · удаление недоступно") : ""));
@@ -181,7 +210,7 @@ void CameraCardWidget::rebuild() {
     if (item.key() == current) list_->setCurrentItem(row);
   }
   if (card_->items().isEmpty()) {
-    previews_.clear(); displayed_.clear(); pending_preview_.clear(); viewer_->set_image({}, QCoreApplication::translate("App", "Выбери кадр на карте для просмотра"));
+    previews_.clear(); displayed_.clear(); pending_preview_.clear(); viewer_->set_remote_video(false); viewer_->set_image({}, QCoreApplication::translate("App", "Выбери кадр на карте для просмотра"));
   }
   filter();
 }
@@ -189,10 +218,12 @@ void CameraCardWidget::filter() {
   int visible = 0;
   for (int i = 0; i < list_->topLevelItemCount(); ++i) {
     auto* row = list_->topLevelItem(i);
-    const bool match = row->text(2).contains(search_->text().trimmed(), Qt::CaseInsensitive);
+    const bool match = row->text(2).contains(search_->text().trimmed(), Qt::CaseInsensitive) &&
+        (format_->currentData() == "all" || row->data(2, Qt::UserRole + 1).toStringList().contains(format_->currentData().toString()));
     row->setHidden(!match); if (match) ++visible;
   }
   count_->setText(QString(QCoreApplication::translate("App", "Показано %1 из %2")).arg(visible).arg(list_->topLevelItemCount()));
+  update_marks();
 }
 void CameraCardWidget::select(const QString& mode) {
   for (int i = 0; i < list_->topLevelItemCount(); ++i) {
@@ -209,14 +240,24 @@ void CameraCardWidget::copy(CameraCard::CopyMode mode) {
 void CameraCardWidget::request_preview() {
   auto* row = list_->currentItem(); if (!row) return;
   const auto key = row->data(0, Qt::UserRole).toString();
+  if (card_->playing_video()) { pending_preview_ = key; card_->cancel(); return; }
+  const bool video = row->data(2, Qt::UserRole + 1).toStringList().contains("video");
+  viewer_->set_remote_video(video);
   if (auto* image = previews_.object(key)) {
-    pending_preview_.clear(); displayed_ = key; viewer_->set_image(*image, row->data(2, Qt::UserRole).toString() + QCoreApplication::translate("App", " · сжатое превью камеры · 100% относится к превью"));
+    pending_preview_.clear(); displayed_ = key; viewer_->set_image(*image, preview_caption(row));
   } else {
     if (card_->busy()) { if (card_->previewing()) pending_preview_ = key; return; }
     pending_preview_.clear();
-    viewer_->set_caption(row->data(2, Qt::UserRole).toString() + QCoreApplication::translate("App", " · загружаю превью…"));
+    viewer_->set_image({}, row->data(2, Qt::UserRole).toString() + QCoreApplication::translate("App", " · загружаю превью…"));
     card_->preview(key);
   }
+}
+void CameraCardWidget::play_movie() {
+  if (card_->playing_video()) { card_->movie_control("play"); return; }
+  auto* row = list_->currentItem();
+  if (!row || row->isHidden() || card_->busy() || !row->data(2, Qt::UserRole + 1).toStringList().contains("video")) return;
+  const auto socket = card_->movie_socket_path();
+  if (viewer_->prepare_stream(socket)) card_->play_movie(row->data(0, Qt::UserRole).toString(), socket);
 }
 void CameraCardWidget::navigate(int step) {
   if (card_->busy() && !card_->previewing()) return;
@@ -227,13 +268,30 @@ void CameraCardWidget::navigate(int step) {
     if (!item->isHidden()) { list_->setCurrentItem(item); list_->scrollToItem(item); return; }
   }
 }
+void CameraCardWidget::update_marks() {
+  const auto* row = list_->currentItem();
+  if (!row || row->isHidden()) { viewer_->view()->set_marks({}); return; }
+  const auto copy = row->checkState(0) == Qt::Checked ? QCoreApplication::translate("App", "КОПИЯ: выбрано") : QCoreApplication::translate("App", "КОПИЯ: нет");
+  const auto reject = !row->data(1, Qt::CheckStateRole).isValid() ? QCoreApplication::translate("App", "БРАК: удаление недоступно") :
+      row->checkState(1) == Qt::Checked ? QCoreApplication::translate("App", "БРАК: выбрано") : QCoreApplication::translate("App", "БРАК: нет");
+  viewer_->view()->set_marks(row->data(2, Qt::UserRole).toString() + "\n" + copy + "  ·  " + reject);
+}
 void CameraCardWidget::toggle_mark(bool rejected) {
-  if (!isEnabled() || (card_->busy() && !card_->previewing())) return;
+  if (!isEnabled() || (card_->busy() && !card_->previewing())) {
+    viewer_->view()->show_notice(QCoreApplication::translate("App", "Отбор недоступен во время операции")); return;
+  }
   auto* row = list_->currentItem();
   const int column = rejected ? 1 : 0;
-  if (!row || row->isHidden() || !row->data(column, Qt::CheckStateRole).isValid()) return;
-  row->setCheckState(column, row->checkState(column) == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+  if (!row || row->isHidden()) return;
+  if (!row->data(column, Qt::CheckStateRole).isValid()) {
+    viewer_->view()->show_notice(QCoreApplication::translate("App", "Нельзя отметить брак: файл защищён или удаление недоступно")); return;
+  }
+  const bool mark = row->checkState(column) != Qt::Checked;
+  row->setCheckState(column, mark ? Qt::Checked : Qt::Unchecked);
+  viewer_->view()->show_notice(rejected ? (mark ? QCoreApplication::translate("App", "Отмечено как брак · Delete — снять") : QCoreApplication::translate("App", "Отметка брака снята")) :
+      (mark ? QCoreApplication::translate("App", "Выбрано для копирования · Space — снять") : QCoreApplication::translate("App", "Отметка копирования снята")));
 }
+
 void CameraCardWidget::remove_rejected() {
   const auto rejected = checked(true); if (rejected.isEmpty()) { status_->setText(QCoreApplication::translate("App", "Сначала отметь брак в отдельном столбце")); return; }
   QStringList names;
@@ -241,8 +299,8 @@ void CameraCardWidget::remove_rejected() {
   for (const auto& item : card_->items()) if (rejected.contains(item.key())) {
     names.append(QString(QCoreApplication::translate("App", "Слот %1 · %2 · %3")).arg(item.slot).arg(item.name(), item.format())); file_count += item.files.size();
   }
-  QMessageBox confirm(QMessageBox::Warning, QCoreApplication::translate("App", "Удалить брак с карты камеры"), QCoreApplication::translate("App", "Удалить навсегда кадров: ") + QString::number(names.size()) +
-      QCoreApplication::translate("App", " (файлов: ") + QString::number(file_count) + QCoreApplication::translate("App", ")?\n\nБудут удалены все файлы каждого кадра, включая пару RAW+JPEG. Отменить удаление с карты нельзя. Локальные копии сохранятся."), QMessageBox::NoButton, this);
+  QMessageBox confirm(QMessageBox::Warning, QCoreApplication::translate("App", "Удалить отмеченное с карты камеры"), QCoreApplication::translate("App", "Удалить навсегда записей: ") + QString::number(names.size()) +
+      QCoreApplication::translate("App", " (файлов: ") + QString::number(file_count) + QCoreApplication::translate("App", ")?\n\nФотографии и ролики будут удалены целиком, включая RAW+JPEG, видео, прокси и сопутствующие файлы. Отменить удаление с карты нельзя. Локальные копии сохранятся."), QMessageBox::NoButton, this);
   confirm.setDetailedText(names.join('\n')); confirm.setTextFormat(Qt::PlainText);
   auto* erase = confirm.addButton(QCoreApplication::translate("App", "Удалить с карты"), QMessageBox::DestructiveRole);
   auto* cancel = confirm.addButton(QCoreApplication::translate("App", "Отмена"), QMessageBox::RejectRole); confirm.setDefaultButton(cancel);

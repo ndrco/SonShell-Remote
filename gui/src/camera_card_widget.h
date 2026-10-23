@@ -26,6 +26,8 @@ class CameraCardWidget final : public QWidget {
   void request_preview();
   void navigate(int step);
   void toggle_mark(bool rejected);
+  void update_marks();
+  void play_movie();
   CameraCard* card_;
   QTreeWidget* list_;
   QComboBox* format_;

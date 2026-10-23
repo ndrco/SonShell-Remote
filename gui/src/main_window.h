@@ -70,5 +70,5 @@ class MainWindow final : public QMainWindow {
   QString photo_path_, photo_caption_;
   bool decode_pending_ = false, open_after_load_ = false;
   bool loading_ = false;
-  bool liveview_running_ = false;
+  bool liveview_running_ = false, resume_liveview_ = false;
 };

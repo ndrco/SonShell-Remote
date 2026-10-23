@@ -1005,5 +1005,145 @@ All files belonging to each photo will be deleted, including RAW+JPEG pairs. Car
       <source>Точка за пределами допустимой области AF</source>
       <translation>Point outside the permitted AF area</translation>
     </message>
+    <message>
+      <source>FFmpeg недоступен. Переустанови приложение.</source>
+      <translation>FFmpeg is unavailable. Reinstall the application.</translation>
+    </message>
+    <message>
+      <source>БРАК: выбрано</source>
+      <translation>REJECT: marked</translation>
+    </message>
+    <message>
+      <source>БРАК: нет</source>
+      <translation>REJECT: no</translation>
+    </message>
+    <message>
+      <source>БРАК: удаление недоступно</source>
+      <translation>REJECT: deletion unavailable</translation>
+    </message>
+    <message>
+      <source>Видео</source>
+      <translation>Video</translation>
+    </message>
+    <message>
+      <source>Видео · без звука</source>
+      <translation>Video · silent preview</translation>
+    </message>
+    <message>
+      <source>Видео · первый кадр</source>
+      <translation>Video · first frame</translation>
+    </message>
+    <message>
+      <source>Видео: воспроизведение</source>
+      <translation>Video: playing</translation>
+    </message>
+    <message>
+      <source>Видео: пауза</source>
+      <translation>Video: paused</translation>
+    </message>
+    <message>
+      <source>Видеопросмотр остановлен</source>
+      <translation>Video preview stopped</translation>
+    </message>
+    <message>
+      <source>Воспроизвести</source>
+      <translation>Play</translation>
+    </message>
+    <message>
+      <source>Выбрано для копирования · Space — снять</source>
+      <translation>Marked for copying · Space to clear</translation>
+    </message>
+    <message>
+      <source>КОПИЯ: выбрано</source>
+      <translation>COPY: marked</translation>
+    </message>
+    <message>
+      <source>КОПИЯ: нет</source>
+      <translation>COPY: no</translation>
+    </message>
+    <message>
+      <source>Не удалось декодировать видео</source>
+      <translation>Could not decode video</translation>
+    </message>
+    <message>
+      <source>Нельзя отметить брак: файл защищён или удаление недоступно</source>
+      <translation>Cannot mark reject: file protected or deletion unavailable</translation>
+    </message>
+    <message>
+      <source>Отбор недоступен во время операции</source>
+      <translation>Marking is unavailable during this operation</translation>
+    </message>
+    <message>
+      <source>Отметка брака снята</source>
+      <translation>Reject mark cleared</translation>
+    </message>
+    <message>
+      <source>Отметка копирования снята</source>
+      <translation>Copy mark cleared</translation>
+    </message>
+    <message>
+      <source>Отмечено как брак · Delete — снять</source>
+      <translation>Marked as reject · Delete to clear</translation>
+    </message>
+    <message>
+      <source>Пауза</source>
+      <translation>Pause</translation>
+    </message>
+    <message>
+      <source>Перейти</source>
+      <translation>Seek</translation>
+    </message>
+    <message>
+      <source>Подготовка видеопотока…</source>
+      <translation>Preparing video stream…</translation>
+    </message>
+    <message>
+      <source>Превышен лимит буфера видеопревью</source>
+      <translation>Video preview buffer limit exceeded</translation>
+    </message>
+    <message>
+      <source>Стоп</source>
+      <translation>Stop</translation>
+    </message>
+    <message>
+      <source>Только видео</source>
+      <translation>Video only</translation>
+    </message>
+    <message>
+      <source>Только фото</source>
+      <translation>Photos only</translation>
+    </message>
+    <message>
+      <source>Фото и видео</source>
+      <translation>Photos and videos</translation>
+    </message>
+    <message>
+      <source> · видео: миниатюра камеры</source>
+      <translation> · video: camera thumbnail</translation>
+    </message>
+    <message>
+      <source> · потоковый просмотр с камеры</source>
+      <translation> · streaming preview from camera</translation>
+    </message>
+    <message>
+      <source>Фото / видео на карте</source>
+      <translation>Photo / video on card</translation>
+    </message>
+    <message>
+      <source>Удалить отмеченное с карты камеры</source>
+      <translation>Delete marked contents from camera card</translation>
+    </message>
+    <message>
+      <source>Удалить навсегда записей: </source>
+      <translation>Permanently delete items: </translation>
+    </message>
+    <message>
+      <source>)?
+
+Фотографии и ролики будут удалены целиком, включая RAW+JPEG, видео, прокси и сопутствующие файлы. Отменить удаление с карты нельзя. Локальные копии сохранятся.</source>
+      <translation>)?
+
+Photos and clips will be deleted in full, including RAW+JPEG, video, proxies and related files. Card deletion cannot be undone. Local copies will be preserved.</translation>
+    </message>
   </context>
 </TS>

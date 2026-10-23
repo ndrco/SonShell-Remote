@@ -84,3 +84,29 @@ offline. Backend/SDK diagnostics and camera mode names may be in English.
 [Sony Camera Remote SDK](https://support.d-imaging.sony.co.jp/app/sdk/en/)
 
 Do not publish passwords, settings, fingerprints or personal photos in bug reports.
+
+## Video and capture dates (0.6)
+
+MP4 clips now appear with the proxy/XML files returned as part of a camera item.
+Photos and videos, Photos only and Video only filter visible items and copying.
+RAW/JPEG selects photo formats. The still preview of a clip uses the camera
+thumbnail; the SDK's larger screennail is available only for photos.
+
+Play streams from the camera without copying the original. Pause, Stop and
+seeking to a specified second are available. This is a **silent preview**, limited
+to 1280×720 and 12 fps; the original audio remains unchanged. SDK/firmware support
+and reachable network ports are required. Camera/decoder failures are shown.
+Live View stops during streaming and resumes afterwards if previously enabled.
+Changing tabs or items stops the stream. Stop playback before copying/deleting.
+Space/Delete marking works over the video as well.
+
+In full screen, the filename and COPY/REJECT states remain visible over the image.
+A separate overlay confirms each key action or explains why a protected item
+cannot be marked. Selecting another item clears the old photo while loading.
+
+New copies use **YYYY-MM-DD/Slot_N/original camera hierarchy**. The date is the
+camera's local capture date, falling back to valid UTC or Unknown-Date. The
+computer's current date is never substituted. Old copies are preserved and still
+count towards Copy new. The local gallery shows imported MP4/MOV/M4V, reads the
+first frame in the background and plays video on request. Photos and videos with
+the same base name remain separate items.

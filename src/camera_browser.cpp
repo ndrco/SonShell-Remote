@@ -1,5 +1,6 @@
 #include "camera_browser.h"
 #include "transfer_file.h"
+#include "capture_date.h"
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -74,13 +75,13 @@ std::filesystem::path relative_path(std::string path) {
 
 CameraBrowser::CameraBrowser(std::mutex& transfers, Output output) : transfers_(transfers), output_(std::move(output)) {}
 CameraBrowser::~CameraBrowser() { stop(); }
-void CameraBrowser::start(sdk::CrDeviceHandle handle, std::string cache, std::string identity) {
-  stop(); handle_ = handle; cache_ = std::move(cache); identity_ = std::move(identity);
+void CameraBrowser::start(sdk::CrDeviceHandle handle, std::string cache, std::string identity, std::string camera_host) {
+  stop(); handle_ = handle; cache_ = std::move(cache); identity_ = std::move(identity); camera_host_ = std::move(camera_host);
   stopping_ = false; canceled_ = false; catalog_.clear(); epoch_.clear();
   worker_ = std::thread([this] { run(); });
 }
 void CameraBrowser::stop() {
-  stopping_ = true; canceled_ = true;
+  stopping_ = true; canceled_ = true; movie_.cancel();
   queue_cv_.notify_all(); result_cv_.notify_all();
   if (worker_.joinable()) worker_.join();
   handle_ = 0;
@@ -95,9 +96,16 @@ void CameraBrowser::contents_changed() {
   event("changed", ""); // Metadata notification only: never schedule a transfer here.
 }
 bool CameraBrowser::command(const std::vector<std::string>& args) {
+  if (args.size() == 3 && (args[1] == "movie-play" || args[1] == "movie-pause")) {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    return args[2] == movie_request_ && movie_.control(args[1] == "movie-play" ? "play" : "pause");
+  }
+  if (args.size() == 4 && args[1] == "movie-seek") {
+    try { std::lock_guard<std::mutex> lock(queue_mutex_); return args[2] == movie_request_ && movie_.control("seek", number(args[3])); } catch (...) { return false; }
+  }
   if (args.size() == 2 && args[1] == "cancel") {
     std::lock_guard<std::mutex> lock(queue_mutex_);
-    canceled_ = true;
+    canceled_ = true; movie_.cancel();
     for (const auto& pending : queue_) error(pending[2], "Операция отменена");
     queue_.clear(); result_cv_.notify_all();
     return true;
@@ -115,7 +123,7 @@ void CameraBrowser::run() {
       std::unique_lock<std::mutex> lock(queue_mutex_);
       queue_cv_.wait(lock, [this] { return stopping_ || !queue_.empty(); });
       if (stopping_) break;
-      args = std::move(queue_.front()); queue_.pop_front(); canceled_ = false;
+      args = std::move(queue_.front()); queue_.pop_front(); canceled_ = false; movie_.reset();
     }
     try { execute(args); } catch (const std::exception& e) { error(args[2], e.what()); }
   }
@@ -157,19 +165,23 @@ std::vector<CameraBrowser::Content> CameraBrowser::read_slot(unsigned slot) {
   for (CrInt32u i = 0; list && i < count && !stopping_ && !canceled_; ++i) {
     const auto& entry = list[i];
     if (entry.dummyContent) continue;
-    Content content{slot, entry.contentId, entry.protectionStatus, deletable, date(entry.creationDatetimeUTC), {}, {}};
+    Content content{slot, entry.contentId, entry.protectionStatus, deletable, date(entry.creationDatetimeUTC), {}, {}, {}};
+    const auto& local = entry.creationDatetimeLocaltime; const auto& utc = entry.creationDatetimeUTC;
+    content.capture_date = capture_date_folder(local.year, local.month, local.day);
+    if (content.capture_date.empty()) content.capture_date = capture_date_folder(utc.year, utc.month, utc.day);
+    if (content.capture_date.empty()) content.capture_date = "Unknown-Date";
     // Stable import identity excludes contentId, rating and modification date.
     content.signature = identity_ + ":" + std::to_string(slot) + ":" + content.stamp;
-    bool has_image = false;
+    bool has_media = false;
     for (CrInt32u fi = 0; entry.files && fi < entry.filesNum; ++fi) {
       const auto& f = entry.files[fi];
       if (!f.filePath) continue;
-      has_image = has_image || f.fileFormat == sdk::CrContentsFile_FileFormat_Raw || f.fileFormat == sdk::CrContentsFile_FileFormat_Jpeg || f.fileFormat == sdk::CrContentsFile_FileFormat_Heif;
+      has_media = has_media || f.fileFormat == sdk::CrContentsFile_FileFormat_Raw || f.fileFormat == sdk::CrContentsFile_FileFormat_Jpeg || f.fileFormat == sdk::CrContentsFile_FileFormat_Heif || f.fileFormat == sdk::CrContentsFile_FileFormat_Mp4;
       File file{f.fileId, unsigned(f.fileFormat), f.fileSize, std::string(f.filePath)};
       content.signature += ":" + file.path + ":" + std::to_string(file.size);
       content.files.push_back(std::move(file));
     }
-    if (has_image && !content.files.empty()) result.push_back(std::move(content));
+    if (has_media && !content.files.empty()) result.push_back(std::move(content));
   }
   return result;
 }
@@ -187,7 +199,7 @@ void CameraBrowser::list(const std::string& request) {
           files += "{\"id\":" + std::to_string(f.id) + ",\"format\":" + std::to_string(f.format) + ",\"size\":" + json(std::to_string(f.size)) + ",\"path\":" + json(f.path) + "}";
         }
         files += ']';
-        event("item", request, "\"epoch\":" + json(epoch_) + ",\"slot\":" + std::to_string(c.slot) + ",\"id\":" + std::to_string(c.id) + ",\"stamp\":" + json(c.stamp) + ",\"identity\":" + json(c.signature) + ",\"protected\":" + (c.protected_file ? "true" : "false") + ",\"deletable\":" + (c.deletable ? "true" : "false") + ",\"files\":" + files);
+        event("item", request, "\"epoch\":" + json(epoch_) + ",\"slot\":" + std::to_string(c.slot) + ",\"id\":" + std::to_string(c.id) + ",\"stamp\":" + json(c.stamp) + ",\"capture_date\":" + json(c.capture_date) + ",\"identity\":" + json(c.signature) + ",\"protected\":" + (c.protected_file ? "true" : "false") + ",\"deletable\":" + (c.deletable ? "true" : "false") + ",\"files\":" + files);
         catalog_[key(c.slot, c.id)] = std::move(c);
       }
     } catch (const std::exception& e) {
@@ -213,12 +225,30 @@ void CameraBrowser::execute(const std::vector<std::string>& args) {
   }
   auto file = std::find_if(content.files.begin(), content.files.end(), [&](const File& f) { return f.id == number(args[6]); });
   if (file == content.files.end()) throw std::runtime_error("Файл отсутствует в каталоге");
+  if (args[1] == "movie") {
+    if (file->format != sdk::CrContentsFile_FileFormat_Mp4) throw std::runtime_error("Выбери видео MP4");
+    const auto socket = std::filesystem::path(unhex(args[7]));
+    if (!socket.is_absolute() || std::filesystem::canonical(socket.parent_path()) != std::filesystem::canonical(cache_) ||
+        !std::filesystem::is_socket(std::filesystem::symlink_status(socket))) throw std::runtime_error("Неверный канал видеопревью");
+    std::unique_lock<std::mutex> serial(transfers_);
+    { std::lock_guard<std::mutex> lock(queue_mutex_); movie_request_ = args[2]; }
+    struct ClearRequest {
+      std::mutex& mutex; std::string& request;
+      ~ClearRequest() { std::lock_guard<std::mutex> lock(mutex); request.clear(); }
+    } clear_request{queue_mutex_, movie_request_};
+    movie_.run(handle_, camera_host_, content.slot, content.id, file->id, socket.string(), [this, &args](const std::string& state) {
+      if (state == "fatal") { stopping_ = true; event("fatal", args[2], "\"message\":" + json("Камера не подтвердила остановку видео; требуется переподключение")); }
+      else event(state == "stopped" ? "movie-stopped" : "movie-state", args[2], "\"state\":" + json(state));
+    });
+    return;
+  }
   if (args[1] != "copy" && args[1] != "preview") throw std::runtime_error("Неизвестная команда карты");
   transfer(args, content, *file);
 }
 bool CameraBrowser::transfer_result(CrInt32u notify, CrInt32u percent) {
   std::lock_guard<std::mutex> lock(result_mutex_);
   if (!transferring_) return false;
+  transfer_activity_ = std::chrono::steady_clock::now();
   if (notify == sdk::CrNotify_RemoteTransfer_InProgress) {
     if (percent <= 100 && (progress_ == 101 || percent >= progress_ + 5)) {
       progress_ = percent; event("progress", active_request_, "\"percent\":" + std::to_string(percent));
@@ -240,7 +270,7 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
     if (!root.is_absolute()) throw std::runtime_error("Выбери абсолютный каталог назначения");
     std::filesystem::create_directories(root);
     root = std::filesystem::canonical(root);
-    const auto relative = std::filesystem::path("Slot_" + std::to_string(content.slot)) / relative_path(file.path);
+    const auto relative = std::filesystem::path(content.capture_date) / std::filesystem::path("Slot_" + std::to_string(content.slot)) / relative_path(file.path);
     auto checked = root;
     for (const auto& part : relative) {
       checked /= part;
@@ -259,18 +289,17 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
   auto directory = output.staging_directory(); auto name = destination.filename().string();
   {
     std::lock_guard<std::mutex> lock(result_mutex_);
-    transferring_ = true; terminal_ = false; active_request_ = args[2]; progress_ = 101;
+    transferring_ = true; terminal_ = false; active_request_ = args[2]; progress_ = 101; transfer_activity_ = std::chrono::steady_clock::now();
   }
   auto err = preview ? sdk::GetRemoteTransferContentsCompressedDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id,
-      args[7] == "thumb" ? sdk::CrGetContentsCompressedDataType_Thumbnail : sdk::CrGetContentsCompressedDataType_Screennail, directory.data(), name.data()) :
+      (args[7] == "thumb" || file.format == sdk::CrContentsFile_FileFormat_Mp4) ? sdk::CrGetContentsCompressedDataType_Thumbnail : sdk::CrGetContentsCompressedDataType_Screennail, directory.data(), name.data()) :
       sdk::GetRemoteTransferContentsDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id, 0x1000000, directory.data(), name.data());
   bool cancel_sent = false;
   auto cancel_deadline = std::chrono::steady_clock::time_point::max();
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(10);
   std::unique_lock<std::mutex> lock(result_mutex_);
   if (err != sdk::CrError_None) { transferring_ = false; throw std::runtime_error(sdk_error(err)); }
   while (!terminal_) {
-    if ((stopping_ || canceled_ || std::chrono::steady_clock::now() > deadline) && !cancel_sent) {
+    if ((stopping_ || canceled_ || std::chrono::steady_clock::now() - transfer_activity_ > std::chrono::minutes(3)) && !cancel_sent) {
       cancel_sent = true; cancel_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5); lock.unlock();
       // The command is shared by original and compressed transfers.
       sdk::ControlGetRemoteTransferContentsDataFile(handle_, sdk::CrGetContentsDataControlType_Cancel);

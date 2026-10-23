@@ -200,7 +200,7 @@ class MediaTests final : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT(!review->active(), 3500);
     QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), QSizeF(640, 480));
     auto* card = window.findChild<CameraCard*>(); QVERIFY(card);
-    QVERIFY(!QFileInfo::exists(captures.filePath("Slot_1/DCIM/100MSDCF/снимок 1.jpg")));
+    QVERIFY(!QFileInfo::exists(captures.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/снимок 1.jpg")));
     QSignalSpy copied(card, &CameraCard::copied);
     card->copy({}, "all", CameraCard::CopyMode::All);
     QTRY_COMPARE(copied.size(), 1); QTest::qWait(400); QVERIFY(!review->active());

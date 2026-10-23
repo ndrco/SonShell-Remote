@@ -58,13 +58,21 @@ QImage orient(QImage image, int orientation) {
   }
 }
 }
+bool MediaReader::is_video(const QString& path) {
+  const auto suffix = QFileInfo(path).suffix().toLower();
+  return suffix == "mp4" || suffix == "mov" || suffix == "m4v";
+}
+QString MediaReader::group_key(const QString& path) {
+  const QFileInfo file(path);
+  return file.absolutePath() + '/' + file.completeBaseName().toCaseFolded() + (is_video(path) ? ":video" : "");
+}
 bool MediaReader::is_raw(const QString& path) {
   const auto suffix = QFileInfo(path).suffix().toLower();
   return suffix == "arw" || suffix == "sr2" || suffix == "srf" || suffix == "dng";
 }
 bool MediaReader::is_supported(const QString& path) {
   const auto suffix = QFileInfo(path).suffix().toLower();
-  return is_raw(path) || suffix == "jpg" || suffix == "jpeg" || suffix == "png";
+  return is_raw(path) || is_video(path) || suffix == "jpg" || suffix == "jpeg" || suffix == "png";
 }
 bool MediaReader::is_complete_jpeg(const QString& path) {
   QFile file(path);
@@ -77,6 +85,7 @@ MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCa
   if (canceled(cancel) || !before.isFile() || before.size() == 0) { result.error = QCoreApplication::translate("App", "Файл недоступен"); return result; }
   const auto suffix = before.suffix().toLower();
   const bool raw = is_raw(path);
+  result.video = is_video(path);
   result.raw_preview = raw;
   if ((suffix == "jpg" || suffix == "jpeg") && !is_complete_jpeg(path)) {
     result.error = QCoreApplication::translate("App", "JPEG ещё не готов или повреждён"); return result;
@@ -88,7 +97,20 @@ MediaResult MediaReader::read(const QString& path, bool thumbnail, const MediaCa
     if (json.isArray() && !json.array().isEmpty()) metadata = json.array().first().toObject();
   }
   if (canceled(cancel)) { result.error = QCoreApplication::translate("App", "Чтение отменено"); return result; }
-  if (raw) {
+  if (result.video) {
+    QProcess decoder;
+    decoder.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-threads", "1", "-filter_threads", "1", "-protocol_whitelist", "file,pipe", "-i", before.absoluteFilePath(),
+        "-frames:v", "1", "-vf", thumbnail ? "scale=w='min(192,iw)':h='min(128,ih)':force_original_aspect_ratio=decrease" : "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease",
+        "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"});
+    QByteArray bytes; QElapsedTimer elapsed; elapsed.start();
+    while (decoder.state() != QProcess::NotRunning) {
+      decoder.waitForFinished(40); bytes += decoder.readAllStandardOutput();
+      if (canceled(cancel) || elapsed.elapsed() > 12000 || bytes.size() > 8 * 1024 * 1024) { decoder.kill(); decoder.waitForFinished(500); break; }
+    }
+    bytes += decoder.readAllStandardOutput();
+    result.image = QImage::fromData(bytes, "JPEG");
+    result.source = QCoreApplication::translate("App", "Видео · первый кадр");
+  } else if (raw) {
     QByteArray best;
     const auto tags = thumbnail ? QStringList{"ThumbnailImage", "PreviewImage", "JpgFromRaw"}
                                 : QStringList{"JpgFromRaw", "PreviewImage"};

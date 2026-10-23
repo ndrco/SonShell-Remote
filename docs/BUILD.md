@@ -5,7 +5,7 @@
 На Ubuntu 24.04:
 
 ```bash
-sudo apt install build-essential cmake qt6-base-dev qt6-l10n-tools qt6-translations-l10n qt6-image-formats-plugins libimage-exiftool-perl python3
+sudo apt install build-essential cmake qt6-base-dev qt6-l10n-tools qt6-translations-l10n qt6-image-formats-plugins libimage-exiftool-perl ffmpeg python3
 cmake -S . -B build-gui -DCMAKE_BUILD_TYPE=Release
 cmake --build build-gui --parallel 4
 ctest --test-dir build-gui --output-on-failure
@@ -42,7 +42,7 @@ sudo apt install dpkg-dev desktop-file-utils
 SONY_SDK_DIR=/absolute/path/RemoteCli ./scripts/package-deb.sh
 ```
 
-Результат: `build-package/sonshell-remote_0.5.0-1ubuntu24.04_amd64.deb`.
+Результат: `build-package/sonshell-remote_0.6.0-1ubuntu24.04_amd64.deb`.
 Скрипт скачивает HTML лицензии Sony в build-каталог (можно передать локальный
 SONY_SDK_LICENSE_FILE), собирает проект, выполняет тесты и CPack DEB.
 Зависимости вычисляет dpkg-shlibdeps, runtime SDK помещается в приватный

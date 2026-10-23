@@ -2777,6 +2777,7 @@ public:
   }
 
   void OnWarning(CrInt32u w) override {
+    if (g_gui_mode) browser.playback_warning(w);
     if (g_shutting_down.load()) return;
     if (verbose) {
       LOGI( "[CB] OnWarning: " << crsdk_err::warning_to_name(w) << " (0x" << std::hex << w << std::dec << ")" );
@@ -3537,6 +3538,9 @@ public:
   void OnNotifyFTPTransferResult(CrInt32u, CrInt32u, CrInt32u) override {}
   void OnNotifyRemoteFirmwareUpdateResult(CrInt32u, const void *) override {}
   void OnReceivePlaybackTimeCode(CrInt32u) override {}
+  void OnReceivePlaybackData(CrInt8u type, CrInt32 size, CrInt8u* bytes, CrInt64, CrInt64, CrInt32, CrInt32) override {
+    if (g_gui_mode) browser.playback_data(type, size, bytes);
+  }
   void OnNotifyMonitorUpdated(CrInt32u, CrInt32u) override {}
 
 private:
@@ -4393,7 +4397,7 @@ int main(int argc, char **argv) {
     g_connected_for_logs.store(true, std::memory_order_relaxed);
     if (g_gui_mode) {
       const auto serial = fetch_property(handle, SDK::CrDeviceProperty_BodySerialNumber);
-      cb.browser.start(handle, g_camera_cache_dir, serial.text.empty() ? explicit_model + ":" + explicit_host : serial.text);
+      cb.browser.start(handle, g_camera_cache_dir, serial.text.empty() ? explicit_model + ":" + explicit_host : serial.text, explicit_host);
     }
 
     // Create wake pipe once per connection (or do it once at program start)
@@ -4514,6 +4518,7 @@ int main(int argc, char **argv) {
           LOGI("REMOTE/1 controls " << protocol_hex(result)); return 0;
         }},
 	{"card", [&](auto const& args)->int {
+          if (g_gui_mode && args.size() > 1 && args[1] == "movie") monitor_stop();
           if (!g_gui_mode || !cb.browser.command(args)) { LOGE("Card command rejected"); return 2; }
           return 0;
         }},

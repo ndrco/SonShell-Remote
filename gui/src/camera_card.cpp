@@ -19,15 +19,19 @@ constexpr int raw_format = 0xb101;
 constexpr int jpeg_format = 0x3801;
 }
 QString CardItem::name() const { return files.isEmpty() ? key() : QFileInfo(files.first().path).fileName(); }
+bool CardItem::is_video() const {
+  return std::any_of(files.begin(), files.end(), [](const CardFile& file) { return file.format == 0xb982; });
+}
 QString CardItem::format() const {
   QStringList result;
   for (const auto& file : files) {
-    const QString format = file.format == raw_format ? "RAW" : file.format == jpeg_format ? "JPEG" : file.format == 0xb110 ? "HEIF" : QCoreApplication::translate("App", "Доп. файл");
+    const QString format = file.format == raw_format ? "RAW" : file.format == jpeg_format ? "JPEG" : file.format == 0xb110 ? "HEIF" : file.format == 0xb982 ? "MP4" : file.format == 0xba82 ? "XML" : QCoreApplication::translate("App", "Доп. файл");
     if (!result.contains(format)) result.append(format);
   }
   return result.join("+");
 }
 CardFile CardItem::preview_file() const {
+  for (const auto& file : files) if (file.format == 0xb982) return file;
   for (const auto& file : files) if (file.format == jpeg_format) return file;
   for (const auto& file : files) if (file.format == raw_format || file.format == 0xb110) return file;
   return files.value(0);
@@ -39,6 +43,7 @@ QString CameraCard::request_id() { return prefix_ + QString::number(++sequence_)
 void CameraCard::set_connected(bool connected) {
   if (connected == connected_) return;
   connected_ = connected; prefix_ = QUuid::createUuid().toString(QUuid::Id128) + '-';
+  if (playing_video()) emit movie_viewing(false);
   active_ = {}; queue_.clear(); list_request_.clear(); epoch_.clear(); items_.clear();
   dirty_ = true; studio_list_ = false; canceled_ = false;
   emit catalog_changed(); emit busy_changed(false);
@@ -65,11 +70,12 @@ bool CameraCard::imported(const CardItem& item, const CardFile& file) const {
   return !path.isEmpty() && relative != ".." && !relative.startsWith("../") && info.isFile() &&
       !info.isSymLink() && file.size > 0 && quint64(info.size()) == file.size && entry.value("size").toString() == QString::number(file.size);
 }
-bool CameraCard::matches(const CardFile& file, const QString& format) {
-  return format == "all" || (format == "raw" && file.format == raw_format) || (format == "jpeg" && file.format == jpeg_format);
+bool CameraCard::matches(const CardItem& item, const CardFile& file, const QString& format) {
+  return format == "all" || (format == "video" && item.is_video()) || (format == "photo" && !item.is_video()) ||
+      (format == "raw" && file.format == raw_format) || (format == "jpeg" && file.format == jpeg_format);
 }
 bool CameraCard::is_new(const CardItem& item, const QString& format) const {
-  for (const auto& file : item.files) if (matches(file, format) && !imported(item, file)) return true;
+  for (const auto& file : item.files) if (matches(item, file, format) && !imported(item, file)) return true;
   return false;
 }
 const CardItem* CameraCard::find(const QString& key) const {
@@ -78,7 +84,7 @@ const CardItem* CameraCard::find(const QString& key) const {
 }
 void CameraCard::refresh() {
   if (!connected_ || busy()) return;
-  active_ = {"list", request_id(), {}, {}}; list_request_ = active_.request;
+  active_ = {"list", request_id(), {}, {}, false, false, {}}; list_request_ = active_.request;
   canceled_ = false; total_ = completed_ = failed_ = 0; list_warnings_.clear(); items_.clear(); emit catalog_changed(); emit busy_changed(true);
   emit status_changed(QCoreApplication::translate("App", "Читаю список файлов карты без загрузки оригиналов…"));
   if (!session_->send_command("card list " + active_.request)) finish(QCoreApplication::translate("App", "Не удалось запросить список камеры"));
@@ -86,8 +92,21 @@ void CameraCard::refresh() {
 void CameraCard::preview(const QString& key, bool thumbnail) {
   if (!connected_ || busy()) return;
   const auto* item = find(key); if (!item) return;
-  queue_.enqueue({"preview", request_id(), key, item->preview_file(), thumbnail});
+  queue_.enqueue({"preview", request_id(), key, item->preview_file(), thumbnail, false, {}});
   canceled_ = false; total_ = completed_ = failed_ = 0; dispatch();
+}
+QString CameraCard::movie_socket_path() const {
+  return QDir(session_->card_cache_path()).filePath("movie-" + QUuid::createUuid().toString(QUuid::Id128) + ".sock");
+}
+void CameraCard::play_movie(const QString& key, const QString& socket) {
+  const auto* item = find(key);
+  if (!connected_ || busy() || !item || !item->is_video()) return;
+  Task task{"movie", request_id(), key, item->preview_file(), false, false, socket};
+  queue_.enqueue(task); canceled_ = false; total_ = completed_ = failed_ = 0; dispatch();
+}
+void CameraCard::movie_control(const QString& operation, int seconds) {
+  if (!playing_video() || (operation != "play" && operation != "pause" && operation != "seek") || seconds < 0 || seconds > 86400) return;
+  session_->send_command("card movie-" + operation + ' ' + active_.request + (operation == "seek" ? ' ' + QString::number(seconds) : ""));
 }
 void CameraCard::copy(const QStringList& keys, const QString& format, CopyMode mode) {
   if (!connected_ || busy() || directory_.isEmpty()) return;
@@ -96,8 +115,8 @@ void CameraCard::copy(const QStringList& keys, const QString& format, CopyMode m
     if (mode == CopyMode::Selected && !keys.contains(item.key())) continue;
     for (const auto& file : item.files) {
       // All is an explicit full copy; New/Selected reuse confirmed local files.
-      if (!matches(file, format) || (mode != CopyMode::All && imported(item, file))) continue;
-      queue_.enqueue({"copy", request_id(), item.key(), file});
+      if (!matches(item, file, format) || (mode != CopyMode::All && imported(item, file))) continue;
+      queue_.enqueue({"copy", request_id(), item.key(), file, false, false, {}});
     }
   }
   total_ = queue_.size();
@@ -108,7 +127,7 @@ void CameraCard::remove(const QStringList& keys) {
   if (!connected_ || busy()) return;
   canceled_ = false; completed_ = failed_ = 0;
   for (const auto& item : items_) if (keys.contains(item.key()) && item.deletable && !item.protected_file)
-    queue_.enqueue({"delete", request_id(), item.key(), {}});
+    queue_.enqueue({"delete", request_id(), item.key(), {}, false, false, {}});
   total_ = queue_.size(); dispatch();
 }
 void CameraCard::cancel() {
@@ -123,7 +142,8 @@ void CameraCard::dispatch() {
   if (!item) { finish(QCoreApplication::translate("App", "Кадр больше не доступен")); return; }
   QString command = QString("card %1 %2 %3 %4 %5").arg(active_.kind, active_.request, epoch_).arg(item->slot).arg(item->id);
   if (active_.kind != "delete") command += ' ' + QString::number(active_.file.id) + ' ' +
-      (active_.kind == "copy" ? QString::fromLatin1(directory_.toUtf8().toHex()) : active_.thumbnail ? "thumb" : "screen");
+      (active_.kind == "movie" ? QString::fromLatin1(active_.socket.toUtf8().toHex()) : active_.kind == "copy" ? QString::fromLatin1(directory_.toUtf8().toHex()) : active_.thumbnail ? "thumb" : "screen");
+  if (playing_video()) emit movie_viewing(true);
   emit busy_changed(true);
   emit status_changed((active_.kind == "copy" ? QCoreApplication::translate("App", "Копирование: ") : active_.kind == "delete" ? QCoreApplication::translate("App", "Удаление: ") : QCoreApplication::translate("App", "Превью: ")) + item->name());
   emit progress_changed(completed_, total_, 0);
@@ -132,6 +152,7 @@ void CameraCard::dispatch() {
 void CameraCard::finish(const QString& message) {
   const bool batch = active_.kind == "copy" || active_.kind == "delete";
   if (batch) { ++completed_; if (!message.isEmpty()) ++failed_; }
+  if (playing_video()) emit movie_viewing(false);
   active_ = {}; list_request_.clear();
   if (!message.isEmpty()) emit status_changed(message);
   if (!queue_.isEmpty() && !canceled_) { QTimer::singleShot(0, this, &CameraCard::dispatch); return; }
@@ -166,7 +187,7 @@ void CameraCard::receive(const QJsonObject& event) {
   if (type == "begin" && active_.kind == "list") { epoch_ = event.value("epoch").toString(); return; }
   if (type == "item" && active_.kind == "list") {
     CardItem item; item.slot = event.value("slot").toInt(); item.id = quint32(event.value("id").toDouble());
-    item.stamp = event.value("stamp").toString(); item.identity = event.value("identity").toString();
+    item.stamp = event.value("stamp").toString(); item.capture_date = event.value("capture_date").toString(); item.identity = event.value("identity").toString();
     item.protected_file = event.value("protected").toBool(); item.deletable = event.value("deletable").toBool();
     for (const auto& value : event.value("files").toArray()) {
       const auto f = value.toObject();
@@ -178,13 +199,19 @@ void CameraCard::receive(const QJsonObject& event) {
     dirty_ = event.value("stale").toBool();
     std::sort(items_.begin(), items_.end(), [](const CardItem& a, const CardItem& b) { return a.stamp > b.stamp; });
     emit catalog_changed(); finish(QString(QCoreApplication::translate("App", "Кадров на карте: %1%2")).arg(items_.size()).arg(dirty_ ? QCoreApplication::translate("App", " · список изменился, обнови его") : "") + (list_warnings_.isEmpty() ? "" : " · " + list_warnings_.join("; ")));
-    if (studio_list_ && !items_.isEmpty() && studio_) {
-      studio_list_ = false; preview(items_.first().key()); active_.studio = true;
+    if (studio_list_ && studio_) {
+      studio_list_ = false;
+      const auto image = std::find_if(items_.begin(), items_.end(), [](const CardItem& item) { return !item.is_video(); });
+      if (image != items_.end()) { preview(image->key()); active_.studio = true; }
     }
   } else if (type == "slot-error" && active_.kind == "list") {
     list_warnings_.append(QString(QCoreApplication::translate("App", "Слот %1: %2")).arg(event.value("slot").toInt()).arg(event.value("message").toString()));
     emit status_changed(list_warnings_.last());
     emit session_->log_received(QString(QCoreApplication::translate("App", "Карта: слот %1 · %2")).arg(event.value("slot").toInt()).arg(event.value("message").toString()));
+  } else if (type == "movie-state" && playing_video()) {
+    emit movie_state(event.value("state").toString());
+  } else if (type == "movie-stopped" && playing_video()) {
+    finish(QCoreApplication::translate("App", "Видеопросмотр остановлен"));
   } else if (type == "progress") emit progress_changed(completed_, total_, event.value("percent").toInt());
   else if (type == "preview" && active_.kind == "preview") {
     const auto path = event.value("path").toString();
@@ -217,6 +244,7 @@ void CameraCard::receive(const QJsonObject& event) {
     items_.erase(std::remove_if(items_.begin(), items_.end(), [&](const CardItem& item) { return item.key() == key; }), items_.end());
     emit catalog_changed(); finish();
   } else if (type == "error") {
+    if (playing_video()) emit movie_failed(event.value("message").toString());
     if (active_.kind == "delete") queue_.clear(); // Reconfirm remaining deletions after any failure.
     studio_list_ = false;
     emit session_->log_received(QCoreApplication::translate("App", "Карта: ") + event.value("message").toString());
