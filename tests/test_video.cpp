@@ -8,6 +8,7 @@
 #include "photo_library.h"
 #include "video_preview.h"
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -90,7 +91,9 @@ class VideoTests final : public QObject {
       if (!count) first = image;
       ++count; native = native && image.size() == QSize(1920, 1080);
     });
+    QElapsedTimer elapsed; elapsed.start();
     player.play_local(path); QTRY_COMPARE_WITH_TIMEOUT(done.size(), 1, 10000);
+    QVERIFY2(elapsed.elapsed() >= 850, "Playback must follow presentation time, rather than burst all frames during input preroll");
     QCOMPARE(errors.size(), 0); QVERIFY(native); QCOMPARE(count, 24);
     QCOMPARE(first.format(), QImage::Format_RGB888);
     QCOMPARE(QByteArray(reinterpret_cast<const char*>(first.constBits()), first.sizeInBytes()), rgb);
@@ -166,6 +169,7 @@ class VideoTests final : public QObject {
     QVERIFY(viewer->findChild<QLabel*>("action_overlay")->isVisible());
     QSignalSpy frames(viewer->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
     QTest::mouseClick(viewer->findChild<QPushButton*>("movie_play"), Qt::LeftButton); QTRY_VERIFY(frames.size() > 0);
+    QVERIFY(viewer->findChild<QLabel*>("movie_info")->text().contains("160 × 90"));
     viewer->view()->setFocus(); QTest::keyClick(viewer->view(), Qt::Key_Space);
     QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("Отметка копирования снята")));
     if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) viewer->grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/video-overlay.png");

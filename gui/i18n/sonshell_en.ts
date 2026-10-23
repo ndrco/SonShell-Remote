@@ -4,6 +4,10 @@
   <context>
     <name>App</name>
     <message>
+      <source>Видео · %1 × %2 · без звука</source>
+      <translation>Video · %1 × %2 · no audio</translation>
+    </message>
+    <message>
       <source>Нет видеоданных от камеры. Проверь входящие TCP 55001, 55003, 55005 от %1 к %2 в брандмауэре и сети. Справка: F1 → Видео.</source>
       <translation>No video data from camera. Check incoming TCP 55001, 55003, 55005 from %1 to %2 in the firewall and network. Help: F1 → Video.</translation>
     </message>

@@ -79,6 +79,7 @@ class ImageViewer final : public QWidget {
   bool remote_video_ = false;
   QLabel* caption_;
   QLabel* zoom_label_;
+  QLabel* video_info_;
   QPointer<QWidget> embedded_parent_;
   QList<int> embedded_sizes_;
   QList<QShortcut*> navigation_;

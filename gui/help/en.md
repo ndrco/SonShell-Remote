@@ -96,6 +96,7 @@ Play streams from the camera without copying the original. Pause, Stop and
 seeking to a specified second are available. This is a **silent preview**, limited
 only by the received stream's resolution and frame rate; the original audio remains unchanged. SDK/firmware support
 and reachable network ports are required. Camera/decoder failures are shown.
+The video bar shows the actual frame size; the camera sets SDK preview resolution.
 Live View stops during streaming and resumes afterwards if previously enabled.
 Changing tabs or items stops the stream. Stop playback before copying/deleting.
 Space/Delete marking works over the video as well.

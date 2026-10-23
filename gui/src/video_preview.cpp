@@ -70,7 +70,9 @@ void VideoPreview::launch(const QStringList& input) {
 void VideoPreview::play_local(const QString& path, int seconds) {
   stop();
   if (!QFileInfo(path).isFile()) return;
-  launch({"-re", "-ss", QString::number(std::max(0, seconds)), "-protocol_whitelist", "file,pipe", "-i", QFileInfo(path).absoluteFilePath()});
+  // Pace decoded presentation timestamps. Input -re follows DTS and can burst
+  // the opening frames of a short clip with a long decoder preroll.
+  launch({"-ss", QString::number(std::max(0, seconds)), "-protocol_whitelist", "file,pipe", "-i", QFileInfo(path).absoluteFilePath(), "-vf", "realtime=limit=0.2"});
 }
 bool VideoPreview::listen(const QString& path) {
   stop(); server_.setSocketOptions(QLocalServer::UserAccessOption);

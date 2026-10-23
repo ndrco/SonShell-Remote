@@ -140,8 +140,11 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   auto* stop = new QPushButton(QCoreApplication::translate("App", "Стоп"), video_bar_); stop->setObjectName("movie_stop");
   auto* seek = new QSpinBox(video_bar_); seek->setRange(0, 86400); seek->setSuffix(QCoreApplication::translate("App", " с"));
   auto* jump = new QPushButton(QCoreApplication::translate("App", "Перейти"), video_bar_);
-  auto* silent = new QLabel(QCoreApplication::translate("App", "Видео · без звука"), video_bar_);
-  for (auto* widget : QList<QWidget*>{play, pause, stop, seek, jump, silent}) video_layout->addWidget(widget);
+  video_info_ = new QLabel(QCoreApplication::translate("App", "Видео · без звука"), video_bar_); video_info_->setObjectName("movie_info");
+  connect(video_, &VideoPreview::frame_ready, video_info_, [this](const QImage& image) {
+    video_info_->setText(QString(QCoreApplication::translate("App", "Видео · %1 × %2 · без звука")).arg(image.width()).arg(image.height()));
+  });
+  for (auto* widget : QList<QWidget*>{play, pause, stop, seek, jump, video_info_}) video_layout->addWidget(widget);
   connect(play, &QPushButton::clicked, this, [this] {
     if (remote_video_) emit movie_play_requested(); else if (video_->running()) video_->pause_local(false); else video_->play_local(video_path_);
   });
@@ -177,9 +180,11 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
 void ImageViewer::stop_video() { video_->stop(); }
 void ImageViewer::set_local_video(const QString& path) {
   stop_video(); remote_video_ = false; video_path_ = path; video_bar_->setVisible(!path.isEmpty());
+  video_info_->setText(QCoreApplication::translate("App", "Видео · без звука"));
 }
 void ImageViewer::set_remote_video(bool enabled) {
   stop_video(); remote_video_ = enabled; video_path_.clear(); video_bar_->setVisible(enabled);
+  video_info_->setText(QCoreApplication::translate("App", "Видео · без звука"));
 }
 bool ImageViewer::prepare_stream(const QString& socket_path) { return video_->listen(socket_path); }
 void ImageViewer::set_video_controls_enabled(bool enabled) { video_bar_->setEnabled(enabled); }
