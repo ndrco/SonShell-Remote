@@ -447,3 +447,21 @@ build-asan-backend/af-tests.log, build-clean/verify-final-0.6.2.log.
   build-asan-backend/exposure-tests.log.
 - Физическая камера не использовалась для изменения экспозиции: рабочая сессия
   пользователя оставлена открытой. Аппаратная приёмка крутилок остаётся открытой.
+
+### Чистая установка и обновление 0.6.3
+
+Заново распакован официальный Ubuntu Base 24.04.5 amd64, SHA256 архива проверен.
+В пустой образ apt установил 0.6.3 и 249 зависимостей; ранее скачанные DEB
+использованы только как кэш, установленных runtime зависимостей в образе не было.
+В bwrap без доступа к исходникам/SDK/сети проверены версии GUI/backend 0.6.3,
+RU/EN запуск, English --help, Qt переводы, ExifTool, H.265 encode/decode и RGB24/PPM,
+ldd без отсутствующих библиотек. SDK localhost завершился ожидаемым отказом
+ConnectIP/кодом 2. Хеши установленных GUI/backend совпали с DEB.
+Пройдены удаление, установка 0.6.2 → обновление 0.6.3 и повторное удаление.
+Хостовые настройки/службы и исходный прототип не менялись.
+
+Артефакты: build-package/sonshell-remote_0.6.3-1ubuntu24.04_amd64.deb,
+SHA256SUMS-0.6.3.txt, RELEASE-0.6.3.txt. Логи: build-package/release-0.6.3.log,
+final-ui-0.6.3.log; build-clean/verify-0.6.3.log, fresh-install-0.6.3.log,
+fresh-runtime-0.6.3.log, upgrade-0.6.3.log. RU/EN снимки финального окна:
+build-package/final-ui-0.6.3/ (синтетическая камера, без личных снимков/паролей).
