@@ -1,6 +1,7 @@
 #pragma once
 #include "camera_session.h"
 #include "import_verification.h"
+#include "media_reader.h"
 #include <QFutureWatcher>
 #include <QJsonArray>
 #include <QImage>
@@ -39,6 +40,7 @@ class CameraCard final : public QObject {
   void set_directory(const QString& directory);
   void refresh();
   void preview(const QString& key, bool thumbnail = false, bool full_jpeg = false);
+  void original(const QString& key);
   void copy(const QStringList& keys, const QString& format, CopyMode mode);
   void remove(const QStringList& keys);
   void cancel();
@@ -51,12 +53,13 @@ class CameraCard final : public QObject {
   void movie_control(const QString& operation, int seconds = 0);
   QString movie_socket_path() const;
   bool playing_video() const { return active_.kind == "movie"; }
+  bool loading_original() const { return active_.kind == "original"; }
   void set_studio(bool enabled, bool full_jpeg = false) {
     studio_ = enabled; studio_full_jpeg_ = full_jpeg;
     if (!enabled) { studio_pending_ = studio_list_ = false; studio_timer_.stop(); }
   }
   bool busy() const { return !active_.request.isEmpty() || !queue_.isEmpty(); }
-  bool previewing() const { return active_.kind == "preview" || playing_video(); }
+  bool previewing() const { return active_.kind == "preview" || active_.kind == "original" || playing_video(); }
   bool dirty() const { return dirty_; }
   const QVector<CardItem>& items() const { return items_; }
   bool imported(const CardItem& item, const CardFile& file) const;
@@ -68,6 +71,8 @@ class CameraCard final : public QObject {
   void status_changed(const QString& status);
   void progress_changed(int completed, int total, int percent);
   void preview_ready(const QString& key, const QImage& image, bool thumbnail);
+  void original_ready(const QString& key, const MediaResult& result);
+  void original_failed(const QString& key, const QString& message);
   void studio_ready(const QImage& image, const QString& name, const QString& source);
   void copied(const QString& path);
   void movie_viewing(bool active);
@@ -78,6 +83,8 @@ class CameraCard final : public QObject {
   void receive(const QJsonObject& event);
   void dispatch();
   void finish(const QString& message = {});
+  void read_original(const QString& path, bool temporary);
+  void clear_original();
   QString request_id();
   QString ledger_path() const;
   QString ledger_key(const CardItem& item, const CardFile& file) const;
@@ -102,4 +109,8 @@ class CameraCard final : public QObject {
   bool studio_pending_ = false;
   bool studio_full_jpeg_ = false, resume_after_list_ = false;
   QStringList list_warnings_;
+  QString original_key_;
+  MediaResult original_result_;
+  bool original_temporary_ = false;
+  MediaCancel original_cancel_;
 };

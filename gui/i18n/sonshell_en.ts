@@ -4,6 +4,58 @@
   <context>
     <name>App</name>
     <message>
+      <source> · загружаю оригинал…</source>
+      <translation> · loading original…</translation>
+    </message>
+    <message>
+      <source>Видео · оригинал</source>
+      <translation>Video · original</translation>
+    </message>
+    <message>
+      <source>Загрузить выбранный файл во временный кеш. Видео — исходное качество; RAW — лучший встроенный JPEG. Повторное открытие использует кеш или импортированную копию.</source>
+      <translation>Load the selected file into a temporary cache. Video keeps its original quality; RAW uses its best embedded JPEG. Reopening reuses the cache or an imported copy.</translation>
+    </message>
+    <message>
+      <source>Изображение недоступно или превышает лимит 120 Мп / 128 MiB</source>
+      <translation>Image unavailable or exceeds the 120 MP / 128 MiB limit</translation>
+    </message>
+    <message>
+      <source>Оригинал · %1 MiB</source>
+      <translation>Original · %1 MiB</translation>
+    </message>
+    <message>
+      <source>Оригинал открыт · %1 × %2</source>
+      <translation>Original opened · %1 × %2</translation>
+    </message>
+    <message>
+      <source>Оригинал отменён или получен не полностью</source>
+      <translation>Original canceled or incomplete</translation>
+    </message>
+    <message>
+      <source>Открываю оригинал в исходном размере…</source>
+      <translation>Opening original at native resolution…</translation>
+    </message>
+    <message>
+      <source>Открыть оригинал</source>
+      <translation>Open original</translation>
+    </message>
+    <message>
+      <source>Просмотр оригинала отменён</source>
+      <translation>Original preview canceled</translation>
+    </message>
+    <message>
+      <source>Фото: быстрое превью</source>
+      <translation>Photos: quick preview</translation>
+    </message>
+    <message>
+      <source>Фото: исходный JPEG</source>
+      <translation>Photos: original JPEG</translation>
+    </message>
+    <message>
+      <source>Фото: исходный JPEG или быстрое превью. Видео и RAW: оригинал по кнопке с размером. Просмотр не заменяет импорт.</source>
+      <translation>Photos: original JPEG or quick preview. Video and RAW: use the original button showing file size. Viewing does not replace importing.</translation>
+    </message>
+    <message>
       <source>Новая очередь копирования заменяет сохранённый план.</source>
       <translation>A new copy queue replaces the saved plan.</translation>
     </message>

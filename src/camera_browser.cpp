@@ -265,13 +265,24 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
   if (stopping_ || canceled_) throw std::runtime_error("Операция отменена");
   const bool preview = args[1] == "preview";
   const bool full_jpeg = preview && args[7] == "jpeg";
+  const bool original = preview && args[7] == "original";
   std::filesystem::path destination;
   if (preview) {
-    if (args[7] != "screen" && args[7] != "thumb" && !full_jpeg) throw std::runtime_error("Неизвестный размер превью");
+    if (args[7] != "screen" && args[7] != "thumb" && !full_jpeg && !original) throw std::runtime_error("Неизвестный размер превью");
+    if (original && (!file.size || (file.format != sdk::CrContentsFile_FileFormat_Jpeg &&
+        file.format != sdk::CrContentsFile_FileFormat_Raw && file.format != sdk::CrContentsFile_FileFormat_Heif &&
+        file.format != sdk::CrContentsFile_FileFormat_Mp4))) throw std::runtime_error("Оригинал этого формата недоступен для просмотра");
     if (full_jpeg && (file.format != sdk::CrContentsFile_FileFormat_Jpeg || !file.size || file.size > 128 * 1024 * 1024))
       throw std::runtime_error("Студийный просмотр принимает только JPEG до 128 MiB, без RAW");
     if (cache_.empty()) throw std::runtime_error("Каталог превью недоступен");
-    destination = std::filesystem::path(cache_) / (args[2] + ".jpg");
+    const auto extension = !original || file.format == sdk::CrContentsFile_FileFormat_Jpeg ? ".jpg" :
+        file.format == sdk::CrContentsFile_FileFormat_Raw ? ".arw" : file.format == sdk::CrContentsFile_FileFormat_Mp4 ? ".mp4" : ".hif";
+    destination = std::filesystem::path(cache_) / (args[2] + extension);
+    if (original) {
+      const auto space = std::filesystem::space(destination.parent_path());
+      if (space.available < file.size || space.available - file.size < 64 * 1024 * 1024)
+        throw std::runtime_error("Недостаточно места для временного оригинала (нужен запас 64 MiB)");
+    }
   } else {
     auto root = std::filesystem::path(unhex(args[7]));
     if (!root.is_absolute()) throw std::runtime_error("Выбери абсолютный каталог назначения");
@@ -298,7 +309,7 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
     std::lock_guard<std::mutex> lock(result_mutex_);
     transferring_ = true; terminal_ = false; active_request_ = args[2]; progress_ = 101; transfer_activity_ = std::chrono::steady_clock::now();
   }
-  auto err = preview && !full_jpeg ? sdk::GetRemoteTransferContentsCompressedDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id,
+  auto err = preview && !full_jpeg && !original ? sdk::GetRemoteTransferContentsCompressedDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id,
       (args[7] == "thumb" || file.format == sdk::CrContentsFile_FileFormat_Mp4) ? sdk::CrGetContentsCompressedDataType_Thumbnail : sdk::CrGetContentsCompressedDataType_Screennail, directory.data(), name.data()) :
       sdk::GetRemoteTransferContentsDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id, 0x1000000, directory.data(), name.data());
   bool cancel_sent = false;
@@ -327,7 +338,7 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
   lock.unlock();
   std::error_code ec;
   auto size = std::filesystem::file_size(std::filesystem::path(directory) / name, ec);
-  if (ec || ((!preview || full_jpeg) && file.size && size != file.size)) throw std::runtime_error("Размер полученного файла не совпадает с оригиналом");
+  if (ec || ((!preview || full_jpeg || original) && file.size && size != file.size)) throw std::runtime_error("Размер полученного файла не совпадает с оригиналом");
   std::string digest;
   if (!preview) digest = file_sha256((std::filesystem::path(directory) / name).string(), size,
       [this] { return stopping_ || canceled_; }, [this, &args](int percent) {

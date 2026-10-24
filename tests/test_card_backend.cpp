@@ -240,6 +240,31 @@ class CardBackendTests final : public QObject {
     QVERIFY(service_->command(command("preview", "unsupported", "screen")));
     QTRY_VERIFY(has("error", "unsupported")); QCOMPARE(originals.load(), 0);
   }
+  void original_preview_preserves_format_and_checks_size_and_cancel() {
+    list();
+    auto args = command("preview", "full-raw", "original");
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("preview", "full-raw"));
+    QCOMPARE(originals.load(), 1); QCOMPARE(previews.load(), 0);
+    QCOMPARE(QFileInfo(temporary_.filePath("cache/full-raw.arw")).size(), 8);
+    short_file = true; args[2] = "short-original";
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("error", "short-original"));
+    QVERIFY(!QFileInfo::exists(temporary_.filePath("cache/short-original.arw")));
+    short_file = false; hold_transfer = true; args[2] = "cancel-original";
+    QVERIFY(service_->command(args)); QTRY_COMPARE(originals.load(), 3);
+    QVERIFY(service_->command({"card", "cancel"})); QTRY_VERIFY(has("error", "cancel-original"));
+    QCOMPARE(cancels.load(), 1); QVERIFY(!has("preview", "cancel-original"));
+    QVERIFY(!QFileInfo::exists(temporary_.filePath("cache/cancel-original.arw")));
+  }
+  void original_video_uses_file_transfer_and_rejects_sidecar() {
+    video_content = true; list();
+    auto args = command("preview", "sidecar-original", "original");
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("error", "sidecar-original")); QCOMPARE(originals.load(), 0);
+    args[2] = "full-video"; args[6] = "1";
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("preview", "full-video"));
+    QCOMPARE(originals.load(), 1); QCOMPARE(previews.load(), 0); QCOMPARE(movie_starts.load(), 0);
+    QCOMPARE(QFileInfo(temporary_.filePath("cache/full-video.mp4")).size(), 8);
+    QVERIFY(!has("copied", "full-video"));
+  }
   void originals_only_by_request_and_cancel_acknowledged() {
     list(); hold_transfer = true;
     const auto root = temporary_.filePath("copies");

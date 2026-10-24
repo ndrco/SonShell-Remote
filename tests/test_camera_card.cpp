@@ -4,6 +4,7 @@
 #include "main_window.h"
 #include "image_viewer.h"
 #include <QTabWidget>
+#include <QComboBox>
 #include <QMessageBox>
 #include <QTimer>
 #include <QtTest>
@@ -228,6 +229,7 @@ class CameraCardTests final : public QObject {
     CameraCardWidget widget(&card); widget.resize(1200, 700); widget.show(); widget.activateWindow();
     auto* list = widget.findChild<QTreeWidget*>("card_items");
     auto* viewer = widget.findChild<ImageViewer*>("card_preview");
+    widget.findChild<QComboBox*>("card_quality")->setCurrentIndex(1);
     QSignalSpy ready(&card, &CameraCard::preview_ready);
     list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card.busy());
     list->topLevelItem(0)->setCheckState(0, Qt::Checked);

@@ -17,6 +17,7 @@ class CameraCardWidget final : public QWidget {
  public:
   explicit CameraCardWidget(CameraCard* card, QWidget* parent = nullptr);
   void activated();
+  void deactivated();
   void leave_fullscreen();
   QString selected_path() const;
  signals:
@@ -29,6 +30,7 @@ class CameraCardWidget final : public QWidget {
   void copy(CameraCard::CopyMode mode);
   void remove_rejected();
   void request_preview();
+  void request_original();
   void navigate(int step);
   void toggle_mark(bool rejected);
   void update_marks();
@@ -38,13 +40,17 @@ class CameraCardWidget final : public QWidget {
   CameraCard* card_;
   QTreeWidget* list_;
   QComboBox* format_;
+  QComboBox* quality_;
   QLineEdit* search_;
   QLabel *status_, *count_;
   ImageViewer* viewer_;
   QProgressBar* progress_;
   QList<QWidget*> actions_;
   QPushButton *cancel_, *resume_, *verify_;
+  QPushButton *original_, *preview_cancel_;
+  QLabel* preview_status_;
   QCache<QString, QImage> previews_{64 * 1024};
   QHash<QString, QTreeWidgetItem*> rows_;
-  QString displayed_, pending_preview_;
+  QString displayed_, pending_preview_, original_displayed_;
+  bool pending_original_ = false;
 };

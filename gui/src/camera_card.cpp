@@ -66,7 +66,15 @@ CameraCard::CameraCard(CameraSession* session, QObject* parent) : QObject(parent
         QCoreApplication::translate("App", "Проверка завершена, но журнал импорта не сохранён."));
   });
 }
-CameraCard::~CameraCard() { verification_.cancel(); }
+CameraCard::~CameraCard() {
+  verification_.cancel();
+  if (original_cancel_) original_cancel_->store(true);
+  clear_original();
+}
+void CameraCard::clear_original() {
+  if (original_temporary_) QFile::remove(original_result_.path);
+  original_result_ = {}; original_key_.clear(); original_temporary_ = false;
+}
 QString CameraCard::request_id() { return prefix_ + QString::number(++sequence_); }
 void CameraCard::set_connected(bool connected) {
   if (connected == connected_) return;
@@ -77,6 +85,9 @@ void CameraCard::set_connected(bool connected) {
   dirty_ = true; studio_list_ = false; canceled_ = false;
   studio_pending_ = false; studio_timer_.stop(); last_studio_identity_.clear();
   emit catalog_changed(); emit busy_changed(busy());
+  if (original_cancel_) original_cancel_->store(true);
+  original_cancel_.reset();
+  clear_original();
   emit status_changed(connected ? QCoreApplication::translate("App", "Открой вкладку и обнови список карты. Оригиналы при съёмке не копируются.") : QCoreApplication::translate("App", "Камера отключена"));
 }
 QString CameraCard::ledger_path() const { return QDir(directory_).filePath(".sonshell-imports.json"); }
@@ -138,6 +149,69 @@ void CameraCard::preview(const QString& key, bool thumbnail, bool full_jpeg) {
   if (full_jpeg) for (const auto& candidate : item->files) if (candidate.format == jpeg_format) { file = candidate; original = true; break; }
   queue_.enqueue({"preview", request_id(), key, file, thumbnail, false, {}, original, full_jpeg && !original});
   canceled_ = false; total_ = completed_ = failed_ = 0; dispatch();
+}
+void CameraCard::original(const QString& key) {
+  const auto* item = find(key);
+  if (!connected_ || busy() || !item) return;
+  const auto file = item->preview_file();
+  if (!file.size) {
+    const auto message = QCoreApplication::translate("App", "Файл недоступен");
+    emit original_failed(key, message); emit status_changed(message); return;
+  }
+  const auto identity = ledger_key(*item, file);
+  active_ = {"original", request_id(), key, file};
+  canceled_ = false; total_ = completed_ = failed_ = 0;
+  if (original_key_ == identity && (original_temporary_ || imported(*item, file)) && QFileInfo(original_result_.path).isFile() &&
+      quint64(QFileInfo(original_result_.path).size()) == file.size) {
+    emit busy_changed(true);
+    // Defer delivery so selecting a cached item has the same ordering as a transfer.
+    const auto request = active_.request;
+    QTimer::singleShot(0, this, [this, key, request] {
+      if (active_.request != request) return;
+      if (!canceled_) emit original_ready(key, original_result_);
+      finish();
+    });
+  } else if (imported(*item, file)) {
+    emit busy_changed(true); emit progress_changed(0, 0, 0);
+    read_original(ledger_.value(identity).toObject().value("path").toString(), false);
+  } else {
+    queue_.enqueue(active_); active_ = {}; dispatch();
+  }
+}
+void CameraCard::read_original(const QString& path, bool temporary) {
+  const auto task = active_;
+  original_cancel_ = std::make_shared<std::atomic<bool>>(canceled_);
+  const auto token = original_cancel_;
+  emit progress_changed(0, 0, 95);
+  emit status_changed(QCoreApplication::translate("App", "Открываю оригинал в исходном размере…"));
+  auto* watcher = new QFutureWatcher<MediaResult>(this);
+  connect(watcher, &QFutureWatcher<MediaResult>::finished, this, [this, watcher, path, temporary, task] {
+    const auto result = watcher->result(); watcher->deleteLater();
+    if (!connected_ || active_.request != task.request || canceled_ || result.image.isNull()) {
+      if (temporary) QFile::remove(path);
+      if (active_.request == task.request) {
+        const auto message = canceled_ ? QCoreApplication::translate("App", "Просмотр оригинала отменён") : result.error;
+        emit original_failed(task.key, message); finish(message);
+      }
+      return;
+    }
+    const auto* item = find(task.key);
+    const auto old_path = original_temporary_ ? original_result_.path : QString();
+    original_result_ = result; original_temporary_ = temporary;
+    original_key_ = item ? ledger_key(*item, task.file) : QString();
+    emit original_ready(task.key, original_result_);
+    if (!old_path.isEmpty() && old_path != path) QFile::remove(old_path);
+    original_cancel_.reset(); finish(QString(QCoreApplication::translate("App", "Оригинал открыт · %1 × %2")).arg(result.image.width()).arg(result.image.height()));
+  });
+  watcher->setFuture(QtConcurrent::run([path, task, token] {
+    if (task.file.format == jpeg_format || task.file.format == 0xb110) {
+      QImageReader reader(path); const auto size = reader.size();
+      if (!size.isValid() || qint64(size.width()) * size.height() > 120000000 || QFileInfo(path).size() > 128 * 1024 * 1024) {
+        MediaResult result; result.error = QCoreApplication::translate("App", "Изображение недоступно или превышает лимит 120 Мп / 128 MiB"); return result;
+      }
+    }
+    return MediaReader::read(path, false, token);
+  }));
 }
 QString CameraCard::movie_socket_path() const {
   return QDir(session_->card_cache_path()).filePath("movie-" + QUuid::createUuid().toString(QUuid::Id128) + ".sock");
@@ -217,7 +291,9 @@ void CameraCard::remove(const QStringList& keys) {
 void CameraCard::cancel() {
   if (!busy()) return;
   if (active_.kind == "verify") { verification_.cancel(); return; }
-  canceled_ = true; queue_.clear(); session_->send_command("card cancel");
+  canceled_ = true; queue_.clear();
+  if (original_cancel_) original_cancel_->store(true);
+  else session_->send_command("card cancel");
   emit status_changed(QCoreApplication::translate("App", "Останавливаю операцию; ожидаю ответ камеры…"));
 }
 void CameraCard::dispatch() {
@@ -225,9 +301,9 @@ void CameraCard::dispatch() {
   active_ = queue_.dequeue();
   const auto* item = find(active_.key);
   if (!item) { finish(QCoreApplication::translate("App", "Кадр больше не доступен")); return; }
-  QString command = QString("card %1 %2 %3 %4 %5").arg(active_.kind, active_.request, epoch_).arg(item->slot).arg(item->id);
+  QString command = QString("card %1 %2 %3 %4 %5").arg(active_.kind == "original" ? "preview" : active_.kind, active_.request, epoch_).arg(item->slot).arg(item->id);
   if (active_.kind != "delete") command += ' ' + QString::number(active_.file.id) + ' ' +
-      (active_.kind == "movie" ? QString::fromLatin1(active_.socket.toUtf8().toHex()) : active_.kind == "copy" ? QString::fromLatin1(directory_.toUtf8().toHex()) : active_.full_jpeg ? "jpeg" : active_.thumbnail ? "thumb" : "screen");
+      (active_.kind == "movie" ? QString::fromLatin1(active_.socket.toUtf8().toHex()) : active_.kind == "copy" ? QString::fromLatin1(directory_.toUtf8().toHex()) : active_.kind == "original" ? "original" : active_.full_jpeg ? "jpeg" : active_.thumbnail ? "thumb" : "screen");
   if (playing_video()) emit movie_viewing(true);
   emit busy_changed(true);
   emit status_changed((active_.kind == "copy" ? QCoreApplication::translate("App", "Копирование: ") : active_.kind == "delete" ? QCoreApplication::translate("App", "Удаление: ") : QCoreApplication::translate("App", "Превью: ")) + item->name());
@@ -235,6 +311,7 @@ void CameraCard::dispatch() {
   if (!session_->send_command(command)) finish(QCoreApplication::translate("App", "Команда не отправлена"));
 }
 void CameraCard::finish(const QString& message) {
+  original_cancel_.reset();
   const bool batch = active_.kind == "copy" || active_.kind == "delete";
   if (batch) { ++completed_; if (!message.isEmpty()) ++failed_; }
   if (playing_video()) emit movie_viewing(false);
@@ -272,7 +349,7 @@ void CameraCard::receive(const QJsonObject& event) {
   if (type == "changed") {
     dirty_ = true;
     emit status_changed(QCoreApplication::translate("App", "Содержимое карты изменилось. Обнови список после съёмки."));
-    // Optional studio review requests only compressed data, never an original.
+    // Studio quality is chosen independently from card browsing quality.
     if (studio_) {
       studio_pending_ = true;
       if (!busy()) studio_timer_.start();
@@ -320,10 +397,17 @@ void CameraCard::receive(const QJsonObject& event) {
       const bool hashing = event.value("phase").toString() == "hash";
       percent = hashing ? 90 + percent * 9 / 100 : percent * 90 / 100;
       if (hashing) emit status_changed(QCoreApplication::translate("App", "Вычисляю SHA256 перед сохранением…"));
-    }
+    } else if (active_.kind == "original") percent = percent * 90 / 100;
     emit progress_changed(completed_, total_, percent);
   }
-  else if (type == "preview" && active_.kind == "preview") {
+  else if (type == "preview" && active_.kind == "original") {
+    const auto path = event.value("path").toString();
+    if (canceled_ || quint64(QFileInfo(path).size()) != active_.file.size) {
+      QFile::remove(path); const auto message = QCoreApplication::translate("App", "Оригинал отменён или получен не полностью");
+      emit original_failed(active_.key, message); finish(message); return;
+    }
+    read_original(path, true);
+  } else if (type == "preview" && active_.kind == "preview") {
     const auto path = event.value("path").toString();
     const auto task = active_;
     auto* watcher = new QFutureWatcher<QImage>(this);
@@ -331,7 +415,7 @@ void CameraCard::receive(const QJsonObject& event) {
       const auto image = watcher->result(); watcher->deleteLater(); QFile::remove(path);
       if (!connected_ || active_.request != task.request) return;
       if (!image.isNull() && !canceled_) {
-        emit preview_ready(task.key, image, task.thumbnail);
+        if (!task.studio) emit preview_ready(task.key, image, task.thumbnail);
         if (task.studio) {
           const auto* item = find(task.key);
           if (item) last_studio_identity_ = item->identity;
@@ -364,6 +448,7 @@ void CameraCard::receive(const QJsonObject& event) {
     const auto message = event.value("code") == "movie-no-data" ?
         QString(QCoreApplication::translate("App", "Нет видеоданных от камеры. Проверь входящие TCP 55001, 55003, 55005 от %1 к %2 в брандмауэре и сети. Справка: F1 → Видео.")).arg(event.value("camera_host").toString(), event.value("computer_ip").toString()) : event.value("message").toString();
     if (playing_video()) emit movie_failed(message);
+    if (active_.kind == "original") emit original_failed(active_.key, message);
     if (active_.kind == "delete") queue_.clear(); // Reconfirm remaining deletions after any failure.
     studio_list_ = false;
     emit session_->log_received(QCoreApplication::translate("App", "Карта: ") + message);

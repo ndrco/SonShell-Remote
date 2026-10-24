@@ -146,8 +146,15 @@ for line in sys.stdin:
             if parts[7] == 'jpeg' and file['format'] != 0x3801:
                 event('error', request, message='JPEG required')
                 continue
-            source = file['source'] if parts[7] == 'jpeg' else os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
-            target = Path(args[args.index('--camera-cache') + 1]) / (request + '.jpg')
+            original = parts[7] in ('jpeg', 'original')
+            if parts[7] == 'original':
+                event('progress', request, percent=50)
+                if os.environ.get('REMOTE_TEST_SLOW_ORIGINAL'):
+                    pending = request
+                    continue
+            source = file['source'] if original else os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
+            extension = Path(file['path']).suffix.lower() if parts[7] == 'original' else '.jpg'
+            target = Path(args[args.index('--camera-cache') + 1]) / (request + extension)
             target.write_bytes(Path(source).read_bytes())
             event('preview', request, path=str(target))
         elif kind == 'copy':

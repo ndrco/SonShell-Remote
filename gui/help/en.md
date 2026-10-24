@@ -12,9 +12,16 @@ on this computer. Clearing the checkbox removes the saved credentials.
 
 ## Review the camera card
 
-After shooting, open On camera → Refresh card. Viewing transfers compressed
-previews. Shooting and browsing do not download RAW originals. Preview resolution
-depends on the camera; 100% refers to the preview.
+After shooting, open On camera → Refresh card. Photos default to the original
+JPEG, including RAW+JPEG; Photos: quick preview selects the compressed SDK image.
+RAW and video are never transferred automatically. Original · … MiB explicitly
+loads the file into a temporary cache: video keeps its native resolution and frame
+rate, RAW uses its best embedded JPEG without sensor development. The caption shows
+actual dimensions; 100% refers to this source. Progress and Stop work in full screen.
+Video downloads completely before playback; then click Play. The cache retains
+the last original until replacement or disconnect; reopening avoids another transfer.
+A confirmed imported copy is used directly and is preserved. Viewing does not
+replace importing or enable transfers on shutter release.
 
 | Key | Action |
 | --- | --- |
@@ -109,6 +116,10 @@ seeking to a specified second are available. This is a **silent preview**, limit
 only by the received stream's resolution and frame rate; the original audio remains unchanged. SDK/firmware support
 and reachable network ports are required. Camera/decoder failures are shown.
 The video bar shows the actual frame size; the camera sets SDK preview resolution.
+For original quality, click Stop, then Original · … MiB and wait for the download.
+Play then opens the temporary original without resizing instead of the SDK stream.
+Pause/Stop/seek remain available; inbound video ports are not needed for this mode.
+Selecting the row again returns to quick viewing.
 Live View stops during streaming and resumes afterwards if previously enabled.
 Changing tabs or items stops the stream. Stop playback before copying/deleting.
 Space/Delete marking works over the video as well.
