@@ -18,6 +18,8 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QImageReader>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTabWidget>
@@ -58,7 +60,7 @@ class MediaTests final : public QObject {
     qRegisterMetaType<MediaItems>(); qRegisterMetaType<MediaResult>();
     QProcess tool; tool.start("exiftool", {"-ver"}); QVERIFY(tool.waitForFinished()); QCOMPARE(tool.exitCode(), 0);
   }
-  void cleanup() { qunsetenv("REMOTE_TEST_CAPTURE"); qunsetenv("REMOTE_TEST_JPEG"); }
+  void cleanup() { qunsetenv("REMOTE_TEST_CAPTURE"); qunsetenv("REMOTE_TEST_JPEG"); qunsetenv("REMOTE_TEST_CARD"); }
   void jpeg_metadata_and_orientation() {
     const auto path = make_jpeg("exif.jpg"); QVERIFY(!path.isEmpty());
     QProcess write;
@@ -185,7 +187,7 @@ class MediaTests final : public QObject {
     qputenv("REMOTE_TEST_JPEG", live.toUtf8()); qputenv("REMOTE_TEST_CAPTURE", captured.toUtf8());
     QTemporaryDir captures;
     SettingsStore settings; auto values = settings.load(); values.sdk_terms_accepted = true;
-    values.folder = captures.path(); values.studio_review = true; values.review_seconds = 2; QVERIFY(settings.save(values));
+    values.folder = captures.path(); values.studio_review = true; values.studio_full_jpeg = false; values.review_seconds = 2; QVERIFY(settings.save(values));
     MainWindow window(FAKE_BACKEND_PATH); window.show();
     auto* connect_button = window.findChild<QPushButton*>("connect"); QTest::mouseClick(connect_button, Qt::LeftButton);
     auto* session = window.findChild<CameraSession*>(); QVERIFY(session);
@@ -208,6 +210,43 @@ class MediaTests final : public QObject {
     auto* list = window.findChild<QListView*>("gallery_list");
     QTRY_COMPARE_WITH_TIMEOUT(list->model()->rowCount(), 1, 4000);
     if (qEnvironmentVariableIsSet("REMOTE_MAIN_GALLERY_SCREENSHOT")) window.grab().save(qEnvironmentVariable("REMOTE_MAIN_GALLERY_SCREENSHOT"));
+    window.close();
+  }
+  void studio_original_jpeg_data() {
+    QTest::addColumn<bool>("raw_only");
+    QTest::newRow("raw-plus-full-jpeg") << false; QTest::newRow("raw-only-compressed-fallback") << true;
+  }
+  void studio_original_jpeg() {
+    QFETCH(bool, raw_only);
+    const auto live = make_jpeg("full-live.jpg", {640, 480});
+    const auto compressed = make_jpeg("small-screen.jpg", {1200, 800});
+    const auto full = make_jpeg("full-camera.jpg", {6192, 4128}); QVERIFY(!full.isEmpty()); // Larger than the old 24 MP cap.
+    const auto raw = directory_.filePath("sensor.arw"); QFile raw_file(raw); QVERIFY(raw_file.open(QIODevice::WriteOnly));
+    raw_file.write(QByteArray(4096, 'R')); raw_file.close();
+    QJsonArray files{QJsonObject{{"id", 2}, {"format", 0xb101}, {"size", "4096"}, {"path", "DCIM/frame.ARW"}, {"source", raw}}};
+    if (!raw_only) files.append(QJsonObject{{"id", 1}, {"format", 0x3801}, {"size", QString::number(QFileInfo(full).size())}, {"path", "DCIM/frame.JPG"}, {"source", full}});
+    const auto fixture = directory_.filePath("full-card.json"); QFile card_file(fixture); QVERIFY(card_file.open(QIODevice::WriteOnly));
+    card_file.write(QJsonDocument(QJsonArray{QJsonObject{{"slot", 1}, {"id", 1}, {"stamp", "2026-10-24T12:00:00"}, {"identity", "full-camera-frame"}, {"files", files}}}).toJson()); card_file.close();
+    qputenv("REMOTE_TEST_CARD", fixture.toUtf8()); qputenv("REMOTE_TEST_JPEG", live.toUtf8()); qputenv("REMOTE_TEST_CAPTURE", compressed.toUtf8());
+    QTemporaryDir captures; SettingsStore settings; auto values = settings.load(); values.sdk_terms_accepted = true;
+    values.folder = captures.path(); values.studio_review = values.studio_full_jpeg = true; values.review_seconds = 2; QVERIFY(settings.save(values));
+    MainWindow window(FAKE_BACKEND_PATH); window.show();
+    QTest::mouseClick(window.findChild<QPushButton*>("connect"), Qt::LeftButton);
+    auto* session = window.findChild<CameraSession*>(); QTRY_COMPARE(session->state(), CameraSession::State::Connected);
+    auto* viewer = window.findChild<ImageViewer*>("live_view"); QTRY_COMPARE(viewer->view()->scene()->itemsBoundingRect().size(), QSizeF(640, 480));
+    auto* card = window.findChild<CameraCard*>(); QSignalSpy ready(card, &CameraCard::studio_ready), copied(card, &CameraCard::copied);
+    QTest::mouseClick(window.findChild<QPushButton*>("command_shoot"), Qt::LeftButton);
+    QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 6000);
+    const auto expected = raw_only ? QSizeF(1200, 800) : QSizeF(6192, 4128);
+    QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), expected);
+    QCOMPARE(window.findChild<QLineEdit*>("file_status_path")->text(), raw_only ? QString("DCIM/frame.ARW") : QString("DCIM/frame.JPG"));
+    QVERIFY(ready[0][2].toString().contains(raw_only ? QString::fromUtf8("JPEG на карте нет") : QString::fromUtf8("исходный размер")));
+    QCOMPARE(copied.size(), 0);
+    QVERIFY(QDir(captures.path()).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden).isEmpty());
+    QVERIFY(QDir(session->card_cache_path()).entryList(QDir::Files).isEmpty());
+    auto* review = window.findChild<StudioReview*>(); QTRY_VERIFY_WITH_TIMEOUT(!review->active(), 3500);
+    QVERIFY(window.findChild<QLineEdit*>("file_status_path")->text().isEmpty());
+    QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), QSizeF(640, 480));
     window.close();
   }
 };

@@ -28,6 +28,7 @@ if(NOT SONSHELL_HEADLESS)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 if(NOT SONSHELL_HEADLESS)
   find_package(PkgConfig REQUIRED)
 endif()
@@ -70,6 +71,7 @@ add_custom_target(sonshell_generate_sdk_maps
 
 add_executable(sonshell src/main.cpp src/live_view_stream.cpp src/camera_browser.cpp src/camera_controls.cpp src/movie_stream.cpp)
 add_dependencies(sonshell sonshell_generate_sdk_maps)
+target_link_libraries(sonshell PRIVATE OpenSSL::Crypto)
 target_compile_definitions(sonshell PRIVATE SONSHELL_REMOTE_VERSION="${PROJECT_VERSION}")
 
 # --- RPATH / RUNPATH configuration ------------------------------------------

@@ -16,6 +16,7 @@ class QLabel;
 class QPlainTextEdit;
 class QTabWidget;
 class QSpinBox;
+class QComboBox;
 class GalleryWidget;
 class CameraCardWidget;
 class CameraControlsWidget;
@@ -55,6 +56,7 @@ class MainWindow final : public QMainWindow {
   QPushButton *connect_button_, *browse_;
   QCheckBox *studio_, *hold_;
   QSpinBox* review_seconds_;
+  QComboBox* review_quality_;
   QTabWidget* tabs_;
   GalleryWidget* gallery_;
   CameraCardWidget* card_widget_;
@@ -67,7 +69,7 @@ class MainWindow final : public QMainWindow {
   QTimer frames_timer_;
   QDateTime last_frame_;
   QImage photo_, last_live_image_;
-  QString photo_path_, photo_caption_;
+  QString photo_path_, photo_caption_, studio_path_;
   bool decode_pending_ = false, open_after_load_ = false;
   bool loading_ = false;
   bool liveview_running_ = false, resume_liveview_ = false;

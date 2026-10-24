@@ -1,5 +1,6 @@
 #include "camera_browser.h"
 #include "transfer_file.h"
+#include "file_digest.h"
 #include "capture_date.h"
 #include <algorithm>
 #include <chrono>
@@ -263,9 +264,12 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
   std::unique_lock<std::mutex> serial(transfers_);
   if (stopping_ || canceled_) throw std::runtime_error("Операция отменена");
   const bool preview = args[1] == "preview";
+  const bool full_jpeg = preview && args[7] == "jpeg";
   std::filesystem::path destination;
   if (preview) {
-    if (args[7] != "screen" && args[7] != "thumb") throw std::runtime_error("Неизвестный размер превью");
+    if (args[7] != "screen" && args[7] != "thumb" && !full_jpeg) throw std::runtime_error("Неизвестный размер превью");
+    if (full_jpeg && (file.format != sdk::CrContentsFile_FileFormat_Jpeg || !file.size || file.size > 128 * 1024 * 1024))
+      throw std::runtime_error("Студийный просмотр принимает только JPEG до 128 MiB, без RAW");
     if (cache_.empty()) throw std::runtime_error("Каталог превью недоступен");
     destination = std::filesystem::path(cache_) / (args[2] + ".jpg");
   } else {
@@ -294,7 +298,7 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
     std::lock_guard<std::mutex> lock(result_mutex_);
     transferring_ = true; terminal_ = false; active_request_ = args[2]; progress_ = 101; transfer_activity_ = std::chrono::steady_clock::now();
   }
-  auto err = preview ? sdk::GetRemoteTransferContentsCompressedDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id,
+  auto err = preview && !full_jpeg ? sdk::GetRemoteTransferContentsCompressedDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id,
       (args[7] == "thumb" || file.format == sdk::CrContentsFile_FileFormat_Mp4) ? sdk::CrGetContentsCompressedDataType_Thumbnail : sdk::CrGetContentsCompressedDataType_Screennail, directory.data(), name.data()) :
       sdk::GetRemoteTransferContentsDataFile(handle_, static_cast<sdk::CrSlotNumber>(content.slot), content.id, file.id, 0x1000000, directory.data(), name.data());
   bool cancel_sent = false;
@@ -323,9 +327,16 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
   lock.unlock();
   std::error_code ec;
   auto size = std::filesystem::file_size(std::filesystem::path(directory) / name, ec);
-  if (ec || (!preview && file.size && size != file.size)) throw std::runtime_error("Размер полученного файла не совпадает с оригиналом");
+  if (ec || ((!preview || full_jpeg) && file.size && size != file.size)) throw std::runtime_error("Размер полученного файла не совпадает с оригиналом");
+  std::string digest;
+  if (!preview) digest = file_sha256((std::filesystem::path(directory) / name).string(), size,
+      [this] { return stopping_ || canceled_; }, [this, &args](int percent) {
+        event("progress", args[2], "\"phase\":\"hash\",\"percent\":" + std::to_string(percent));
+      });
+  if (stopping_ || canceled_) throw std::runtime_error("Передача отменена");
   if (!output.publish(message)) throw std::runtime_error(message);
-  event(preview ? "preview" : "copied", args[2], "\"path\":" + json(output.target()) + ",\"size\":" + json(std::to_string(size)));
+  event(preview ? "preview" : "copied", args[2], "\"path\":" + json(output.target()) + ",\"size\":" + json(std::to_string(size)) +
+      (preview ? "" : ",\"sha256\":" + json(digest)));
 }
 void CameraBrowser::delete_result(CrInt32u warning, CrInt32 result, CrInt32 content, CrInt32 slot) {
   if (warning != sdk::CrWarningExt_DeleteContent) return;

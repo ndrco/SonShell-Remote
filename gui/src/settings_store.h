@@ -11,6 +11,7 @@ struct AppSettings {
   bool auto_liveview = true;
   bool auto_reconnect = true;
   bool studio_review = false;
+  bool studio_full_jpeg = false;
   int review_seconds = 3;
   bool sdk_terms_accepted = false;
   QByteArray geometry;

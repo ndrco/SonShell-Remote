@@ -4,6 +4,90 @@
   <context>
     <name>App</name>
     <message>
+      <source>Новая очередь копирования заменяет сохранённый план.</source>
+      <translation>A new copy queue replaces the saved plan.</translation>
+    </message>
+    <message>
+      <source>JPEG на карте нет · сжатое превью</source>
+      <translation>No JPEG on card · compressed preview</translation>
+    </message>
+    <message>
+      <source>JPEG с карты · исходный размер</source>
+      <translation>JPEG from card · original size</translation>
+    </message>
+    <message>
+      <source>SHA256: исправны %1; изменены %2; отсутствуют %3; без эталона %4.</source>
+      <translation>SHA256: valid %1; changed %2; missing %3; no baseline %4.</translation>
+    </message>
+    <message>
+      <source>Все файлы сохранённой очереди уже скопированы.</source>
+      <translation>All files in the saved queue have already been copied.</translation>
+    </message>
+    <message>
+      <source>Для исходного размера включи JPEG или RAW+JPEG на камере. Передаётся только JPEG; скорость зависит от сети.</source>
+      <translation>For original size, enable JPEG or RAW+JPEG on the camera. Only JPEG is transferred; speed depends on the network.</translation>
+    </message>
+    <message>
+      <source>Кадры сохранённой очереди отсутствуют или изменились. Проверь камеру и карту.</source>
+      <translation>Saved queue items are missing or have changed. Check the camera and card.</translation>
+    </message>
+    <message>
+      <source>Карта менялась во время чтения. Обнови список перед продолжением импорта.</source>
+      <translation>The card changed while reading. Refresh the list before resuming import.</translation>
+    </message>
+    <message>
+      <source>Копия получена без контрольной суммы SHA256. Обнови backend.</source>
+      <translation>Copy received without a SHA256 checksum. Update the backend.</translation>
+    </message>
+    <message>
+      <source>Копия сохранена, но очередь импорта не обновлена.</source>
+      <translation>Copy saved, but the import queue could not be updated.</translation>
+    </message>
+    <message>
+      <source>Не найдены файлы сохранённой очереди: %1</source>
+      <translation>Saved queue files not found: %1</translation>
+    </message>
+    <message>
+      <source>Не удалось прочитать JPEG с карты.</source>
+      <translation>Could not read the JPEG from the card.</translation>
+    </message>
+    <message>
+      <source>Не удалось сохранить очередь импорта. Копирование не начато.</source>
+      <translation>Could not save the import queue. Copying was not started.</translation>
+    </message>
+    <message>
+      <source>Проверить локальные копии · SHA256</source>
+      <translation>Verify local copies · SHA256</translation>
+    </message>
+    <message>
+      <source>Вычисляю SHA256 перед сохранением…</source>
+      <translation>Computing SHA256 before saving…</translation>
+    </message>
+    <message>
+      <source>Проверка завершена, но журнал импорта не сохранён.</source>
+      <translation>Verification finished, but the import log could not be saved.</translation>
+    </message>
+    <message>
+      <source>Проверка копий остановлена. Файлы не изменялись.</source>
+      <translation>Copy verification stopped. Files were not modified.</translation>
+    </message>
+    <message>
+      <source>Проверяю SHA256 локальных копий. Файлы не изменяются…</source>
+      <translation>Checking local copy SHA256 checksums. Files are not modified…</translation>
+    </message>
+    <message>
+      <source>Продолжить импорт</source>
+      <translation>Resume import</translation>
+    </message>
+    <message>
+      <source>Продолжить сохранённую очередь. Незавершённый файл передаётся заново целиком.</source>
+      <translation>Resume the saved queue. An incomplete file is transferred again from the beginning.</translation>
+    </message>
+    <message>
+      <source>Сверить содержимое с суммой, сохранённой при импорте. Камера не нужна; файлы не изменяются.</source>
+      <translation>Compare contents with the checksum recorded at import. No camera is needed; files are not modified.</translation>
+    </message>
+    <message>
       <source>Выбери доступное значение из списка камеры.</source>
       <translation>Choose an available value from the camera list.</translation>
     </message>

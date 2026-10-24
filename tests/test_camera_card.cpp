@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QProgressBar>
 #include <QLabel>
+#include <QCryptographicHash>
 
 class CameraCardTests final : public QObject {
   Q_OBJECT
@@ -52,7 +53,7 @@ class CameraCardTests final : public QObject {
     qputenv("REMOTE_TEST_RECORD", record_.toUtf8());
   }
   void cleanup() {
-    for (const auto* name : {"REMOTE_TEST_CARD", "REMOTE_TEST_CAPTURE", "REMOTE_TEST_RECORD", "REMOTE_TEST_DELETE_FAIL", "REMOTE_TEST_SLOW_COPY", "REMOTE_TEST_COPY_FAIL", "REMOTE_TEST_PREVIEW_DELAY"}) qunsetenv(name);
+    for (const auto* name : {"REMOTE_TEST_CARD", "REMOTE_TEST_CAPTURE", "REMOTE_TEST_RECORD", "REMOTE_TEST_DELETE_FAIL", "REMOTE_TEST_SLOW_COPY", "REMOTE_TEST_HOLD_RAW", "REMOTE_TEST_COPY_FAIL", "REMOTE_TEST_PREVIEW_DELAY", "REMOTE_TEST_ADVANCE_CAPTURE"}) qunsetenv(name);
   }
   void legacy_settings_never_enable_original_autotransfer() {
     const auto path = temporary_.filePath("legacy/settings.ini");
@@ -60,6 +61,18 @@ class CameraCardTests final : public QObject {
     SettingsStore settings(path); QVERIFY(!settings.load().auto_sync);
     auto values = settings.load(); values.auto_sync = true; QVERIFY(settings.save(values));
     QVERIFY(!settings.load().auto_sync); QSettings saved(path, QSettings::IniFormat); QVERIFY(!saved.contains("auto_sync"));
+  }
+  void studio_coalesces_changes_during_a_slow_preview() {
+    qputenv("REMOTE_TEST_PREVIEW_DELAY", "0.2"); qputenv("REMOTE_TEST_ADVANCE_CAPTURE", "1");
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.set_studio(true, true);
+    QSignalSpy ready(&card, &CameraCard::studio_ready);
+    QVERIFY(session.send_command("shoot")); QTRY_VERIFY(commands().contains("card preview"));
+    QVERIFY(card.previewing()); session.card_event({{"type", "changed"}}); // A physical shutter notification while transfer is active.
+    QVERIFY(session.send_command("shoot")); QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 2, 5000); QTRY_VERIFY(!card.busy());
+    session.card_event({{"type", "changed"}}); QTest::qWait(900); QTRY_VERIFY(!card.busy());
+    QCOMPARE(ready.size(), 2); QCOMPARE(commands().count("card preview"), 2); QVERIFY(!commands().contains("card copy"));
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void shoot_list_preview_do_not_copy_originals() {
     QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
@@ -111,6 +124,85 @@ class CameraCardTests final : public QObject {
     QCOMPARE(commands().count("card delete"), 1); // Stop at the first error, retain remaining rejects.
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
+  void sha256_detects_same_size_damage_and_recopy_preserves_old_file() {
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    QSignalSpy copied(&card, &CameraCard::copied), status(&card, &CameraCard::status_changed);
+    card.copy({"1:1"}, "raw", CameraCard::CopyMode::Selected); QTRY_COMPARE(copied.size(), 1); QTRY_VERIFY(!card.busy());
+    const auto path = copied[0][0].toString(); QFile file(path); QVERIFY(file.open(QIODevice::ReadWrite));
+    const auto modified = file.fileTime(QFileDevice::FileModificationTime); QVERIFY(file.seek(10)); QCOMPARE(file.write("X"), qint64(1));
+    QVERIFY(file.setFileTime(modified, QFileDevice::FileModificationTime)); file.close(); // Even keeping size and mtime cannot fool a full digest check.
+    CameraCardWidget widget(&card); widget.show();
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+    QVERIFY(widget.findChild<QPushButton*>("card_verify")->isEnabled());
+    QTest::mouseClick(widget.findChild<QPushButton*>("card_verify"), Qt::LeftButton); QTRY_VERIFY(!card.busy());
+    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("изменены 1")));
+    card.verify_copies(); QTRY_VERIFY(!card.busy()); QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("изменены 1"))); // Never replace a failed baseline.
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, folder.path(), false});
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    QVERIFY(card.is_new(card.items().last(), "raw"));
+    card.copy({"1:1"}, "raw", CameraCard::CopyMode::Selected); QTRY_COMPARE(copied.size(), 2); QTRY_VERIFY(!card.busy());
+    QVERIFY(copied[1][0].toString() != path); QVERIFY(file.open(QIODevice::ReadOnly)); QVERIFY(file.seek(10)); QCOMPARE(file.read(1), QByteArray("X")); file.close();
+    card.verify_copies(); QTRY_VERIFY(!card.busy()); QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("исправны 1")));
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void resume_survives_disconnect_restart_and_changed_content_ids() {
+    QTemporaryDir folder;
+    {
+      qputenv("REMOTE_TEST_HOLD_RAW", "1"); CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+      QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+      QSignalSpy copied(&card, &CameraCard::copied);
+      card.copy({"1:1"}, "all", CameraCard::CopyMode::Selected); QTRY_COMPARE(copied.size(), 1); QTRY_COMPARE(commands().count("card copy"), 2);
+      QCOMPARE(card.pending_copies(), 1); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+      QCOMPARE(card.pending_copies(), 1);
+    }
+    qunsetenv("REMOTE_TEST_HOLD_RAW");
+    QFile fixture(fixture_); QVERIFY(fixture.open(QIODevice::ReadOnly)); auto data = QJsonDocument::fromJson(fixture.readAll()).array(); fixture.close();
+    for (int i = 0; i < data.size(); ++i) { auto entry = data[i].toObject(); entry.insert("id", entry.value("id").toInt() + 10); data[i] = entry; }
+    const auto changed = folder.filePath("changed-ids.json"); QFile output(changed); QVERIFY(output.open(QIODevice::WriteOnly)); output.write(QJsonDocument(data).toJson()); output.close();
+    qputenv("REMOTE_TEST_CARD", changed.toUtf8());
+    CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QCOMPARE(card.pending_copies(), 1); QTRY_COMPARE(session.state(), CameraSession::State::Connected);
+    QSignalSpy copied(&card, &CameraCard::copied); card.resume_copy(); QTRY_COMPARE(copied.size(), 1); QTRY_VERIFY(!card.busy());
+    QCOMPARE(card.pending_copies(), 0); QVERIFY(!QFileInfo::exists(folder.filePath(".sonshell-copy-queue.json")));
+    QVERIFY(!card.is_new(card.items().last(), "all"));
+    QCOMPARE(commands().count("card copy"), 3); // JPEG was checkpointed and must not be downloaded again.
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void resume_refuses_another_camera_or_changed_capture() {
+    qputenv("REMOTE_TEST_SLOW_COPY", "1"); QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
+    card.copy({"1:1"}, "jpeg", CameraCard::CopyMode::Selected); QTRY_VERIFY(commands().contains("card copy")); card.cancel(); QTRY_VERIFY(!card.busy());
+    QFile fixture(fixture_); QVERIFY(fixture.open(QIODevice::ReadOnly)); auto data = QJsonDocument::fromJson(fixture.readAll()).array(); fixture.close();
+    for (int i = 0; i < data.size(); ++i) { auto entry = data[i].toObject(); entry.insert("identity", "other-camera"); data[i] = entry; }
+    const auto changed = folder.filePath("other.json"); QFile output(changed); QVERIFY(output.open(QIODevice::WriteOnly)); output.write(QJsonDocument(data).toJson()); output.close();
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected); qputenv("REMOTE_TEST_CARD", changed.toUtf8()); qunsetenv("REMOTE_TEST_SLOW_COPY");
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, folder.path(), false}); QTRY_COMPARE(session.state(), CameraSession::State::Connected);
+    const auto before = commands().count("card copy"); card.resume_copy(); QTRY_VERIFY(!card.busy()); QTest::qWait(100);
+    QCOMPARE(commands().count("card copy"), before); QCOMPARE(card.pending_copies(), 1);
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void legacy_hash_is_not_invented_and_local_verification_cancels() {
+    QTemporaryDir folder; const auto path = folder.filePath("legacy.arw");
+    QFile file(path); QVERIFY(file.open(QIODevice::WriteOnly)); QVERIFY(file.resize(64 * 1024 * 1024)); file.close();
+    auto write_ledger = [&](const QString& digest) {
+      QJsonObject entry{{"path", path}, {"size", QString::number(QFileInfo(file).size())}};
+      if (!digest.isEmpty()) entry.insert("sha256", digest);
+      QFile ledger(folder.filePath(".sonshell-imports.json"));
+      if (!ledger.open(QIODevice::WriteOnly)) return false;
+      return ledger.write(QJsonDocument(QJsonObject{{"key", entry}}).toJson()) > 0;
+    };
+    QVERIFY(write_ledger({})); CameraSession session; CameraCard card(&session); card.set_directory(folder.path());
+    QSignalSpy status(&card, &CameraCard::status_changed); card.verify_copies(); QTRY_VERIFY(!card.busy());
+    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("без эталона 1")));
+    QFile ledger(folder.filePath(".sonshell-imports.json")); QVERIFY(ledger.open(QIODevice::ReadOnly));
+    QVERIFY(!QJsonDocument::fromJson(ledger.readAll()).object().value("key").toObject().contains("sha256")); ledger.close();
+    QVERIFY(write_ledger(QString(64, 'a'))); card.set_directory(folder.path());
+    card.verify_copies(); QVERIFY(card.busy()); card.cancel(); QTRY_VERIFY(!card.busy());
+    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("остановлена")));
+    QVERIFY(ledger.open(QIODevice::ReadOnly)); QVERIFY(!QJsonDocument::fromJson(ledger.readAll()).object().value("key").toObject().contains("valid"));
+    QVERIFY(!commands().contains("card cancel")); // Local work must not send a camera command.
+  }
   void completed_queue_progress_data() {
     QTest::addColumn<bool>("failure"); QTest::newRow("copied") << false; QTest::newRow("path-error") << true;
   }
@@ -120,9 +212,12 @@ class CameraCardTests final : public QObject {
     QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
     CameraCardWidget widget(&card); widget.show();
     auto* progress = widget.findChild<QProgressBar*>(); QVERIFY(progress);
+    auto* list = widget.findChild<QTreeWidget*>(); auto* row = list->topLevelItem(0);
+    row->setCheckState(0, Qt::Checked);
     QSignalSpy copied(&card, &CameraCard::copied);
     card.copy({"1:1"}, "all", CameraCard::CopyMode::Selected); QTRY_VERIFY(!card.busy());
     QCOMPARE(copied.size(), failure ? 0 : 2); QCOMPARE(progress->value(), 100);
+    QCOMPARE(list->topLevelItem(0), row); QCOMPARE(row->checkState(0), Qt::Checked);
     QVERIFY(!widget.findChild<QPushButton*>("card_cancel")->isEnabled());
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }

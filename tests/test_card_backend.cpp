@@ -1,5 +1,6 @@
 #include "camera_browser.h"
 #include "capture_date.h"
+#include "file_digest.h"
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QtTest>
@@ -24,6 +25,7 @@ std::atomic<bool> delete_enabled{true}, protected_file{false}, video_content{fal
 std::atomic<int> movie_starts{0}, movie_plays{0}, movie_pauses{0}, movie_seeks{0}, movie_stops{0}, local_day{0};
 std::atomic<bool> movie_end{false}, movie_no_data{false};
 std::atomic<unsigned> last_compressed_type{0};
+std::atomic<bool> cancel_hash{false};
 }
 namespace SCRSDK {
 CrError GetDeviceProperties(CrDeviceHandle, CrDeviceProperty** output, CrInt32* count) {
@@ -127,13 +129,16 @@ class CardBackendTests final : public QObject {
   }
  private slots:
   void init() {
+    cancel_hash = false;
     preview_fails = short_file = false; path_style = 1; slot2_lists = 0; slot2_present = slot2_ready = false;
     originals = previews = deletions = cancels = 0; hold_transfer = deletion_fails = changed_identity = protected_file = false; delete_enabled = true;
     video_content = movie_fail = movie_stop_fail = false; movie_starts = movie_plays = movie_pauses = movie_seeks = movie_stops = local_day = 0;
     movie_end = movie_no_data = false;
     events_.clear();
     service_ = std::make_unique<CameraBrowser>(transfers_, [this](const std::string& json) {
-      QMutexLocker lock(&events_mutex_); events_.append(QJsonDocument::fromJson(QByteArray::fromStdString(json)).object());
+      const auto event = QJsonDocument::fromJson(QByteArray::fromStdString(json)).object();
+      { QMutexLocker lock(&events_mutex_); events_.append(event); }
+      if (event.value("phase") == "hash" && cancel_hash.exchange(false)) browser->command({"card", "cancel"});
     });
     browser = service_.get(); service_->start(1, temporary_.filePath("cache").toStdString(), "body-serial", "127.0.0.1");
   }
@@ -145,6 +150,26 @@ class CardBackendTests final : public QObject {
     local_day = 22; list(); const auto root = temporary_.filePath("local-day");
     QVERIFY(service_->command(command("copy", "dated", root.toUtf8().toHex().toStdString()))); QTRY_VERIFY(has("copied", "dated"));
     QVERIFY(QFileInfo::exists(root + "/2026-10-22/Slot_1/DCIM/100MSDCF/DSC001.ARW"));
+  }
+  void copied_digest_is_content_sha256_and_hash_cancel_does_not_publish() {
+    list(); const auto root = temporary_.filePath("digest");
+    QVERIFY(service_->command(command("copy", "digest", root.toUtf8().toHex().toStdString()))); QTRY_VERIFY(has("copied", "digest"));
+    QString digest;
+    { QMutexLocker lock(&events_mutex_); for (const auto& event : events_) if (event.value("type") == "copied" && event.value("request") == "digest") digest = event.value("sha256").toString(); }
+    QCOMPARE(digest, QString("ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f")); // SHA256("12345678")
+    const auto canceled = temporary_.filePath("hash-canceled"); cancel_hash = true;
+    QVERIFY(service_->command(command("copy", "hash-canceled", canceled.toUtf8().toHex().toStdString()))); QTRY_VERIFY(has("error", "hash-canceled"));
+    QVERIFY(!has("copied", "hash-canceled"));
+    QVERIFY(!QFileInfo::exists(canceled + "/2026-10-21/Slot_1/DCIM/100MSDCF/DSC001.ARW"));
+  }
+  void studio_jpeg_downloads_only_jpeg_and_rejects_raw_or_video() {
+    list(); auto args = command("preview", "jpeg", "jpeg"); args[6] = "1";
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("preview", "jpeg"));
+    QCOMPARE(originals.load(), 1); QCOMPARE(previews.load(), 0);
+    args = command("preview", "no-raw", "jpeg");
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("error", "no-raw")); QCOMPARE(originals.load(), 1);
+    video_content = true; list(); args = command("preview", "no-video", "jpeg"); args[6] = "1";
+    QVERIFY(service_->command(args)); QTRY_VERIFY(has("error", "no-video")); QCOMPARE(originals.load(), 1);
   }
   void video_catalog_thumbnail_copy_and_sidecar() {
     video_content = true; list();

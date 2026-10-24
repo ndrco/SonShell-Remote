@@ -20,7 +20,7 @@ set_tests_properties(camera-card-tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=o
 if(SONSHELL_BUILD_BACKEND)
   add_executable(card-backend-tests test_card_backend.cpp ${CMAKE_SOURCE_DIR}/src/camera_browser.cpp ${CMAKE_SOURCE_DIR}/src/movie_stream.cpp)
   target_include_directories(card-backend-tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${SONY_SDK_DIR}/app)
-  target_link_libraries(card-backend-tests PRIVATE Qt6::Test Qt6::Network "${CRSDK_ROOT}/libCr_Core.so" pthread)
+  target_link_libraries(card-backend-tests PRIVATE Qt6::Test Qt6::Network OpenSSL::Crypto "${CRSDK_ROOT}/libCr_Core.so" pthread)
   target_compile_options(card-backend-tests PRIVATE -fsigned-char)
   add_test(NAME card-backend-tests COMMAND card-backend-tests)
 endif()

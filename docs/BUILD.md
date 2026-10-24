@@ -20,7 +20,7 @@ GUI без backend можно использовать для разработк
 SONY_SDK_DIR указывает на каталог с `app/` и `external/` (в SDK 2.02 это RemoteCli).
 
 ```bash
-sudo apt install libedit-dev libncurses-dev libxml2-dev
+sudo apt install libedit-dev libncurses-dev libxml2-dev libssl-dev
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DSONSHELL_BUILD_BACKEND=ON -DSONSHELL_HEADLESS=ON \
   -DSONY_SDK_DIR=/absolute/path/RemoteCli
@@ -42,7 +42,7 @@ sudo apt install dpkg-dev desktop-file-utils
 SONY_SDK_DIR=/absolute/path/RemoteCli ./scripts/package-deb.sh
 ```
 
-Результат: `build-package/sonshell-remote_0.6.3-1ubuntu24.04_amd64.deb`.
+Результат: `build-package/sonshell-remote_0.7.0-1ubuntu24.04_amd64.deb`.
 Скрипт скачивает HTML лицензии Sony в build-каталог (можно передать локальный
 SONY_SDK_LICENSE_FILE), собирает проект, выполняет тесты и CPack DEB.
 Зависимости вычисляет dpkg-shlibdeps, runtime SDK помещается в приватный

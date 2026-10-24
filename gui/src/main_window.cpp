@@ -8,6 +8,7 @@
 #include <QMenuBar>
 #include <QActionGroup>
 #include <QSpinBox>
+#include <QComboBox>
 #include <QSignalBlocker>
 #include <functional>
 #include <QCheckBox>
@@ -58,7 +59,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   photos_.set_auto_preview(false);
   review_.setObjectName("studio_review");
   review_.configure(studio_->isChecked(), review_seconds_->value());
-  card_.set_studio(studio_->isChecked());
+  card_.set_studio(studio_->isChecked(), review_quality_->currentIndex() == 1);
   connect(&card_, &CameraCard::movie_viewing, this, [this](bool active) {
     for (auto* action : camera_actions_) action->setEnabled(!active && session_.state() == CameraSession::State::Connected);
     if (active) { resume_liveview_ = liveview_running_; review_.cancel(); }
@@ -66,9 +67,9 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   });
   connect(&card_, &CameraCard::copied, this, [this](const QString& path) { photos_.completed_download(path, false); });
   connect(&card_, &CameraCard::busy_changed, this, [this](bool busy) { browse_->setEnabled(!busy); folder_->setEnabled(!busy); });
-  connect(&card_, &CameraCard::studio_ready, this, [this](const QImage& image, const QString& name) {
+  connect(&card_, &CameraCard::studio_ready, this, [this](const QImage& image, const QString& name, const QString& source) {
     if (!liveview_running_) return;
-    MediaResult result; result.image = image; result.path = name; result.source = QCoreApplication::translate("App", "Сжатое превью камеры"); review_.present(result);
+    MediaResult result; result.image = image; result.path = name; result.source = source; review_.present(result);
   });
   connect(&session_, &CameraSession::state_changed, this, [this](auto state, const QString& message) {
     state_->setText(message);
@@ -76,7 +77,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     for (auto* action : camera_actions_) action->setEnabled(connected);
     connect_button_->setText(session_.active() ? QCoreApplication::translate("App", "Отключить") : QCoreApplication::translate("App", "Подключить"));
     connect_button_->setEnabled(state != CameraSession::State::Stopping);
-    card_.set_connected(connected); card_widget_->setEnabled(connected);
+    card_.set_connected(connected);
     browse_->setEnabled(!card_.busy()); folder_->setEnabled(!card_.busy());
     for (auto* input : {host_, model_, user_, password_}) input->setEnabled(!session_.active());
     statusBar()->showMessage(message);
@@ -122,12 +123,15 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     if (!result.error.isEmpty()) statusBar()->showMessage(result.error, 5000);
   });
   connect(&review_, &StudioReview::photo_presented, this, [this](const MediaResult& result) {
+    studio_path_ = result.path;
     live_view_->set_image(result.image, QCoreApplication::translate("App", "Снимок · ") + QFileInfo(result.path).fileName() + " · " + result.source);
     tabs_->setCurrentIndex(0);
     sdk_controls_->set_live(false);
     hold_->setEnabled(true);
+    update_file_path();
   });
   connect(&review_, &StudioReview::returned_to_liveview, this, [this] {
+    studio_path_.clear(); update_file_path();
     { QSignalBlocker guard(hold_); hold_->setChecked(false); }
     hold_->setEnabled(false);
     sdk_controls_->set_live(liveview_running_);
@@ -210,8 +214,12 @@ void MainWindow::create_ui() {
   studio_->setToolTip(QCoreApplication::translate("App", "Запрашивает сжатое превью последнего кадра с карты. Оригинал не загружается; разрешение определяет камера.")); studio_->setObjectName("studio_enabled");
   review_seconds_ = new QSpinBox(studio_box); review_seconds_->setObjectName("review_seconds");
   review_seconds_->setRange(2, 10); review_seconds_->setSuffix(QCoreApplication::translate("App", " с"));
+  review_quality_ = new QComboBox(studio_box); review_quality_->setObjectName("review_quality");
+  review_quality_->addItem(QCoreApplication::translate("App", "Сжатое превью камеры"));
+  review_quality_->addItem(QCoreApplication::translate("App", "JPEG с карты · исходный размер"));
+  review_quality_->setToolTip(QCoreApplication::translate("App", "Для исходного размера включи JPEG или RAW+JPEG на камере. Передаётся только JPEG; скорость зависит от сети."));
   hold_ = new QCheckBox(QCoreApplication::translate("App", "Удерживать кадр"), studio_box); hold_->setObjectName("review_hold"); hold_->setEnabled(false);
-  studio_layout->addWidget(studio_); studio_layout->addWidget(review_seconds_); studio_layout->addWidget(hold_);
+  studio_layout->addWidget(studio_); studio_layout->addWidget(review_quality_); studio_layout->addWidget(review_seconds_); studio_layout->addWidget(hold_);
   controls_layout->addWidget(studio_box);
   controls_layout->addStretch(); scroll->setWidget(controls);
   auto* right = new QWidget(split); auto* right_layout = new QVBoxLayout(right);
@@ -224,7 +232,7 @@ void MainWindow::create_ui() {
   connect(sdk_controls_, &CameraControlsWidget::point_selection_changed, live_view_->view(), &ImageView::set_point_selection);
   connect(live_view_->view(), &ImageView::point_selected, sdk_controls_, &CameraControlsWidget::select_point);
   gallery_ = new GalleryWidget(tabs); photo_view_ = gallery_->viewer();
-  card_widget_ = new CameraCardWidget(&card_, tabs); card_widget_->setEnabled(false);
+  card_widget_ = new CameraCardWidget(&card_, tabs);
   tabs->addTab(live_host, "Live View"); tabs->addTab(card_widget_, QCoreApplication::translate("App", "В камере")); tabs->addTab(gallery_, QCoreApplication::translate("App", "На компьютере · EXIF"));
   connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) { if (index == 1) card_widget_->activated(); else if (card_.playing_video()) card_.cancel(); });
   right_layout->addWidget(tabs, 4);
@@ -245,10 +253,11 @@ void MainWindow::create_ui() {
   connect(auto_liveview_, &QCheckBox::toggled, this, [this] { if (!loading_) save_settings(); });
   auto configure_review = [this] {
     if (loading_) return;
-    review_.configure(studio_->isChecked(), review_seconds_->value()); card_.set_studio(studio_->isChecked()); save_settings();
+    review_.configure(studio_->isChecked(), review_seconds_->value()); card_.set_studio(studio_->isChecked(), review_quality_->currentIndex() == 1); save_settings();
   };
   connect(studio_, &QCheckBox::toggled, this, configure_review);
   connect(review_seconds_, qOverload<int>(&QSpinBox::valueChanged), this, configure_review);
+  connect(review_quality_, qOverload<int>(&QComboBox::currentIndexChanged), this, configure_review);
   connect(hold_, &QCheckBox::toggled, &review_, &StudioReview::hold);
   connect(auto_reconnect_, &QCheckBox::toggled, this, [this](bool on) {
     if (!loading_) { session_.set_auto_reconnect(on); save_settings(); }
@@ -266,7 +275,7 @@ AppSettings MainWindow::values() const {
   v.user = user_->text(); v.password = password_->text(); v.folder = folder_->text().trimmed();
   v.remember_credentials = remember_->isChecked(); v.auto_sync = false;
   v.auto_liveview = auto_liveview_->isChecked(); v.auto_reconnect = auto_reconnect_->isChecked();
-  v.studio_review = studio_->isChecked(); v.review_seconds = review_seconds_->value();
+  v.studio_review = studio_->isChecked(); v.studio_full_jpeg = review_quality_->currentIndex() == 1; v.review_seconds = review_seconds_->value();
   v.geometry = saveGeometry(); v.sdk_terms_accepted = settings_.load().sdk_terms_accepted; return v;
 }
 void MainWindow::load_settings() {
@@ -276,7 +285,7 @@ void MainWindow::load_settings() {
   host_->setText(v.host); model_->setText(v.model); user_->setText(v.user); password_->setText(v.password);
   folder_->setText(v.folder); remember_->setChecked(v.remember_credentials);
   auto_liveview_->setChecked(v.auto_liveview); auto_reconnect_->setChecked(v.auto_reconnect);
-  studio_->setChecked(v.studio_review); review_seconds_->setValue(v.review_seconds);
+  studio_->setChecked(v.studio_review); review_quality_->setCurrentIndex(v.studio_full_jpeg ? 1 : 0); review_seconds_->setValue(v.review_seconds);
   if (!v.geometry.isEmpty()) restoreGeometry(v.geometry);
   loading_ = false;
 }
@@ -358,7 +367,7 @@ void MainWindow::load_photo(const QString& path, bool open) {
   decode_pending_ = true; open_after_load_ = open; photos_.load(path);
 }
 void MainWindow::update_file_path() {
-  const auto path = tabs_->currentIndex() == 1 ? card_widget_->selected_path() :
+  const auto path = tabs_->currentIndex() == 0 && review_.active() ? studio_path_ : tabs_->currentIndex() == 1 ? card_widget_->selected_path() :
       tabs_->currentIndex() == 2 && !photo_path_.isEmpty() ? QFileInfo(photo_path_).absoluteFilePath() : QString();
   file_path_->setText(path); file_path_->setToolTip(path); file_path_->setCursorPosition(0);
 }

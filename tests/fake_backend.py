@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """SDK-free protocol fixture. No network or camera access."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import select
@@ -44,6 +45,7 @@ if captured and not fixture:
 epoch = ''
 pending = None
 movie = None
+capture_sequence = 0
 for line in sys.stdin:
     command = line.strip()
     record_event({'command': command})
@@ -78,6 +80,10 @@ for line in sys.stdin:
                   channel='controls', message='read-only')
     if command == 'shoot':
         # Capturing never copies an original, even with a legacy Auto Sync setting.
+        if os.environ.get('REMOTE_TEST_ADVANCE_CAPTURE') and card:
+            capture_sequence += 1
+            card[0]['identity'] = 'test-camera:new-' + str(capture_sequence)
+            card[0]['stamp'] = '2026-10-24T12:00:%02d' % capture_sequence
         event('changed')
     if len(parts) >= 3 and parts[:2] == ['card', 'list']:
         epoch = parts[2]
@@ -137,7 +143,10 @@ for line in sys.stdin:
         elif kind == 'preview':
             if os.environ.get('REMOTE_TEST_PREVIEW_DELAY'):
                 time.sleep(float(os.environ['REMOTE_TEST_PREVIEW_DELAY']))
-            source = os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
+            if parts[7] == 'jpeg' and file['format'] != 0x3801:
+                event('error', request, message='JPEG required')
+                continue
+            source = file['source'] if parts[7] == 'jpeg' else os.environ.get('REMOTE_TEST_CAPTURE') or os.environ.get('REMOTE_TEST_JPEG') or file['source']
             target = Path(args[args.index('--camera-cache') + 1]) / (request + '.jpg')
             target.write_bytes(Path(source).read_bytes())
             event('preview', request, path=str(target))
@@ -146,7 +155,7 @@ for line in sys.stdin:
                 event('error', request, message='Небезопасный путь на карте')
                 continue
             event('progress', request, percent=50)
-            if os.environ.get('REMOTE_TEST_SLOW_COPY'):
+            if os.environ.get('REMOTE_TEST_SLOW_COPY') or (os.environ.get('REMOTE_TEST_HOLD_RAW') and file['format'] == 0xb101):
                 pending = request
                 continue
             root = Path(bytes.fromhex(parts[7]).decode())
@@ -161,7 +170,8 @@ for line in sys.stdin:
                 target = base.with_stem(base.stem + '_' + str(n))
                 n += 1
             target.write_bytes(Path(file['source']).read_bytes())
-            event('copied', request, path=str(target), size=str(target.stat().st_size))
+            event('progress', request, phase='hash', percent=100)
+            event('copied', request, path=str(target), size=str(target.stat().st_size), sha256=hashlib.sha256(target.read_bytes()).hexdigest())
     if command == 'monitor start':
         if '--liveview-file' in args and os.environ.get('REMOTE_TEST_JPEG'):
             target = Path(args[args.index('--liveview-file') + 1])

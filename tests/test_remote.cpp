@@ -39,9 +39,9 @@ class RemoteTests : public QObject {
     SettingsStore store(path);
     AppSettings values;
     values.user = "test-user"; values.password = "test-secret";
-    values.studio_review = true; values.review_seconds = 7;
+    values.studio_review = true; values.studio_full_jpeg = true; values.review_seconds = 7;
     QVERIFY(store.save(values));
-    QVERIFY(store.load().studio_review); QCOMPARE(store.load().review_seconds, 7);
+    QVERIFY(store.load().studio_review); QVERIFY(store.load().studio_full_jpeg); QCOMPARE(store.load().review_seconds, 7);
     QVERIFY(store.load().user.isEmpty()); QVERIFY(store.load().password.isEmpty());
     QFile file(path); QVERIFY(file.open(QIODevice::ReadOnly));
     QVERIFY(!file.readAll().contains("test-secret")); file.close();

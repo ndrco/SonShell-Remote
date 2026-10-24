@@ -139,3 +139,27 @@ Local playback keeps the original resolution and frame rate without JPEG
 re-encoding. The first frame is read at its original size too. The main window's
 bottom status line shows the selected file's full camera or local path. Select
 and copy it; long paths scroll and are also available in the tooltip.
+
+## Reliable import and studio JPEG (0.7)
+
+Copies receive a SHA256 checksum before the final file is published. The last
+10% of progress covers hashing; Stop also cancels this stage. Verify local copies
+works without the camera and compares contents with the import-time checksum,
+even when size and modification time are unchanged. Results distinguish valid,
+changed, missing and older copies without a baseline. Verification never deletes
+files or replaces a mismatched baseline. Copy new can download a changed file
+again under a different name. The camera's own checksum is unavailable; this
+checks for changes to the local copy after transfer.
+
+After interruption, cancellation or restart, Resume import restores the queue
+from the selected directory. Connect to the same camera; the catalog refreshes
+when needed. Confirmed copies are skipped and changed camera items are not
+transferred. Incomplete files restart from the beginning. A new Copy command
+replaces the saved plan. Capture and deletion are never replayed automatically.
+
+Studio capture offers JPEG from card · original size. Enable JPEG or RAW+JPEG
+on the camera. Only JPEG is transferred to a temporary directory and deleted
+after decoding; the gallery and import directory are untouched. The caption
+shows the source and actual dimensions. The 2–10 second interval starts after
+display; network transfer adds a delay. RAW-only uses a compressed preview with
+a No JPEG on card caption. The application does not change the capture format.

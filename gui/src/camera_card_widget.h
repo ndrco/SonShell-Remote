@@ -1,9 +1,11 @@
 #pragma once
 #include "camera_card.h"
 #include <QCache>
+#include <QHash>
 #include <QWidget>
 class ImageViewer;
 class QTreeWidget;
+class QTreeWidgetItem;
 class QComboBox;
 class QLineEdit;
 class QLabel;
@@ -31,6 +33,8 @@ class CameraCardWidget final : public QWidget {
   void toggle_mark(bool rejected);
   void update_marks();
   void play_movie();
+  void update_actions();
+  QString item_caption(const CardItem& item) const;
   CameraCard* card_;
   QTreeWidget* list_;
   QComboBox* format_;
@@ -39,7 +43,8 @@ class CameraCardWidget final : public QWidget {
   ImageViewer* viewer_;
   QProgressBar* progress_;
   QList<QWidget*> actions_;
-  QPushButton* cancel_;
+  QPushButton *cancel_, *resume_, *verify_;
   QCache<QString, QImage> previews_{64 * 1024};
+  QHash<QString, QTreeWidgetItem*> rows_;
   QString displayed_, pending_preview_;
 };
