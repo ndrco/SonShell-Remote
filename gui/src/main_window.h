@@ -42,7 +42,6 @@ class MainWindow final : public QMainWindow {
   void update_file_path();
   void send(const QString& command);
   QPushButton* command_button(const QString& label, const QString& command, QWidget* parent);
-  QWidget* setting_row(const QString& initial, const QString& command, QWidget* parent);
   AppSettings values() const;
   QString binary_, language_;
   QPointer<HelpDialog> help_;

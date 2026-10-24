@@ -186,7 +186,7 @@ void MainWindow::create_ui() {
   connection->setColumnStretch(1, 1); connection->setColumnStretch(5, 1);
   layout->addWidget(connection_box);
   auto* split = new QSplitter(Qt::Horizontal, root);
-  auto* scroll = new QScrollArea(split); scroll->setWidgetResizable(true); scroll->setMinimumWidth(290);
+  auto* scroll = new QScrollArea(split); scroll->setWidgetResizable(true); scroll->setMinimumWidth(360);
   auto* controls = new QWidget(scroll); auto* controls_layout = new QVBoxLayout(controls);
   auto* capture = new QGroupBox(QCoreApplication::translate("App", "Съёмка"), controls); auto* capture_layout = new QGridLayout(capture);
   capture_layout->addWidget(command_button(QCoreApplication::translate("App", "СФОТОГРАФИРОВАТЬ"), "shoot", capture), 0, 0, 1, 2);
@@ -195,12 +195,6 @@ void MainWindow::create_ui() {
   capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Начать видео"), "record start", capture), 2, 0);
   capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Остановить видео"), "record stop", capture), 2, 1);
   controls_layout->addWidget(capture);
-  auto* exposure = new QGroupBox(QCoreApplication::translate("App", "Экспозиция"), controls); auto* exposure_layout = new QFormLayout(exposure);
-  exposure_layout->addRow("ISO", setting_row("auto", "exposure iso", exposure));
-  exposure_layout->addRow(QCoreApplication::translate("App", "Выдержка"), setting_row("1/125", "exposure shutter", exposure));
-  exposure_layout->addRow(QCoreApplication::translate("App", "Диафрагма"), setting_row("2.8", "exposure aperture", exposure));
-  exposure_layout->addRow(QCoreApplication::translate("App", "Коррекция EV"), setting_row("0", "exposure comp", exposure));
-  controls_layout->addWidget(exposure);
   sdk_controls_ = new CameraControlsWidget(&session_, &card_, controls);
   controls_layout->addWidget(sdk_controls_);
   auto* transfer = new QGroupBox("Live View", controls); auto* transfer_layout = new QVBoxLayout(transfer);
@@ -237,7 +231,7 @@ void MainWindow::create_ui() {
   log_ = new QPlainTextEdit(right); log_->setReadOnly(true); log_->setMaximumBlockCount(1500);
   log_->setPlaceholderText(QCoreApplication::translate("App", "Журнал соединения и передачи файлов")); log_->setMaximumHeight(180);
   right_layout->addWidget(log_, 1);
-  split->addWidget(scroll); split->addWidget(right); split->setStretchFactor(1, 1); split->setSizes({320, 900});
+  split->addWidget(scroll); split->addWidget(right); split->setStretchFactor(1, 1); split->setSizes({360, 900});
   layout->addWidget(split, 1); setCentralWidget(root);
   for (auto* action : camera_actions_) action->setEnabled(false);
   for (auto* editor : {host_, model_, user_, password_, folder_}) connect(editor, &QLineEdit::editingFinished, this, [this, editor] {
@@ -264,12 +258,6 @@ QPushButton* MainWindow::command_button(const QString& label, const QString& com
   auto* action = button(label, parent, [this, command] { send(command); });
   action->setObjectName("command_" + QString(command).replace(' ', '_'));
   camera_actions_.append(action); return action;
-}
-QWidget* MainWindow::setting_row(const QString& initial, const QString& command, QWidget* parent) {
-  auto* row = new QWidget(parent); auto* layout = new QHBoxLayout(row); layout->setContentsMargins(0, 0, 0, 0);
-  auto* editor = new QLineEdit(initial, row); layout->addWidget(editor);
-  auto* apply = button(QCoreApplication::translate("App", "Задать"), row, [this, editor, command] { send(command + ' ' + editor->text().trimmed()); });
-  layout->addWidget(apply); camera_actions_.append(apply); return row;
 }
 AppSettings MainWindow::values() const {
   AppSettings v;

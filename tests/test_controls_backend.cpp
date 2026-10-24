@@ -12,14 +12,16 @@ unsigned focus_mode = SCRSDK::CrFocus_AF_S;
 std::vector<std::pair<unsigned, std::uint64_t>> writes;
 int sets = 0, released = 0, released_lv = 0;
 unsigned last_code = 0;
+unsigned last_type = 0;
 std::uint64_t last_value = 0;
 }
 namespace SCRSDK {
 CrError GetSelectDeviceProperties(CrDeviceHandle, CrInt32u, CrInt32u*, CrDeviceProperty** output, CrInt32* count) {
-  *count = 6; *output = new CrDeviceProperty[6];
+  *count = 10; *output = new CrDeviceProperty[10];
   const unsigned codes[] = {CrDeviceProperty_FocusMode, CrDeviceProperty_FocusArea, CrDeviceProperty_WhiteBalance,
-      CrDeviceProperty_DriveMode, CrDeviceProperty_AF_Area_Position, CrDeviceProperty_S1};
-  for (int i = 0; i < 6; ++i) {
+      CrDeviceProperty_DriveMode, CrDeviceProperty_AF_Area_Position, CrDeviceProperty_S1,
+      CrDeviceProperty_IsoSensitivity, CrDeviceProperty_ShutterSpeed, CrDeviceProperty_FNumber, CrDeviceProperty_ExposureBiasCompensation};
+  for (int i = 0; i < 10; ++i) {
     auto& property = (*output)[i]; property.SetCode(codes[i]);
     property.SetPropertyEnableFlag(writable ? CrEnableValue_True : CrEnableValue_DisplayOnly);
     if (i == 5 && !s1_writable) property.SetPropertyEnableFlag(CrEnableValue_DisplayOnly);
@@ -27,6 +29,17 @@ CrError GetSelectDeviceProperties(CrDeviceHandle, CrInt32u, CrInt32u*, CrDeviceP
     property.SetCurrentValue(i == 0 ? focus_mode : 1);
     property.Alloc(4, 4, 0);
     CrInt16u values[] = {1, 2}; std::memcpy(property.GetValues(), values, sizeof(values));
+    if (i == 6 || i == 7) {
+      property.SetValueType(CrDataType_UInt32Array); property.Alloc(8, 8, 0);
+      const CrInt32u exposure_values[] = {i == 6 ? CrInt32u(0xffffff) : CrInt32u((1 << 16) | 125), i == 6 ? CrInt32u(100) : CrInt32u((1 << 16) | 250)};
+      property.SetCurrentValue(exposure_values[0]); std::memcpy(property.GetValues(), exposure_values, sizeof(exposure_values));
+    } else if (i == 8) {
+      CrInt16u aperture_values[] = {280, 400}; property.SetCurrentValue(280);
+      std::memcpy(property.GetValues(), aperture_values, sizeof(aperture_values));
+    } else if (i == 9) {
+      property.SetValueType(CrDataType_Int16Array); property.SetCurrentValue(static_cast<CrInt32>(-333));
+      CrInt16 ev_values[] = {-333, 0}; std::memcpy(property.GetValues(), ev_values, sizeof(ev_values));
+    }
   }
   return CrError_None;
 }
@@ -50,6 +63,7 @@ CrInt8u* CrLiveViewProperty::GetValue() const {
 CrError ReleaseLiveViewProperties(CrDeviceHandle, CrLiveViewProperty* data) { ++released_lv; delete[] data; return CrError_None; }
 CrError SetDeviceProperty(CrDeviceHandle, CrDeviceProperty* property) {
   ++sets; last_code = property->GetCode(); last_value = property->GetCurrentValue();
+  last_type = property->GetValueType();
   writes.emplace_back(last_code, last_value);
   if (last_code == CrDeviceProperty_S1 && (last_value == CrLockIndicator_Locked ? failed_press : failed_release)) return CrError_Generic;
   return failed_set ? CrError_Generic : CrError_None;
@@ -70,7 +84,7 @@ class ControlsBackendTests final : public QObject {
   void capabilities_use_camera_choices_and_read_only_flags() {
     const auto result = command({"controls", "list", "test-1"});
     QCOMPARE(result.value("type").toString(), QString("snapshot"));
-    const auto properties = result.value("properties").toArray(); QCOMPARE(properties.size(), 4);
+    const auto properties = result.value("properties").toArray(); QCOMPARE(properties.size(), 8);
     QCOMPARE(properties[0].toObject().value("name").toString(), QString("focus_mode"));
     QCOMPARE(properties[0].toObject().value("values").toArray().size(), 2);
     QVERIFY(properties[0].toObject().value("writable").toBool()); QVERIFY(result.value("af").toBool());
@@ -88,6 +102,24 @@ class ControlsBackendTests final : public QObject {
     writable = false;
     QCOMPARE(command({"controls", "set", "three", code, "1"}).value("message").toString(), QString("read-only"));
     QCOMPARE(sets, 1);
+  }
+  void exposure_values_keep_raw_encoding_and_signed_ev() {
+    const auto properties = command({"controls", "list", "exposure"}).value("properties").toArray();
+    const auto iso = properties[4].toObject(); QCOMPARE(iso.value("name").toString(), QString("iso"));
+    QCOMPARE(iso.value("current").toString(), QString("16777215"));
+    QCOMPARE(iso.value("values").toArray()[1].toObject().value("value").toString(), QString("100"));
+    const auto ev = properties[7].toObject(); QCOMPARE(ev.value("name").toString(), QString("ev"));
+    QCOMPARE(ev.value("current").toString(), QString("65203"));
+    QCOMPARE(ev.value("values").toArray()[0].toObject().value("value").toString(), QString("65203"));
+    const auto iso_code = std::to_string(SCRSDK::CrDeviceProperty_IsoSensitivity);
+    QCOMPARE(command({"controls", "set", "iso", iso_code, "100"}).value("type").toString(), QString("applied"));
+    QCOMPARE(last_value, std::uint64_t(100)); QCOMPARE(last_type, unsigned(SCRSDK::CrDataType_UInt32));
+    const auto ev_code = std::to_string(SCRSDK::CrDeviceProperty_ExposureBiasCompensation);
+    QCOMPARE(command({"controls", "set", "ev", ev_code, "65203"}).value("type").toString(), QString("applied"));
+    QCOMPARE(last_value, std::uint64_t(CrInt32(-333))); QCOMPARE(last_type, unsigned(SCRSDK::CrDataType_Int16));
+    QCOMPARE(command({"controls", "set", "invalid", ev_code, "300"}).value("message").toString(), QString("invalid-value"));
+    writable = false;
+    QCOMPARE(command({"controls", "set", "locked", iso_code, "100"}).value("message").toString(), QString("read-only"));
   }
   void af_bounds_and_result_errors_are_not_success() {
     QCOMPARE(command({"controls", "af", "one", "320", "240"}).value("type").toString(), QString("applied"));

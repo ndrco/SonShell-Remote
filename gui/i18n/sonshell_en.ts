@@ -4,6 +4,18 @@
   <context>
     <name>App</name>
     <message>
+      <source>Выбери доступное значение из списка камеры.</source>
+      <translation>Choose an available value from the camera list.</translation>
+    </message>
+    <message>
+      <source>Введи значение и нажми Enter или «Задать». Список содержит значения камеры.</source>
+      <translation>Type a value and press Enter or Set. The list contains values supplied by the camera.</translation>
+    </message>
+    <message>
+      <source>Поверни мышью или колёсиком. Значение применяется после отпускания.</source>
+      <translation>Drag the dial or use the mouse wheel. The value is applied after release.</translation>
+    </message>
+    <message>
       <source>Автофокус по клику</source>
       <translation>Click to focus</translation>
     </message>
@@ -846,8 +858,8 @@ Independent project · Apache-2.0</translation>
     </message>
     <message>
       <location filename="../src/camera_controls_widget.cpp" />
-      <source>Настройка принята SDK; это не подтверждение резкости.</source>
-      <translation>Setting accepted by SDK; this does not confirm focus.</translation>
+      <source>Настройка отправлена. Читаю значение камеры…</source>
+      <translation>Setting sent. Reading the camera value…</translation>
     </message>
     <message>
       <location filename="../src/camera_card_widget.cpp" />

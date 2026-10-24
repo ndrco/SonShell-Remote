@@ -6,6 +6,7 @@ class CameraCard;
 class QComboBox;
 class QCheckBox;
 class QLabel;
+class ExposureControl;
 
 class CameraControlsWidget final : public QGroupBox {
   Q_OBJECT
@@ -22,6 +23,7 @@ class CameraControlsWidget final : public QGroupBox {
   CameraSession* session_;
   CameraCard* card_;
   QList<QComboBox*> editors_;
+  QList<ExposureControl*> exposure_;
   QCheckBox* mouse_af_;
   QLabel* message_;
   QTimer refresh_timer_, deadline_;

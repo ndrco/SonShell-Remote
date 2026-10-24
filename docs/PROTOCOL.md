@@ -136,17 +136,22 @@ GUI использует UUID и принимает только результ�
 `INFO  | [INFO] REMOTE/1 controls <lowercase-hex-UTF8-JSON>`.
 
 - `snapshot`: `request`, `properties` и `af` (bool). Каждый параметр:
-  `{name, code, readable, writable, current, values:[{value,label}]}`.
+  `{name, code, readable, writable, current, current_label, values:[{value,label}]}`.
   Числовые значения — десятичные строки без потери uint64; code — uint32.
-  Стабильные name: `focus_mode`, `focus_area`, `white_balance`, `drive_mode`.
+  Стабильные name: `focus_mode`, `focus_area`, `white_balance`, `drive_mode`,
+  `iso`, `shutter`, `aperture`, `ev`. current_label — отображение текущего
+  значения, включая значение вне списка доступных для записи.
 - `applied`: `request`; SetDeviceProperty вернул успех. Это принятие настройки,
   а не подтверждение резкости или неизменности значения после callback камеры.
 - `error`: `request`, `message` (диагностический код). Ошибка не считается успехом.
 - `INFO  | [INFO] REMOTE/1 controls-changed`: callback свойств. GUI объединяет
   уведомления таймером и перечитывает snapshot, когда нет операции с картой.
 
-Allow-list backend ограничивает set указанными четырьмя свойствами. Перед каждым
-set заново проверяются IsSetEnableCurrentValue, тип UInt16/32Array и GetValues.
+Allow-list backend ограничивает set указанными восемью свойствами. Перед каждым
+set заново проверяются IsSetEnableCurrentValue, тип UInt16/32Array или Int16Array
+и GetValues. Для EV wire-значение — беззнаковое представление младших 16 бит
+(например -333 → "65203"), с восстановлением знака перед SDK set. Экспозиция
+записывается со скалярным типом UInt32/UInt16/Int16, как в CLI exposure.
 GetSetValues/GetSetValueSize зарезервированы в API 2.02 и не используются.
 Свойства без списка вариантов остаются недоступными для записи. Snapshot ограничен
 29 000 байт до hex; слишком большой ответ становится error.

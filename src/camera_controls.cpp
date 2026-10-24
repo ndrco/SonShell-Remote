@@ -12,7 +12,21 @@ namespace {
 namespace sdk = SCRSDK;
 const std::vector<CrInt32u> codes{sdk::CrDeviceProperty_FocusMode, sdk::CrDeviceProperty_FocusArea,
     sdk::CrDeviceProperty_WhiteBalance, sdk::CrDeviceProperty_DriveMode, sdk::CrDeviceProperty_AF_Area_Position,
-    sdk::CrDeviceProperty_S1};
+    sdk::CrDeviceProperty_S1, sdk::CrDeviceProperty_IsoSensitivity, sdk::CrDeviceProperty_ShutterSpeed,
+    sdk::CrDeviceProperty_FNumber, sdk::CrDeviceProperty_ExposureBiasCompensation};
+std::string property_name(unsigned code) {
+  switch (code) {
+    case sdk::CrDeviceProperty_FocusMode: return "focus_mode";
+    case sdk::CrDeviceProperty_FocusArea: return "focus_area";
+    case sdk::CrDeviceProperty_WhiteBalance: return "white_balance";
+    case sdk::CrDeviceProperty_DriveMode: return "drive_mode";
+    case sdk::CrDeviceProperty_IsoSensitivity: return "iso";
+    case sdk::CrDeviceProperty_ShutterSpeed: return "shutter";
+    case sdk::CrDeviceProperty_FNumber: return "aperture";
+    case sdk::CrDeviceProperty_ExposureBiasCompensation: return "ev";
+    default: return {};
+  }
+}
 std::uint64_t number(const std::string& text) {
   if (text.empty() || text.find_first_not_of("0123456789") != std::string::npos) throw std::runtime_error("invalid-value");
   size_t used = 0; const auto value = std::stoull(text, &used);
@@ -49,7 +63,7 @@ struct Properties {
 };
 std::vector<std::uint64_t> choices(const sdk::CrDeviceProperty& property) {
   const auto type = property.GetValueType();
-  const int size = type == sdk::CrDataType_UInt16Array ? 2 : type == sdk::CrDataType_UInt32Array ? 4 : 0;
+  const int size = type == sdk::CrDataType_UInt16Array || type == sdk::CrDataType_Int16Array ? 2 : type == sdk::CrDataType_UInt32Array ? 4 : 0;
   const auto* bytes = property.GetValues(); const auto length = property.GetValueSize();
   if (!size || !bytes || length % size || length > 4096) return {};
   std::vector<std::uint64_t> out;
@@ -138,12 +152,14 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
         if (code == sdk::CrDeviceProperty_AF_Area_Position || code == sdk::CrDeviceProperty_S1) continue;
         const auto* property = properties.find(code); if (!property) continue;
         const auto values = choices(*property);
-        const std::string name = code == sdk::CrDeviceProperty_FocusMode ? "focus_mode" : code == sdk::CrDeviceProperty_FocusArea ? "focus_area" : code == sdk::CrDeviceProperty_WhiteBalance ? "white_balance" : "drive_mode";
+        const auto name = property_name(code);
+        const auto current = code == sdk::CrDeviceProperty_ExposureBiasCompensation ? property->GetCurrentValue() & 0xffffu : property->GetCurrentValue();
         if (!first) out << ',';
         first = false;
         out << "{\"name\":" << quoted(name) << ",\"code\":" << code << ",\"readable\":" << (property->IsGetEnableCurrentValue() ? "true" : "false")
             << ",\"writable\":" << (property->IsSetEnableCurrentValue() && !values.empty() ? "true" : "false")
-            << ",\"current\":" << quoted(std::to_string(property->GetCurrentValue())) << ",\"values\":[";
+            << ",\"current\":" << quoted(std::to_string(current))
+            << ",\"current_label\":" << quoted(label(code, current)) << ",\"values\":[";
         bool first_value = true;
         for (auto value : values) {
           if (!first_value) out << ',';
@@ -167,6 +183,14 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
       const auto value = number(args[4]); const auto values = choices(*property);
       if (std::find(values.begin(), values.end(), value) == values.end()) throw std::runtime_error("invalid-value");
       change.SetCode(unsigned(raw_code)); change.SetValueType(property->GetValueType()); change.SetCurrentValue(value);
+      // Exposure setters use the scalar type, as in the public CLI handlers.
+      if (raw_code == sdk::CrDeviceProperty_IsoSensitivity || raw_code == sdk::CrDeviceProperty_ShutterSpeed)
+        change.SetValueType(sdk::CrDataType_UInt32);
+      else if (raw_code == sdk::CrDeviceProperty_FNumber) change.SetValueType(sdk::CrDataType_UInt16);
+      else if (raw_code == sdk::CrDeviceProperty_ExposureBiasCompensation) {
+        change.SetValueType(sdk::CrDataType_Int16);
+        change.SetCurrentValue(static_cast<CrInt32>(static_cast<CrInt16>(value)));
+      }
     } else if (args[1] == "af" && args.size() == 5) {
       const auto* position = properties.find(sdk::CrDeviceProperty_AF_Area_Position);
       const auto bounds = af_bounds(handle);

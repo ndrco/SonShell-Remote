@@ -429,3 +429,21 @@ fresh-runtime-0.6.1.log, upgrade-0.6.1.log. Личные файлы, SDK и ди
 Артефакт: build-package/sonshell-remote_0.6.2-1ubuntu24.04_amd64.deb. Логи:
 build-package/release-0.6.2.log, build-asan/af-tests.log,
 build-asan-backend/af-tests.log, build-clean/verify-final-0.6.2.log.
+
+## Версия 0.6.3 — 2026-10-24
+
+- Release CMake build и CTest: 8/8, 71 Qt-сценарий без init/cleanup плюс проверка
+  перевода, 46,11 с. Sony SDK 2.02 backend собран headless и с OpenCV.
+- Проверки GUI: итог drag только после release, объединение колеса в одну
+  команду и отмена при блокировке; ручной ISO/выдержка/f-number/отрицательная EV,
+  запятая и единицы, неподдерживаемый ввод и Esc. Callback не сбрасывает черновик;
+  отключение и read-only блокируют управление. Геометрия поля ISO проверена для
+  AUTO в главном окне. RU/EN окно просмотрено offscreen по снимкам экрана;
+  горизонтальная прокрутка панели устранена увеличением минимальной ширины.
+- SDK fixture проверяет реальные 16/32-битные кодировки, Int16Array EV, отрицательный
+  текущий EV, скалярные типы записи, повторную валидацию значений/read-only.
+- Controls GUI и backend под ASan без ошибок доступа; detect_leaks=0, утечки
+  этим запуском не проверяются. Логи: build-asan/exposure-tests.log,
+  build-asan-backend/exposure-tests.log.
+- Физическая камера не использовалась для изменения экспозиции: рабочая сессия
+  пользователя оставлена открытой. Аппаратная приёмка крутилок остаётся открытой.

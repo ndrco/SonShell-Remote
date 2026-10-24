@@ -4,6 +4,7 @@ add_library(sonshell_gui_core STATIC
   src/language_support.cpp src/language_support.h
   src/help_dialog.cpp src/help_dialog.h
   src/camera_controls_widget.cpp src/camera_controls_widget.h
+  src/exposure_control.cpp src/exposure_control.h
   src/camera_session.cpp src/camera_session.h
   src/camera_card.cpp src/camera_card.h
   src/camera_card_widget.cpp src/camera_card_widget.h

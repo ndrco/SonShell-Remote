@@ -4516,6 +4516,25 @@ int main(int argc, char **argv) {
             if (code == SDK::CrDeviceProperty_FocusMode) return focus_mode_to_string(value);
             if (code == SDK::CrDeviceProperty_FocusArea) return focus_area_to_string(value);
             if (code == SDK::CrDeviceProperty_WhiteBalance) return white_balance_to_string(value);
+            if (code == SDK::CrDeviceProperty_IsoSensitivity) {
+              auto text = format_iso_value(value);
+              if (text.compare(0, 4, "ISO ") == 0) text.erase(0, 4);
+              return text;
+            }
+            if (code == SDK::CrDeviceProperty_FNumber) {
+              if (value == SDK::CrFnumber_IrisClose) return std::string("CLOSE");
+              if (value == SDK::CrFnumber_Unknown || value == SDK::CrFnumber_Nothing || !value) return std::string("f/--");
+              std::ostringstream text;
+              text << "f/" << std::fixed << std::setprecision(value % 10 ? 2 : value % 100 ? 1 : 0) << value / 100.0;
+              return text.str();
+            }
+            if (code == SDK::CrDeviceProperty_ShutterSpeed) return format_shutter_speed(value);
+            if (code == SDK::CrDeviceProperty_ExposureBiasCompensation) {
+              std::ostringstream text;
+              text << std::showpos << std::fixed << std::setprecision(1)
+                   << static_cast<CrInt16>(value & 0xffffu) / 1000.0;
+              return text.str();
+            }
             return drive_mode_to_string(value);
           });
           if (result.empty()) return 2;

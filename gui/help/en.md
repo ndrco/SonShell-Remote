@@ -52,6 +52,15 @@ separately. A disabled Stop button means there is no operation in progress.
 Fit, 100%, +/− and the wheel change zoom. Drag to pan. F11 and Esc work while the
 viewer has focus.
 
+Exposure provides mouse dials for ISO, shutter speed, aperture and EV. Drag a dial
+or use the mouse wheel. Dragging applies on release; wheel changes apply after a
+short pause. Select from the list or type a value and press Enter/Set. Examples:
+`AUTO`, `1/125`, `0.5s`, `f/4`, `-0.3 EV`. Choices and steps come from the camera;
+unsupported input is not sent. Esc cancels input. Read settings discards drafts
+and refreshes all values. Automatic refresh waits until editing is finished.
+Settings unavailable in the current mode are disabled. Select exposure mode on
+the camera body.
+
 Camera settings · SDK shows values provided by the camera: focus mode, AF area,
 white balance and drive mode. Changing the physical camera mode may change
 availability. Use Read settings to refresh manually if necessary.

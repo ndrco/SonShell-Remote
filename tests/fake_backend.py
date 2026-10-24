@@ -60,6 +60,14 @@ for line in sys.stdin:
                 properties.append(dict(name=name, code=100 + n, readable=True,
                     writable=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')),
                     current='1', values=[dict(value='1', label='Single'), dict(value='2', label='Continuous')]))
+            for n, (name, current, values) in enumerate((
+                ('iso', '16777215', [('16777215', 'AUTO'), ('100', '100'), ('200', '200'), ('400', '400')]),
+                ('shutter', '65661', [('65596', '1/60'), ('65661', '1/125'), ('65786', '1/250')]),
+                ('aperture', '280', [('280', 'f/2.8'), ('400', 'f/4'), ('560', 'f/5.6')]),
+                ('ev', '0', [('65203', '-0.3'), ('0', '+0.0'), ('333', '+0.3')]))):
+                properties.append(dict(name=name, code=110 + n, readable=True,
+                    writable=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')),
+                    current=current, values=[dict(value=v, label=label) for v, label in values]))
             event('snapshot', request, channel='controls', properties=properties,
                   af=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY') or os.environ.get('REMOTE_TEST_AF_UNAVAILABLE')))
         else:

@@ -1,4 +1,5 @@
 #include "camera_controls_widget.h"
+#include "exposure_control.h"
 #include "camera_card.h"
 #include "camera_session.h"
 #include "help_dialog.h"
@@ -10,12 +11,18 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFile>
+#include <QJsonArray>
+#include <QDial>
+#include <QLineEdit>
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTextBrowser>
+#include <QWheelEvent>
 #include <QtTest>
 
 class ControlsTests final : public QObject {
@@ -118,6 +125,80 @@ class ControlsTests final : public QObject {
     for (auto* label : controls.findChildren<QLabel*>()) if (label->text().contains(QString::fromUtf8("Команда отклонена"))) visible_error = true;
     QVERIFY(visible_error);
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void exposure_dial_manual_input_and_auto_fit_in_main_window() {
+    auto values = SettingsStore().load(); values.sdk_terms_accepted = true; values.folder = temporary_.filePath("photos");
+    QVERIFY(SettingsStore().save(values));
+    MainWindow window(FAKE_BACKEND_PATH); window.resize(1100, 800); window.show();
+    QTest::mouseClick(window.findChild<QPushButton*>("connect"), Qt::LeftButton);
+    auto* iso = window.findChild<ExposureControl*>("iso"); QVERIFY(iso);
+    auto* value = iso->findChild<QComboBox*>("value"); auto* dial = iso->findChild<QDial*>("dial");
+    QTRY_VERIFY(dial->isEnabled()); QCOMPARE(value->currentText(), QString("AUTO"));
+    QVERIFY(value->lineEdit()->contentsRect().width() >= value->fontMetrics().horizontalAdvance("AUTO") + 8);
+    const auto before = commands().count("controls set");
+    // Moving a held dial changes the displayed value, without streaming writes to the SDK.
+    dial->setSliderDown(true); dial->setSliderPosition(1); dial->setSliderPosition(3);
+    QCOMPARE(value->currentText(), QString("400")); QTest::qWait(350);
+    QCOMPARE(commands().count("controls set"), before);
+    dial->setSliderDown(false); QTRY_VERIFY(commands().contains("110 400"));
+    QTRY_VERIFY(dial->isEnabled()); QTRY_COMPARE(value->currentText(), QString("AUTO")); // fake camera keeps its original value
+    value->setEditText("iso 200"); QTest::keyClick(value->lineEdit(), Qt::Key_Return);
+    QTRY_VERIFY(commands().contains("110 200")); QTRY_VERIFY(dial->isEnabled());
+    const auto accepted = commands().count("controls set");
+    value->setEditText("123"); QTest::mouseClick(iso->findChild<QPushButton*>("apply"), Qt::LeftButton);
+    QTest::qWait(350); QCOMPARE(commands().count("controls set"), accepted);
+    QVERIFY(iso->findChild<QLabel*>("validation")->isVisible());
+    QTest::keyClick(value->lineEdit(), Qt::Key_Escape); QCOMPARE(value->currentText(), QString("AUTO"));
+    const auto wheel_before = commands().count("controls set");
+    const auto center = dial->rect().center();
+    QWheelEvent wheel(center, dial->mapToGlobal(center), {}, {0, 120}, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(dial, &wheel);
+    QCOMPARE(commands().count("controls set"), wheel_before); QTRY_VERIFY(commands().contains("110 100"));
+    QTRY_VERIFY(dial->isEnabled()); QTRY_COMPARE(value->currentText(), QString("AUTO"));
+    if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) {
+      window.findChild<QScrollArea*>()->verticalScrollBar()->setValue(0);
+      window.grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/exposure-ru.png");
+    }
+    window.close();
+  }
+  void exposure_steps_follow_camera_and_read_only_state() {
+    CameraSession session; CameraCard card(&session); CameraControlsWidget controls(&session, &card); controls.show();
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
+    auto* shutter = controls.findChild<ExposureControl*>("shutter"); auto* dial = shutter->findChild<QDial*>("dial");
+    QTRY_VERIFY(dial->isEnabled()); auto* value = shutter->findChild<QComboBox*>("value");
+    QCOMPARE(value->itemText(0), QString("1/250")); QCOMPARE(value->itemText(2), QString("1/60"));
+    value->setEditText("1/60"); QTest::keyClick(value->lineEdit(), Qt::Key_Return); QTRY_VERIFY(commands().contains("111 65596"));
+    QTRY_VERIFY(dial->isEnabled());
+    auto* aperture = controls.findChild<ExposureControl*>("aperture");
+    auto* f = aperture->findChild<QComboBox*>("value"); f->setEditText("4,0");
+    const auto lists = commands().count("controls list"); session.controls_changed(); QTest::qWait(350);
+    QCOMPARE(f->currentText(), QString("4,0")); QCOMPARE(commands().count("controls list"), lists);
+    QTest::keyClick(f->lineEdit(), Qt::Key_Return); QTRY_VERIFY(commands().contains("112 400"));
+    QTRY_VERIFY(dial->isEnabled());
+    auto* ev = controls.findChild<ExposureControl*>("ev"); auto* e = ev->findChild<QComboBox*>("value");
+    QCOMPARE(e->itemText(0), QString("-0.3")); e->setEditText("-0,3 EV");
+    QTest::keyClick(e->lineEdit(), Qt::Key_Return); QTRY_VERIFY(commands().contains("113 65203"));
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected); QVERIFY(!dial->isEnabled());
+    qputenv("REMOTE_TEST_CONTROLS_READONLY", "1");
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
+    QTRY_COMPARE(value->count(), 3); QVERIFY(!dial->isEnabled()); QVERIFY(!value->isEnabled());
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void exposure_wheel_is_coalesced_and_cancelled_when_unavailable() {
+    ExposureControl control("iso"); control.show();
+    control.set_snapshot({{"code", 110}, {"readable", true}, {"writable", true}, {"current", "100"},
+        {"values", QJsonArray{QJsonObject{{"value", "100"}, {"label", "100"}}, QJsonObject{{"value", "200"}, {"label", "200"}}, QJsonObject{{"value", "400"}, {"label", "400"}}}}});
+    control.set_ready(true); auto* dial = control.findChild<QDial*>("dial");
+    QSignalSpy requested(&control, &ExposureControl::value_requested);
+    auto wheel = [&] {
+      const auto p = dial->rect().center();
+      QWheelEvent event(p, dial->mapToGlobal(p), {}, {0, 120}, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+      QApplication::sendEvent(dial, &event);
+    };
+    wheel(); QTest::qWait(100); wheel(); QCOMPARE(requested.size(), 0);
+    QTRY_COMPARE(requested.size(), 1); QCOMPARE(requested[0][1].toString(), QString("400"));
+    control.cancel_edit(); requested.clear(); wheel(); control.set_ready(false); QTest::qWait(350);
+    QCOMPARE(requested.size(), 0); QVERIFY(!dial->isEnabled());
   }
   void english_help_language_persistence_and_fullscreen_f1() {
     LanguageSupport language; QVERIFY(language.install("en"));

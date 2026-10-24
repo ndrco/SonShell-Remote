@@ -2,6 +2,7 @@
 #include "camera_controls_widget.h"
 #include "camera_session.h"
 #include "camera_card.h"
+#include "exposure_control.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
@@ -10,13 +11,27 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QUuid>
+#include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
 
 CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* card, QWidget* parent)
     : QGroupBox(QCoreApplication::translate("App", "Параметры камеры · SDK"), parent), session_(session), card_(card) {
   setObjectName("camera_controls");
-  auto* layout = new QFormLayout(this);
+  auto* groups = new QVBoxLayout(this);
+  auto* exposure_box = new QGroupBox(QCoreApplication::translate("App", "Экспозиция"), this);
+  auto* exposure_layout = new QFormLayout(exposure_box);
+  exposure_layout->setRowWrapPolicy(QFormLayout::WrapAllRows);
+  const QStringList exposure_names{"ISO", QCoreApplication::translate("App", "Выдержка"), QCoreApplication::translate("App", "Диафрагма"), QCoreApplication::translate("App", "Коррекция EV")};
+  const QStringList exposure_keys{"iso", "shutter", "aperture", "ev"};
+  for (int i = 0; i < exposure_names.size(); ++i) {
+    auto* control = new ExposureControl(exposure_keys[i], exposure_box); exposure_.append(control);
+    exposure_layout->addRow(exposure_names[i], control);
+    connect(control, &ExposureControl::value_requested, this, [this](const QString& code, const QString& value) { request("set", code + ' ' + value); });
+    connect(control, &ExposureControl::editing_finished, this, [this] { if (dirty_ && !refresh_timer_.isActive()) refresh_timer_.start(); });
+  }
+  groups->addWidget(exposure_box);
+  auto* layout = new QFormLayout; groups->addLayout(layout);
   layout->setRowWrapPolicy(QFormLayout::WrapLongRows);
   // Stable REMOTE/1 names; numeric SDK codes arrive in the snapshot.
   const QStringList names{QCoreApplication::translate("App", "Режим фокуса"), QCoreApplication::translate("App", "Область AF"), QCoreApplication::translate("App", "Баланс белого"), QCoreApplication::translate("App", "Режим протяжки")};
@@ -38,12 +53,13 @@ CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* c
   auto* refresh = new QPushButton(QCoreApplication::translate("App", "Прочитать параметры"), this); layout->addRow(refresh);
   refresh_timer_.setSingleShot(true); refresh_timer_.setInterval(250);
   deadline_.setSingleShot(true); deadline_.setInterval(7000);
-  connect(refresh, &QPushButton::clicked, this, &CameraControlsWidget::refresh);
+  connect(refresh, &QPushButton::clicked, this, [this] { for (auto* control : exposure_) control->cancel_edit(); this->refresh(); });
   connect(&refresh_timer_, &QTimer::timeout, this, &CameraControlsWidget::refresh);
   connect(mouse_af_, &QCheckBox::toggled, this, [this] { update_enabled(); });
   connect(&deadline_, &QTimer::timeout, this, [this] {
     pending_.clear(); available_af_ = false;
     for (auto* editor : editors_) editor->setProperty("writable", false);
+    for (auto* control : exposure_) control->set_snapshot({});
     message_->setText(QCoreApplication::translate("App", "Камера не ответила. Прочитай параметры ещё раз.")); update_enabled();
   });
   connect(session_, &CameraSession::state_changed, this, [this, refresh](auto state, const QString&) {
@@ -51,6 +67,7 @@ CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* c
     refresh->setEnabled(connected_); pending_.clear(); deadline_.stop(); refresh_timer_.stop();
     available_af_ = false; dirty_ = false; last_error_.clear();
     for (auto* editor : editors_) { editor->clear(); editor->addItem(QCoreApplication::translate("App", "Недоступно")); editor->setProperty("writable", false); }
+    for (auto* control : exposure_) control->set_snapshot({});
     message_->setText(connected_ ? QCoreApplication::translate("App", "Читаю возможности камеры…") : QCoreApplication::translate("App", "Подключи камеру для чтения доступных параметров"));
     update_enabled(); if (connected_) refresh_timer_.start();
   });
@@ -70,6 +87,11 @@ CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* c
     pending_.clear(); deadline_.stop();
     if (type == "snapshot") {
       const auto properties = event.value("properties").toArray();
+      for (auto* control : exposure_) {
+        QJsonObject found;
+        for (const auto& entry : properties) if (entry.toObject().value("name").toString() == control->objectName()) { found = entry.toObject(); break; }
+        control->set_snapshot(found);
+      }
       for (auto* editor : editors_) {
         QSignalBlocker guard(editor); editor->clear(); editor->setProperty("writable", false);
         for (const auto& entry : properties) {
@@ -103,7 +125,7 @@ CameraControlsWidget::CameraControlsWidget(CameraSession* session, CameraCard* c
       message_->setText(last_error_); dirty_ = operation != "list";
     } else {
       message_->setText(operation == "af" ? QCoreApplication::translate("App", "Точка выбрана, команда автофокуса принята камерой.") :
-          QCoreApplication::translate("App", "Настройка принята SDK; это не подтверждение резкости.")); dirty_ = true;
+          QCoreApplication::translate("App", "Настройка отправлена. Читаю значение камеры…")); dirty_ = true;
     }
     update_enabled(); if (dirty_ && !refresh_timer_.isActive()) refresh_timer_.start();
   });
@@ -116,6 +138,7 @@ void CameraControlsWidget::set_live(bool enabled) {
 void CameraControlsWidget::update_enabled() {
   const bool ready = connected_ && pending_.isEmpty() && !card_->busy();
   for (auto* editor : editors_) editor->setEnabled(ready && editor->property("writable").toBool());
+  for (auto* control : exposure_) control->set_ready(ready);
   mouse_af_->setEnabled(ready && available_af_ && live_);
   emit point_selection_changed(mouse_af_->isEnabled() && mouse_af_->isChecked());
 }
@@ -130,6 +153,7 @@ void CameraControlsWidget::request(const QString& operation, const QString& argu
 void CameraControlsWidget::refresh() {
   dirty_ = true;
   if (!connected_ || !pending_.isEmpty() || card_->busy()) return;
+  for (auto* control : exposure_) if (control->editing()) return;
   dirty_ = false; request("list");
 }
 void CameraControlsWidget::select_point(const QPointF& point) {
