@@ -519,3 +519,15 @@ ExifTool, FFmpeg H.265 и RGB24/PPM, ldd, SDK localhost с ожидаемым Co
 Runtime helper на той же GUI core проверил локальную SHA256 без камеры и обнаружил
 повреждение при прежних размере/mtime. Хеши установленных GUI/backend совпали
 с DEB. Обновление 0.6.3 → 0.7.0 и удаление пройдены.
+
+Финальный пакет повторно установлен в тот же образ после последней поправки
+студийного пути. RU/EN, SDK loader, хеши бинарников, локальная SHA256 и удаление
+повторно проверены; контрольная сумма DEB проверена отдельно. Итоговый CTest
+8/8, 56,90 с. 265 записей перевода, 256 используемых строк. Финальный ASan media
+12/12 с init/cleanup; прочие затронутые GUI/SDK наборы также пройдены.
+
+Артефакты: build-package/sonshell-remote_0.7.0-1ubuntu24.04_amd64.deb,
+SHA256SUMS-0.7.0.txt, RELEASE-0.7.0.txt. Логи: build-package/release-0.7.0.log,
+final-ui-0.7.0.log; build-asan/import-tests.log, studio-tests.log;
+build-asan-backend/import-tests.log; build-clean/verify-0.7.0.log,
+verify-final-0.7.0.log, final-runtime-0.7.0.log. Личные данные и SDK в Git не добавлены.
