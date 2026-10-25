@@ -1,5 +1,10 @@
 # SonShell Remote
 
+<a href="https://github.com/ndrco"><img src="gui/assets/ndrco.png" alt="NDRco" width="96" align="right"></a>
+
+Проект [ndrco/SonShell-Remote](https://github.com/ndrco/SonShell-Remote).
+Разработка и сопровождение — [NDRco](https://github.com/ndrco).
+
 Настольное приложение для управления камерами Sony под Linux на Qt 6.
 Основано на [SonShell](https://github.com/goudvuur/sonshell) (Apache-2.0) и
 [Sony Camera Remote SDK](https://support.d-imaging.sony.co.jp/app/sdk/en/).
@@ -14,7 +19,7 @@
 - [Проверки](docs/TESTING.md)
 - [Изменения](CHANGELOG.md)
 
-## Возможности версии 0.8.1
+## Возможности версии 0.8.2
 
 - Настройки подключения, каталог и параметры превью — в Settings; журнал по запросу.
 - Встроенный Live View, съёмка/AF/видео/экспозиция, переподключение.
@@ -56,7 +61,7 @@ AF мышью доступны по возможностям SDK конкрет�
 Целевой пакет: Ubuntu 24.04 amd64. SDK уже включён, зависимости ставит apt:
 
 ```bash
-sudo apt install ./sonshell-remote_0.8.1-1ubuntu24.04_amd64.deb
+sudo apt install ./sonshell-remote_0.8.2-1ubuntu24.04_amd64.deb
 ```
 
 [Чистая установка, удаление и ограничения платформ](docs/INSTALL.md).

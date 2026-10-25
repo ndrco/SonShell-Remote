@@ -1,4 +1,5 @@
 <RCC>
+  <qresource prefix="/branding"><file alias="ndrco.png">@CMAKE_CURRENT_SOURCE_DIR@/assets/ndrco.png</file></qresource>
   <qresource prefix="/i18n"><file alias="sonshell_en.qm">@EN_QM@</file></qresource>
   <qresource prefix="/help">
     <file alias="ru.md">@CMAKE_CURRENT_SOURCE_DIR@/help/ru.md</file>

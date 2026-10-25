@@ -1472,5 +1472,17 @@ Photos and clips will be deleted in full, including RAW+JPEG, video, proxies and
       <source>Фото: исходный JPEG или быстрое превью. Видео: Play загружает оригинал, размер указан на кнопке. Поток SDK — в настройках. Просмотр не заменяет импорт.</source>
       <translation>Photos: original JPEG or quick preview. Video: Play downloads the original; the button shows its size. SDK streaming is in Settings. Viewing does not replace importing.</translation>
     </message>
+    <message>
+      <source>Версия %1</source>
+      <translation>Version %1</translation>
+    </message>
+    <message>
+      <source>Графическое управление камерами Sony: съёмка, Live View, отбор и передача фото и видео.</source>
+      <translation>Sony camera control: capture, Live View, culling and transfer of photos and videos.</translation>
+    </message>
+    <message>
+      <source>&lt;p&gt;Разработка и сопровождение: &lt;a href="https://github.com/ndrco"&gt;NDRco&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Код и развитие проекта:&lt;br&gt;&lt;a href="https://github.com/ndrco/SonShell-Remote"&gt;github.com/ndrco/SonShell-Remote&lt;/a&gt;&lt;/p&gt;&lt;p&gt;На основе &lt;a href="https://github.com/goudvuur/sonshell"&gt;SonShell&lt;/a&gt; и &lt;a href="https://support.d-imaging.sony.co.jp/app/sdk/en/"&gt;Sony Camera Remote SDK&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Независимый проект для камер Sony. Код приложения: Apache-2.0; условия Sony SDK действуют отдельно.&lt;/p&gt;</source>
+      <translation>&lt;p&gt;Developed and maintained by &lt;a href="https://github.com/ndrco"&gt;NDRco&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Source code and project development:&lt;br&gt;&lt;a href="https://github.com/ndrco/SonShell-Remote"&gt;github.com/ndrco/SonShell-Remote&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Based on &lt;a href="https://github.com/goudvuur/sonshell"&gt;SonShell&lt;/a&gt; and &lt;a href="https://support.d-imaging.sony.co.jp/app/sdk/en/"&gt;Sony Camera Remote SDK&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Independent project for Sony cameras. Application code: Apache-2.0; Sony SDK terms apply separately.&lt;/p&gt;</translation>
+    </message>
   </context>
 </TS>

@@ -21,6 +21,7 @@ class GalleryWidget;
 class CameraCardWidget;
 class CameraControlsWidget;
 class HelpDialog;
+class AboutDialog;
 class QDialog;
 
 class MainWindow final : public QMainWindow {
@@ -50,6 +51,7 @@ class MainWindow final : public QMainWindow {
   AppSettings values() const;
   QString binary_, language_;
   QPointer<HelpDialog> help_;
+  QPointer<AboutDialog> about_;
   QDialog* settings_dialog_;
   SettingsStore settings_;
   CameraSession session_;

@@ -1,5 +1,6 @@
 find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets Network Concurrent)
 add_library(sonshell_gui_core STATIC
+  src/about_dialog.cpp src/about_dialog.h
   src/video_preview.cpp src/video_preview.h
   src/language_support.cpp src/language_support.h
   src/help_dialog.cpp src/help_dialog.h

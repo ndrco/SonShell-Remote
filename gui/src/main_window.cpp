@@ -4,6 +4,7 @@
 #include "camera_card_widget.h"
 #include "camera_controls_widget.h"
 #include "help_dialog.h"
+#include "about_dialog.h"
 #include "language_support.h"
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -446,6 +447,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   review_.cancel();
   live_view_->leave_fullscreen(); photo_view_->leave_fullscreen(); card_widget_->leave_fullscreen();
   if (photo_window_) photo_window_->close();
+  if (about_) about_->close();
   save_settings(); session_.stop(); QMainWindow::closeEvent(event);
 }
 
@@ -483,10 +485,10 @@ void MainWindow::create_menus() {
   auto* guide = help->addAction(QCoreApplication::translate("App", "Руководство и клавиши · F1")); guide->setObjectName("help_action");
   guide->setShortcut(Qt::Key_F1); guide->setShortcutContext(Qt::ApplicationShortcut);
   connect(guide, &QAction::triggered, this, &MainWindow::show_help);
-  auto* about = help->addAction(QCoreApplication::translate("App", "О программе"));
+  auto* about = help->addAction(QCoreApplication::translate("App", "О программе")); about->setObjectName("about_action");
   connect(about, &QAction::triggered, this, [this] {
-    QMessageBox::about(this, QCoreApplication::translate("App", "О программе"), "SonShell Remote " + QCoreApplication::applicationVersion() +
-        QCoreApplication::translate("App", "\nГрафическое управление камерами Sony на основе SonShell и Sony Camera Remote SDK.\nНезависимый проект · Apache-2.0"));
+    if (!about_) { about_ = new AboutDialog(this); about_->setAttribute(Qt::WA_DeleteOnClose); }
+    about_->show(); about_->raise(); about_->activateWindow();
   });
 }
 void MainWindow::show_help() {

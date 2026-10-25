@@ -482,3 +482,22 @@ Connect. Журнал скрыт, доступен checkable действием 
 
 Основание Qt: [modeless QDialog](https://doc.qt.io/qt-6.5/qdialog.html),
 [QGraphicsDropShadowEffect](https://doc.qt.io/qt-6.5/qgraphicsdropshadoweffect.html).
+
+## 0.8.2: сведения о проекте
+
+Отдельный AboutDialog открывается через show(), как Help/Settings, и не
+вкладывает модальный цикл событий в управление камерой. MainWindow удерживает
+QPointer и поднимает уже открытое окно, WA_DeleteOnClose освобождает его.
+Главное закрытие закрывает About.
+
+Иконка NDRco из профиля GitHub включена как PNG в :/branding/ndrco.png.
+Сетевых обращений при открытии окна нет. QLabel со ссылками разрешает переход
+мышью/клавиатурой через QDesktopServices; URL постоянны, учётные данные в них
+не используются. Тексты входят в существующий RU/EN каталог. Версия берётся
+из QCoreApplication::applicationVersion(), как в основном исполняемом файле.
+
+Планируемый адрес исходников: https://github.com/ndrco/SonShell-Remote .
+Проверенный gh 2.45.0 уже установлен локально и авторизован как ndrco через
+keyring. Repo view пока не разрешает этот адрес; репозиторий не создавался
+и код не отправлялся. Установка инструментов и изменение глобальных настроек
+не потребовались.
