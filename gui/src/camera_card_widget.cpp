@@ -68,7 +68,7 @@ class CardCheckDelegate final : public QStyledItemDelegate {
 CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(parent), card_(card) {
   setObjectName("camera_card");
   auto* layout = new QVBoxLayout(this);
-  auto* note = new QLabel(QCoreApplication::translate("App", "Фото: исходный JPEG или быстрое превью. Видео и RAW: оригинал по кнопке с размером. Просмотр не заменяет импорт."), this);
+  auto* note = new QLabel(QCoreApplication::translate("App", "Фото: исходный JPEG или быстрое превью. Видео: Play загружает оригинал, размер указан на кнопке. Поток SDK — в настройках. Просмотр не заменяет импорт."), this);
   note->setWordWrap(true); layout->addWidget(note);
   auto* tools = new QHBoxLayout;
   auto add = [this, &tools](const QString& label, const QString& name, auto action) {
@@ -111,15 +111,19 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   quality_ = new QComboBox(preview_tools); quality_->setObjectName("card_quality");
   quality_->addItem(QCoreApplication::translate("App", "Фото: исходный JPEG"), "jpeg");
   quality_->addItem(QCoreApplication::translate("App", "Фото: быстрое превью"), "quick");
+  video_quality_ = new QComboBox(preview_tools); video_quality_->setObjectName("card_video_quality");
+  video_quality_->addItem(QCoreApplication::translate("App", "Видео: оригинал по Play"), "original");
+  video_quality_->addItem(QCoreApplication::translate("App", "Видео: поток SDK"), "sdk");
   original_ = new QPushButton(QCoreApplication::translate("App", "Открыть оригинал"), preview_tools); original_->setObjectName("card_original");
   original_->setToolTip(QCoreApplication::translate("App", "Загрузить выбранный файл во временный кеш. Видео — исходное качество; RAW — лучший встроенный JPEG. Повторное открытие использует кеш или импортированную копию."));
   preview_cancel_ = new QPushButton(QCoreApplication::translate("App", "Остановить"), preview_tools); preview_cancel_->setObjectName("card_preview_cancel"); preview_cancel_->setEnabled(false);
   preview_status_ = new QLabel(preview_tools); preview_status_->setObjectName("card_preview_status");
-  preview_layout->addWidget(quality_); preview_layout->addWidget(original_); preview_layout->addWidget(preview_cancel_); preview_layout->addWidget(preview_status_);
+  preview_layout->addWidget(quality_); preview_layout->addWidget(video_quality_); preview_layout->addWidget(original_); preview_layout->addWidget(preview_cancel_); preview_layout->addWidget(preview_status_);
   qobject_cast<QVBoxLayout*>(viewer_->layout())->insertWidget(1, preview_tools);
   connect(quality_, &QComboBox::currentIndexChanged, this, [this] { original_displayed_.clear(); request_preview(); });
+  connect(video_quality_, &QComboBox::currentIndexChanged, this, [this] { autoplay_original_.clear(); request_preview(); });
   connect(original_, &QPushButton::clicked, this, &CameraCardWidget::request_original);
-  auto cancel_preview = [this] { pending_preview_.clear(); pending_original_ = false; card_->cancel(); };
+  auto cancel_preview = [this] { pending_preview_.clear(); pending_original_ = false; autoplay_original_.clear(); card_->cancel(); };
   connect(preview_cancel_, &QPushButton::clicked, this, cancel_preview);
   connect(viewer_, &ImageViewer::movie_play_requested, this, &CameraCardWidget::play_movie);
   connect(viewer_, &ImageViewer::movie_pause_requested, this, [this] { card_->movie_control("pause"); });
@@ -163,7 +167,7 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   connect(format_, &QComboBox::currentIndexChanged, this, &CameraCardWidget::rebuild);
   connect(list_, &QTreeWidget::itemSelectionChanged, this, [this] {
     emit selected_path_changed();
-    viewer_->view()->clear_notice(); update_marks(); request_preview();
+    autoplay_original_.clear(); viewer_->view()->clear_notice(); update_marks(); request_preview();
   });
   connect(list_, &QTreeWidget::itemChanged, this, [this] { update_marks(); });
   connect(list_, &QTreeWidget::itemDoubleClicked, this, [this] { viewer_->toggle_fullscreen(); });
@@ -213,10 +217,15 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
         QString(" · %1 × %2").arg(result.image.width()).arg(result.image.height()) : result.source;
     viewer_->set_image(result.image, row->data(2, Qt::UserRole).toString() + " · " + source);
     viewer_->view()->show_notice(source);
+    if (result.video && autoplay_original_ == key) QTimer::singleShot(0, this, [this, key] {
+      if (autoplay_original_ != key || original_displayed_ != key || card_->busy()) return;
+      autoplay_original_.clear(); viewer_->play_video();
+    });
   });
   connect(card_, &CameraCard::original_failed, this, [this](const QString& key, const QString& message) {
     const auto* row = rows_.value(key);
     if (!row || row != list_->currentItem() || !pending_preview_.isEmpty()) return;
+    autoplay_original_.clear();
     viewer_->set_caption(row->data(2, Qt::UserRole).toString() + " · " + message);
     viewer_->view()->show_notice(message);
   });
@@ -230,7 +239,7 @@ void CameraCardWidget::update_actions() {
   verify_->setEnabled(!busy && card_->has_imports());
   const auto* row = list_->currentItem();
   original_->setEnabled(!busy && card_->connected() && row && !row->isHidden());
-  quality_->setEnabled(!busy || card_->previewing());
+  quality_->setEnabled(!busy || card_->previewing()); video_quality_->setEnabled(!busy || card_->previewing());
   if (row) for (const auto& item : card_->items()) if (item.key() == row->data(0, Qt::UserRole).toString()) {
     original_->setText(QString(QCoreApplication::translate("App", "Оригинал · %1 MiB")).arg(item.preview_file().size / 1024.0 / 1024, 0, 'f', 1)); break;
   }
@@ -245,7 +254,7 @@ QString CameraCardWidget::selected_path() const {
 }
 void CameraCardWidget::activated() { if (card_->items().isEmpty() && !card_->busy()) card_->refresh(); }
 void CameraCardWidget::deactivated() {
-  viewer_->stop_video(); pending_preview_.clear(); pending_original_ = false;
+  viewer_->stop_video(); pending_preview_.clear(); pending_original_ = false; autoplay_original_.clear();
   if (card_->playing_video() || card_->loading_original()) card_->cancel();
 }
 QStringList CameraCardWidget::checked(bool rejected) const {
@@ -340,15 +349,17 @@ void CameraCardWidget::request_preview() {
     card_->preview(key);
   }
 }
-void CameraCardWidget::request_original() {
+void CameraCardWidget::request_original(bool autoplay) {
   const auto* row = list_->currentItem();
   if (!row || row->isHidden() || card_->busy()) return;
+  autoplay_original_ = autoplay ? row->data(0, Qt::UserRole).toString() : QString();
   pending_original_ = true; request_preview();
 }
 void CameraCardWidget::play_movie() {
   if (card_->playing_video()) { card_->movie_control("play"); return; }
   auto* row = list_->currentItem();
   if (!row || row->isHidden() || card_->busy() || !row->data(2, Qt::UserRole + 1).toStringList().contains("video")) return;
+  if (video_quality_->currentData() == "original") { request_original(true); return; }
   const auto socket = card_->movie_socket_path();
   if (viewer_->prepare_stream(socket)) card_->play_movie(row->data(0, Qt::UserRole).toString(), socket);
 }

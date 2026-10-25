@@ -11,6 +11,8 @@ struct AppSettings {
   bool auto_liveview = true;
   bool auto_connect = true;
   bool auto_reconnect = true;
+  bool card_full_jpeg = true;
+  bool card_original_video = true;
   bool studio_review = false;
   bool studio_full_jpeg = false;
   int review_seconds = 3;

@@ -58,6 +58,7 @@ class ImageViewer final : public QWidget {
   void set_remote_video(bool enabled);
   bool prepare_stream(const QString& socket_path);
   void stop_video();
+  void play_video();
   void set_video_controls_enabled(bool enabled);
   ImageView* view() const { return view_; }
  signals:

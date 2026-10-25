@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
+<?xml version='1.0' encoding='utf-8'?>
 <TS version="2.1" language="en" sourcelanguage="ru">
   <context>
     <name>App</name>
@@ -255,7 +254,6 @@
       <source>Точка выбрана, команда автофокуса принята камерой.</source>
       <translation>Point selected; the camera accepted the autofocus command.</translation>
     </message>
-
     <message>
       <source>Видео · %1 × %2 · без звука</source>
       <translation>Video · %1 × %2 · no audio</translation>
@@ -1405,6 +1403,74 @@ All files belonging to each photo will be deleted, including RAW+JPEG pairs. Car
       <translation>)?
 
 Photos and clips will be deleted in full, including RAW+JPEG, video, proxies and related files. Card deletion cannot be undone. Local copies will be preserved.</translation>
+    </message>
+    <message>
+      <source>SDK не передал видеокадры. Открой оригинал для просмотра. Если поток не работает ни с одним роликом, проверь входящие TCP 55001, 55003, 55005 от %1 к %2. Справка: F1 → Видео.</source>
+      <translation>The SDK delivered no video frames. Open the original to watch it. If streaming fails for every clip, check incoming TCP 55001, 55003, 55005 from %1 to %2. Help: F1 → Video.</translation>
+    </message>
+    <message>
+      <source>Видео на карте</source>
+      <translation>Video on camera</translation>
+    </message>
+    <message>
+      <source>Видео: оригинал по Play</source>
+      <translation>Video: original on Play</translation>
+    </message>
+    <message>
+      <source>Видео: поток SDK</source>
+      <translation>Video: SDK stream</translation>
+    </message>
+    <message>
+      <source>Время показа</source>
+      <translation>Review duration</translation>
+    </message>
+    <message>
+      <source>Журнал соединения</source>
+      <translation>Connection log</translation>
+    </message>
+    <message>
+      <source>Изменения сохраняются автоматически.</source>
+      <translation>Changes are saved automatically.</translation>
+    </message>
+    <message>
+      <source>Каталог и файлы</source>
+      <translation>Directory and files</translation>
+    </message>
+    <message>
+      <source>Каталог и файлы…</source>
+      <translation>Directory and files…</translation>
+    </message>
+    <message>
+      <source>Качество студийного кадра</source>
+      <translation>Studio review quality</translation>
+    </message>
+    <message>
+      <source>Настройки…</source>
+      <translation>Settings…</translation>
+    </message>
+    <message>
+      <source>Подключение…</source>
+      <translation>Connection…</translation>
+    </message>
+    <message>
+      <source>Предпросмотр</source>
+      <translation>Preview</translation>
+    </message>
+    <message>
+      <source>Предпросмотр…</source>
+      <translation>Preview…</translation>
+    </message>
+    <message>
+      <source>При импорте файлы раскладываются по датам съёмки внутри выбранного каталога.</source>
+      <translation>Imported files are organized by capture date within the selected directory.</translation>
+    </message>
+    <message>
+      <source>Фото на карте</source>
+      <translation>Photos on camera</translation>
+    </message>
+    <message>
+      <source>Фото: исходный JPEG или быстрое превью. Видео: Play загружает оригинал, размер указан на кнопке. Поток SDK — в настройках. Просмотр не заменяет импорт.</source>
+      <translation>Photos: original JPEG or quick preview. Video: Play downloads the original; the button shows its size. SDK streaming is in Settings. Viewing does not replace importing.</translation>
     </message>
   </context>
 </TS>

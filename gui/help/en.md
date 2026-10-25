@@ -2,7 +2,7 @@
 
 ## Connect
 
-Enter the camera IPv4 address, SonShell model (for example a6700), username,
+Open Settings → Connection (Ctrl+,). Enter the camera IPv4 address, SonShell model (for example a6700), username,
 password and photo directory. Enable network remote control and configure access
 in the camera menu. Connected status requires a camera response. Automatic
 reconnection is optional; Disconnect cancels retries.
@@ -17,15 +17,23 @@ disable this behavior persistently. Reconnection after a network failure is sepa
 Remember username and password saves credentials in a private, unencrypted file
 on this computer. Clearing the checkbox removes the saved credentials.
 
+Connection, startup/reconnection, directory and studio preview options are in
+Settings. Changes are saved automatically. Settings → Connection log shows the
+hidden log. Camera shooting controls stay in the main window.
+
 ## Review the camera card
 
 After shooting, open On camera → Refresh card. Photos default to the original
-JPEG, including RAW+JPEG; Photos: quick preview selects the compressed SDK image.
-RAW and video are never transferred automatically. Original · … MiB explicitly
+JPEG, including RAW+JPEG; Settings → Preview → Photos on camera selects
+the compressed SDK image when needed.
+Selecting a row never downloads RAW or video. Play downloads the video original
+into a temporary cache, then starts playback automatically. The Original button
+shows the download size; progress and Stop remain available. Replays use the cache
+or a confirmed imported copy. No files are downloaded on shutter release. Original · … MiB explicitly
 loads the file into a temporary cache: video keeps its native resolution and frame
 rate, RAW uses its best embedded JPEG without sensor development. The caption shows
 actual dimensions; 100% refers to this source. Progress and Stop work in full screen.
-Video downloads completely before playback; then click Play. The cache retains
+The Original button can also load a file without starting playback. The cache retains
 the last original until replacement or disconnect; reopening avoids another transfer.
 A confirmed imported copy is used directly and is preserved. Viewing does not
 replace importing or enable transfers on shutter release.
@@ -38,6 +46,7 @@ replace importing or enable transfers on shutter release.
 | F11 | Enter / leave full screen |
 | Esc | Leave full screen |
 | F1 | Open help |
+| Ctrl+, | Open Settings |
 
 Marking works with focus in the card list or preview, including full screen.
 Press again to clear a mark. In the search field Space and Delete edit text.
@@ -50,7 +59,7 @@ including RAW+JPEG. Card deletion cannot be undone; local copies are preserved.
 
 ## Copy
 
-Choose the destination directory at the top and the file formats. Copy marked
+Choose the destination directory in Settings → Directory and files and the file formats. Copy marked
 uses copy marks. Copy new skips successful copies recorded in that directory's
 import ledger. Copy all transfers all originals again. The latter two commands
 use the whole card catalog regardless of search. Existing files are preserved;
@@ -98,7 +107,7 @@ disables this action. A rejected AF start after moving the point is shown separa
 An accepted command does not confirm sharp focus. The application does
 not change exposure mode or the physical focus switch to enable this feature.
 
-Studio mode briefly shows a compressed preview after capture, then returns to
+Settings → Preview configures studio mode. It briefly shows a compressed preview after capture, then returns to
 Live View. Hold photo pauses the timer. AF point selection is disabled while a
 captured photo is displayed.
 
@@ -127,20 +136,19 @@ Photos and videos, Photos only and Video only filter visible items and copying.
 RAW/JPEG selects photo formats. The still preview of a clip uses the camera
 thumbnail; the SDK's larger screennail is available only for photos.
 
-Play streams from the camera without copying the original. Pause, Stop and
-seeking to a specified second are available. This is a **silent preview**, limited
-only by the received stream's resolution and frame rate; the original audio remains unchanged. SDK/firmware support
-and reachable network ports are required. Camera/decoder failures are shown.
-The video bar shows the actual frame size; the camera sets SDK preview resolution.
-For original quality, click Stop, then Original · … MiB and wait for the download.
-Play then opens the temporary original without resizing instead of the SDK stream.
-Pause/Stop/seek remain available; inbound video ports are not needed for this mode.
-Selecting the row again returns to quick viewing.
-Live View stops during streaming and resumes afterwards if previously enabled.
-Changing tabs or items stops the stream. Stop playback before copying/deleting.
-Space/Delete marking works over the video as well.
+Play downloads the original into a temporary cache and starts playback when
+ready. The Original button shows the size; Stop cancels the transfer. Replays
+use the cache or a confirmed imported copy. Pause, Stop, seeking and full screen
+are available. Preview is **silent**, at the original resolution and frame rate;
+the source file and audio remain unchanged. Selecting another row stops playback.
 
-**No video data from camera:** control and Live View may work while the firewall
+Settings → Preview → Video on camera can select SDK streaming without downloading
+the original. Streaming requires camera/firmware support and reachable inbound
+ports. The camera sets preview resolution. Live View stops during this SDK mode
+and resumes afterwards if previously enabled. Stop streaming before copying or
+deleting. Space/Delete marking works over either type of video.
+
+**SDK delivered no video frames:** use Original to watch the clip. Control and Live View may work while the firewall
 blocks the separate movie stream. Allow incoming **TCP 55001, 55003, 55005** from
 the camera IP to the computer IP. The error shows both addresses. Check firewall
 rules and network client isolation. The application does not change system rules.
@@ -184,9 +192,14 @@ when needed. Confirmed copies are skipped and changed camera items are not
 transferred. Incomplete files restart from the beginning. A new Copy command
 replaces the saved plan. Capture and deletion are never replayed automatically.
 
-Studio capture offers JPEG from card · original size. Enable JPEG or RAW+JPEG
+Settings → Preview offers JPEG from card · original size. Enable JPEG or RAW+JPEG
 on the camera. Only JPEG is transferred to a temporary directory and deleted
 after decoding; the gallery and import directory are untouched. The caption
 shows the source and actual dimensions. The 2–10 second interval starts after
 display; network transfer adds a delay. RAW-only uses a compressed preview with
 a No JPEG on card caption. The application does not change the capture format.
+
+SDK streaming remains optional in Settings → Preview → Video on camera.
+Some camera/clip combinations return audio without video despite accepting all
+connections; Start/Play success does not prove video delivery. Original playback
+avoids that SDK path and preserves source resolution and frame rate.

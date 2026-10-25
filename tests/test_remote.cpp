@@ -7,6 +7,12 @@
 #include <QBuffer>
 #include <QGraphicsScene>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QAction>
+#include <QTabWidget>
+#include <QPlainTextEdit>
 #include <QFile>
 #include <QLabel>
 #include <QLineEdit>
@@ -159,6 +165,36 @@ class RemoteTests : public QObject {
     QTest::mouseClick(connect_button, Qt::LeftButton);
     QTRY_COMPARE(state->text(), QString("Отключено"));
     window.close();
+  }
+  void settings_move_service_fields_preserve_values_and_keep_session_alive() {
+    AppSettings settings; settings.auto_connect = false; settings.sdk_terms_accepted = true;
+    settings.host = "127.0.0.1"; settings.folder = temporary_.filePath("settings-photos");
+    QVERIFY(SettingsStore().save(settings));
+    MainWindow window(FAKE_BACKEND_PATH); window.show();
+    auto* dialog = window.findChild<QDialog*>("settings_dialog"); QVERIFY(dialog); QVERIFY(!dialog->isVisible());
+    for (const auto& name : {"host", "username", "password", "photo_directory"}) {
+      auto* field = window.findChild<QLineEdit*>(name); QVERIFY(field); QVERIFY(dialog->isAncestorOf(field)); QVERIFY(!field->isVisible());
+    }
+    window.findChild<QAction*>("settings_files")->trigger(); QVERIFY(dialog->isVisible()); QVERIFY(!dialog->isModal());
+    auto* pages = dialog->findChild<QTabWidget*>("settings_tabs"); QCOMPARE(pages->currentIndex(), 1);
+    auto* folder = dialog->findChild<QLineEdit*>("photo_directory");
+    folder->setText(temporary_.filePath("settings-new-photos"));
+    window.findChild<QAction*>("settings_preview")->trigger(); QCOMPARE(pages->currentIndex(), 2);
+    dialog->findChild<QComboBox*>("card_quality")->setCurrentIndex(1);
+    dialog->findChild<QComboBox*>("card_video_quality")->setCurrentIndex(1);
+    dialog->findChild<QCheckBox*>("studio_enabled")->setChecked(true);
+    dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+    QVERIFY(!dialog->isVisible());
+    auto saved = SettingsStore().load(); QCOMPARE(saved.folder, folder->text()); QVERIFY(!saved.card_full_jpeg); QVERIFY(!saved.card_original_video); QVERIFY(saved.studio_review);
+    window.findChild<QPushButton*>("connect")->click();
+    auto* session = window.findChild<CameraSession*>(); QTRY_COMPARE(session->state(), CameraSession::State::Connected);
+    window.findChild<QAction*>("settings_connection")->trigger(); QCOMPARE(pages->currentIndex(), 0);
+    QVERIFY(!dialog->findChild<QLineEdit*>("host")->isEnabled()); QVERIFY(!dialog->findChild<QLineEdit*>("password")->isEnabled());
+    dialog->reject(); QCOMPARE(session->state(), CameraSession::State::Connected);
+    auto* journal = window.findChild<QPlainTextEdit*>(); QVERIFY(!journal->isVisible());
+    window.findChild<QAction*>("settings_log")->trigger(); QVERIFY(journal->isVisible());
+    window.findChild<QPushButton*>("connect")->click(); QTRY_COMPARE(session->state(), CameraSession::State::Disconnected);
+    QVERIFY(dialog->findChild<QLineEdit*>("host")->isEnabled()); window.close();
   }
   void startup_connection_data() {
     QTest::addColumn<bool>("enabled"); QTest::addColumn<bool>("remember"); QTest::addColumn<bool>("terms");

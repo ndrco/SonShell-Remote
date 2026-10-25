@@ -8,6 +8,8 @@
 #include "photo_library.h"
 #include "video_preview.h"
 #include <QComboBox>
+#include <QAction>
+#include <QDialog>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
@@ -137,7 +139,7 @@ class VideoTests final : public QObject {
     QVERIFY(!player.running()); QCOMPARE(errors.size(), 0); QCOMPARE(frames.size(), 0); player.stop();
   }
   void main_window_stops_liveview_for_movie_and_restores_it_on_tab_change() {
-    QTemporaryDir root; AppSettings settings; settings.host = "127.0.0.1"; settings.folder = root.path(); settings.sdk_terms_accepted = true;
+    QTemporaryDir root; AppSettings settings; settings.card_original_video = false; settings.host = "127.0.0.1"; settings.folder = root.path(); settings.sdk_terms_accepted = true;
     QVERIFY(SettingsStore().save(settings));
     MainWindow window(FAKE_BACKEND_PATH); window.show(); window.activateWindow();
     window.findChild<QPushButton*>("connect")->click();
@@ -158,6 +160,26 @@ class VideoTests final : public QObject {
     QTRY_VERIFY(commands().count("monitor start") >= 2);
     window.close();
   }
+  void original_playback_survives_settings_and_stops_on_tab_change() {
+    QTemporaryDir root; AppSettings settings; settings.auto_connect = false; settings.host = "127.0.0.1";
+    settings.folder = root.path(); settings.sdk_terms_accepted = true; QVERIFY(SettingsStore().save(settings));
+    MainWindow window(FAKE_BACKEND_PATH); window.show(); window.findChild<QPushButton*>("connect")->click();
+    auto* session = window.findChild<CameraSession*>(); auto* card = window.findChild<CameraCard*>();
+    QTRY_COMPARE(session->state(), CameraSession::State::Connected);
+    auto* tabs = window.findChild<QTabWidget*>("main_tabs"); tabs->setCurrentIndex(1);
+    auto* list = window.findChild<QTreeWidget*>("card_items"); QTRY_COMPARE(list->topLevelItemCount(), 2);
+    list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card->busy());
+    auto* viewer = window.findChild<ImageViewer*>("card_preview"); auto* player = viewer->findChild<VideoPreview*>();
+    QSignalSpy frames(player, &VideoPreview::frame_ready); viewer->findChild<QPushButton*>("movie_play")->click();
+    QTRY_VERIFY(!frames.isEmpty()); viewer->findChild<QPushButton*>("movie_pause")->click(); QVERIFY(player->running());
+    QSignalSpy catalog(card, &CameraCard::catalog_changed);
+    window.findChild<QAction*>("settings_preview")->trigger(); window.findChild<QDialog*>("settings_dialog")->reject();
+    QVERIFY(player->running()); QCOMPARE(catalog.size(), 0);
+    QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:8"));
+    QCOMPARE(commands().count(" original"), 1); QVERIFY(!commands().contains("card movie"));
+    QVERIFY(window.findChild<QPushButton*>("command_shoot")->isEnabled());
+    tabs->setCurrentIndex(0); QVERIFY(!player->running()); window.close();
+  }
   void local_file_status_contains_absolute_path_and_survives_tab_changes() {
     QTemporaryDir root; const auto path = root.filePath("2026-10-22/Slot_1/CLIP/C0001.MP4");
     QVERIFY(QDir().mkpath(QFileInfo(path).absolutePath())); QVERIFY(QFile::copy(mp4_, path));
@@ -176,6 +198,7 @@ class VideoTests final : public QObject {
     QVERIFY(card.items().first().is_video()); QCOMPARE(card.items().first().format(), QString("MP4+XML"));
     CameraCardWidget widget(&card); widget.resize(1200, 760); widget.show(); widget.activateWindow();
     auto* list = widget.findChild<QTreeWidget*>("card_items"); auto* viewer = widget.findChild<ImageViewer*>("card_preview");
+    widget.findChild<QComboBox*>("card_video_quality")->setCurrentIndex(1);
     auto* format = widget.findChild<QComboBox*>("card_format"); format->setCurrentIndex(format->findData("video"));
     QVERIFY(!list->topLevelItem(0)->isHidden()); QVERIFY(list->topLevelItem(1)->isHidden());
     list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card.busy());

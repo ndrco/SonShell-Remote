@@ -266,6 +266,12 @@ class CameraCardTests final : public QObject {
     auto* notice = viewer->findChild<QLabel*>("action_overlay"); auto* marks = viewer->findChild<QLabel*>("selection_overlay");
     QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("Выбрано для копирования")));
     QVERIFY(marks->isVisible()); QVERIFY(marks->text().contains(QString::fromUtf8("КОПИЯ: выбрано")));
+    const auto viewport = viewer->view()->viewport()->rect();
+    QVERIFY(marks->geometry().top() < viewport.height() / 4);
+    QVERIFY(notice->geometry().top() > viewport.height() * 3 / 4);
+    QVERIFY(!notice->geometry().contains(viewport.center()));
+    QVERIFY(notice->styleSheet().contains("background: transparent"));
+    QVERIFY(marks->width() <= 560);
     QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(row->checkState(1), Qt::Unchecked);
     QVERIFY(notice->text().contains(QString::fromUtf8("Отметка брака снята")));
     // Protected photos remain unmarked; Delete never sends a deletion command.

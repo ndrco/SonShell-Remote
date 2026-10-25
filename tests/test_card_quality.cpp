@@ -109,6 +109,31 @@ class CardQualityTests final : public QObject {
     list->setCurrentItem(row(widget, 4)); QTRY_COMPARE(ready.size(), 3); QTRY_VERIFY(!card.busy()); QVERIFY(!QFileInfo::exists(result.path));
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
+  void play_downloads_original_then_starts_and_reuses_cache_without_sdk_stream() {
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    CameraCardWidget widget(&card); widget.show(); auto* list = widget.findChild<QTreeWidget*>(); auto* viewer = widget.findChild<ImageViewer*>();
+    list->setCurrentItem(row(widget, 3)); QTRY_VERIFY(!card.busy()); QVERIFY(!commands().contains(" original"));
+    QSignalSpy frames(viewer->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
+    viewer->findChild<QPushButton*>("movie_play")->click(); QTRY_VERIFY(frames.size() > 0); QTRY_VERIFY(!card.busy());
+    QCOMPARE(qvariant_cast<QImage>(frames[0][0]).size(), QSize(1920, 1080));
+    QCOMPARE(commands().count(" original"), 1); QVERIFY(!commands().contains("card movie")); QVERIFY(!card.has_imports());
+    widget.deactivated(); frames.clear();
+    viewer->findChild<QPushButton*>("movie_play")->click(); QTRY_VERIFY(frames.size() > 0);
+    QCOMPARE(commands().count(" original"), 1); widget.deactivated();
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void canceled_play_download_never_autoplays_after_navigation() {
+    qputenv("REMOTE_TEST_SLOW_ORIGINAL", "1");
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    CameraCardWidget widget(&card); widget.show(); auto* list = widget.findChild<QTreeWidget*>(); auto* viewer = widget.findChild<ImageViewer*>();
+    list->setCurrentItem(row(widget, 3)); QTRY_VERIFY(!card.busy());
+    QSignalSpy frames(viewer->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
+    viewer->findChild<QPushButton*>("movie_play")->click(); QTRY_VERIFY(card.loading_original());
+    widget.findChild<QPushButton*>("card_preview_cancel")->click(); QTRY_VERIFY(!card.busy());
+    list->setCurrentItem(row(widget, 2)); QTRY_VERIFY(!card.busy()); QTest::qWait(100);
+    QCOMPARE(frames.size(), 0); QVERIFY(!viewer->findChild<VideoPreview*>()->running()); QVERIFY(!commands().contains("card movie"));
+    widget.deactivated(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
   void fullscreen_cancel_reports_progress_and_does_not_import() {
     QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
     CameraCardWidget widget(&card); widget.show(); auto* list = widget.findChild<QTreeWidget*>(); auto* viewer = widget.findChild<ImageViewer*>();

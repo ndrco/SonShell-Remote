@@ -31,6 +31,8 @@ AppSettings SettingsStore::load() const {
   v.auto_liveview = settings.value("auto_liveview", true).toBool();
   v.auto_connect = settings.value("auto_connect", true).toBool();
   v.auto_reconnect = settings.value("auto_reconnect", true).toBool();
+  v.card_original_video = settings.value("preview/card_original_video", true).toBool();
+  v.card_full_jpeg = settings.value("preview/card_full_jpeg", true).toBool();
   v.studio_review = settings.value("studio/enabled", false).toBool();
   v.studio_full_jpeg = settings.value("studio/full_jpeg", false).toBool();
   v.review_seconds = std::clamp(settings.value("studio/seconds", 3).toInt(), 2, 10);
@@ -66,6 +68,8 @@ bool SettingsStore::save(const AppSettings& v) const {
   settings.setValue("auto_liveview", v.auto_liveview);
   settings.setValue("auto_connect", v.auto_connect);
   settings.setValue("auto_reconnect", v.auto_reconnect);
+  settings.setValue("preview/card_original_video", v.card_original_video);
+  settings.setValue("preview/card_full_jpeg", v.card_full_jpeg);
   settings.setValue("studio/enabled", v.studio_review);
   settings.setValue("studio/full_jpeg", v.studio_full_jpeg);
   settings.setValue("studio/seconds", std::clamp(v.review_seconds, 2, 10));

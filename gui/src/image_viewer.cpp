@@ -6,6 +6,7 @@
 #include <QCloseEvent>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
+#include <QGraphicsDropShadowEffect>
 #include <QLabel>
 #include <QPushButton>
 #include <QShortcut>
@@ -32,18 +33,23 @@ ImageView::ImageView(QWidget* parent) : QGraphicsView(parent) {
   for (auto* label : {marks_, notice_}) {
     label->setTextFormat(Qt::PlainText); label->setWordWrap(true); label->hide();
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
-    label->setStyleSheet("QLabel { background: rgba(12, 18, 28, 225); color: white; border: 1px solid #91a4bd; border-radius: 7px; padding: 10px; font-size: 16px; font-weight: bold; }");
+    label->setStyleSheet("QLabel { background: transparent; color: #f4f6f8; border: none; padding: 3px; font-size: 13px; font-weight: normal; }");
+    auto* shadow = new QGraphicsDropShadowEffect(label);
+    shadow->setBlurRadius(5); shadow->setOffset(0, 1); shadow->setColor(QColor(0, 0, 0, 230));
+    label->setGraphicsEffect(shadow);
   }
-  notice_->setAlignment(Qt::AlignCenter);
+  notice_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
   notice_timer_.setSingleShot(true); notice_timer_.setInterval(2300);
   connect(&notice_timer_, &QTimer::timeout, notice_, &QWidget::hide);
 }
 void ImageView::position_overlays() {
   if (!marks_ || !notice_) return;
-  const int width = std::max(40, viewport()->width() - 32);
-  for (auto* label : {marks_, notice_}) { label->setFixedWidth(width); label->adjustSize(); label->raise(); }
+  const int width = std::max(40, std::min(560, viewport()->width() - 32));
+  for (auto* label : {marks_, notice_}) {
+    label->setMaximumWidth(width); label->setMinimumWidth(0); label->adjustSize(); label->raise();
+  }
   marks_->move(16, 16);
-  notice_->move(16, std::max(16, (viewport()->height() - notice_->height()) / 2));
+  notice_->move(16, std::max(16, viewport()->height() - notice_->height() - 16));
 }
 void ImageView::set_marks(const QString& text) {
   marks_->setText(text); marks_->setVisible(!text.isEmpty()); position_overlays();
@@ -145,9 +151,7 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
     video_info_->setText(QString(QCoreApplication::translate("App", "Видео · %1 × %2 · без звука")).arg(image.width()).arg(image.height()));
   });
   for (auto* widget : QList<QWidget*>{play, pause, stop, seek, jump, video_info_}) video_layout->addWidget(widget);
-  connect(play, &QPushButton::clicked, this, [this] {
-    if (remote_video_) emit movie_play_requested(); else if (video_->running()) video_->pause_local(false); else video_->play_local(video_path_);
-  });
+  connect(play, &QPushButton::clicked, this, &ImageViewer::play_video);
   connect(pause, &QPushButton::clicked, this, [this] { if (remote_video_) emit movie_pause_requested(); else video_->pause_local(true); });
   connect(stop, &QPushButton::clicked, this, [this] { if (remote_video_) emit movie_stop_requested(); else video_->stop(); });
   connect(jump, &QPushButton::clicked, this, [this, seek] {
@@ -176,6 +180,11 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
   escape->setContext(Qt::WidgetWithChildrenShortcut);
   connect(escape, &QShortcut::activated, this, &ImageViewer::leave_fullscreen);
+}
+void ImageViewer::play_video() {
+  if (remote_video_) emit movie_play_requested();
+  else if (video_->running()) video_->pause_local(false);
+  else video_->play_local(video_path_);
 }
 void ImageViewer::stop_video() { video_->stop(); }
 void ImageViewer::set_local_video(const QString& path) {

@@ -21,6 +21,7 @@ class GalleryWidget;
 class CameraCardWidget;
 class CameraControlsWidget;
 class HelpDialog;
+class QDialog;
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -32,6 +33,8 @@ class MainWindow final : public QMainWindow {
  private:
   void create_ui();
   void create_menus();
+  void create_settings();
+  void show_settings(int page);
   void show_help();
   void load_settings();
   void save_settings();
@@ -47,6 +50,7 @@ class MainWindow final : public QMainWindow {
   AppSettings values() const;
   QString binary_, language_;
   QPointer<HelpDialog> help_;
+  QDialog* settings_dialog_;
   SettingsStore settings_;
   CameraSession session_;
   CameraCard card_;

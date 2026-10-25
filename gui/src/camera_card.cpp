@@ -446,7 +446,7 @@ void CameraCard::receive(const QJsonObject& event) {
     emit catalog_changed(); finish();
   } else if (type == "error") {
     const auto message = event.value("code") == "movie-no-data" ?
-        QString(QCoreApplication::translate("App", "Нет видеоданных от камеры. Проверь входящие TCP 55001, 55003, 55005 от %1 к %2 в брандмауэре и сети. Справка: F1 → Видео.")).arg(event.value("camera_host").toString(), event.value("computer_ip").toString()) : event.value("message").toString();
+        QString(QCoreApplication::translate("App", "SDK не передал видеокадры. Открой оригинал для просмотра. Если поток не работает ни с одним роликом, проверь входящие TCP 55001, 55003, 55005 от %1 к %2. Справка: F1 → Видео.")).arg(event.value("camera_host").toString(), event.value("computer_ip").toString()) : event.value("message").toString();
     if (playing_video()) emit movie_failed(message);
     if (active_.kind == "original") emit original_failed(active_.key, message);
     if (active_.kind == "delete") queue_.clear(); // Reconfirm remaining deletions after any failure.
