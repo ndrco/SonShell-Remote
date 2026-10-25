@@ -717,3 +717,35 @@ fresh-runtime-0.8.0.log и upgrade-0.8.0.log. Приватные данные/SD
 - Логи: build-clean/fresh-install-0.8.1.log, fresh-runtime-0.8.1.log,
   upgrade-0.8.1.log, verify-release-0.8.1.log; аппаратный лог
   build-package/hardware-preview-0.8.1.log. SHA256SUMS/RELEASE рядом с DEB.
+
+## 0.8.2 — About и NDRco, 2026-10-25
+
+- CMake Release GUI + SDK backend собраны; GUI без SDK собран с ASan.
+  CTest offscreen 9/9, 70.80 с; состав прежний, 105 сценариев Qt без init/cleanup.
+  Новый низкорисковый экран проверен визуально без добавления тестов текстовых
+  констант. Каталог EN: 316 подписей, 301 используется.
+- About RU/EN открыт через настоящий QAction MainWindow в изолированной
+  конфигурации; показан PNG из Qt resources, версия 0.8.2 и все четыре URL.
+  Двойной вызов поднимает одно окно, Close освобождает его, повторное открытие
+  создаёт новое, закрытие MainWindow закрывает About. ASan без ошибок доступа,
+  detect_leaks=0. Screenshots обоих языков 580×359 осмотрены, logo 112×112;
+  все тексты помещаются. Это offscreen-проверка интерфейса, не аппаратный тест.
+- Иконка скачана из публичного профиля ndrco без преобразования изображения;
+  источник, дата и SHA256 записаны в gui/assets/README.md. Сеть при показе About
+  не используется; браузерные переходы во время проверки не выполнялись.
+- GitHub CLI 2.45.0 уже установлен и авторизован как ndrco через keyring.
+  users/ndrco успешно вернул профиль/иконку; repo view для ndrco/SonShell-Remote
+  вернул Could not resolve. Репозиторий не создавался, push не выполнялся;
+  установка CLI или изменение глобальной конфигурации не потребовались.
+- DEB 0.8.2-1ubuntu24.04 amd64: 5 627 536 байт, коммит `a6fa9f8`.
+  SHA256 `0c6ff20403d38a3488c84627dcd72610cd07eb91b08d5f20d77ce534ee9b8b24`.
+- Чистый Ubuntu Base 24.04.5: apt устанавливает зависимости; GUI RU/EN,
+  help/version, Qt translations, ExifTool, FFmpeg H.265/PPM, SDK loader, ldd
+  и контроль SHA256 импортированной копии прошли в изоляции. Установленные
+  бинарники совпадают с DEB. Обновление 0.8.1 → 0.8.2 и удаление успешны.
+- Первый запуск верификатора вывел успешное завершение всех проверок, но его
+  оболочка завершилась SIGTERM/143; проверка полностью повторена в новом корне
+  rootfs-0.8.2-recheck без управления окном рабочего стола, итоговый exit 0.
+  Логи build-clean/verify-release-0.8.2-recheck.log, fresh-install-0.8.2-recheck.log,
+  fresh-runtime-0.8.2-recheck.log, upgrade-0.8.2-recheck.log; SHA256SUMS/RELEASE
+  рядом с DEB. Системные пакеты и сервисы хоста не менялись.
