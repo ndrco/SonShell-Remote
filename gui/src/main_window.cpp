@@ -141,9 +141,13 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   frames_timer_.setInterval(70);
   connect(&frames_timer_, &QTimer::timeout, this, &MainWindow::update_frame);
   frames_timer_.start();
+  startup_connect_.setSingleShot(true); startup_connect_.setInterval(250);
+  connect(&startup_connect_, &QTimer::timeout, this, &MainWindow::connect_on_startup);
+  if (auto_connect_->isChecked()) startup_connect_.start();
 }
 
 MainWindow::~MainWindow() {
+  startup_connect_.stop();
   // QObject children outlive C++ value members. No child may call back into
   // PhotoLibrary/StudioReview after those members begin destruction.
   for (auto* child : findChildren<QObject*>()) QObject::disconnect(child, nullptr, this, nullptr);
@@ -166,11 +170,22 @@ void MainWindow::create_ui() {
   remember_ = new QCheckBox(QCoreApplication::translate("App", "Сохранить имя и пароль"), connection_box); remember_->setObjectName("remember");
   remember_->setToolTip(QCoreApplication::translate("App", "Хранить на этом компьютере в файле с правами 0600, без шифрования. Снятие флажка удаляет сохранённые поля."));
   auto_liveview_ = new QCheckBox(QCoreApplication::translate("App", "Live View при подключении"), connection_box);
+  auto_connect_ = new QCheckBox(QCoreApplication::translate("App", "Подключаться при запуске"), connection_box); auto_connect_->setObjectName("auto_connect");
+  auto_connect_->setToolTip(QCoreApplication::translate("App", "При запуске подключаться с сохранёнными именем и паролем. Сначала подключись вручную и прими условия SDK. Отключение отменяет повторы до следующего запуска."));
   auto_reconnect_ = new QCheckBox(QCoreApplication::translate("App", "Переподключаться автоматически"), connection_box);
   connect_button_ = button(QCoreApplication::translate("App", "Подключить"), connection_box, [this] {
+    startup_connect_.stop();
     if (session_.active()) session_.stop(); else connect_camera();
   });
   connect_button_->setObjectName("connect");
+  connect_button_->setMinimumSize(160, 38);
+  auto connection_font = connect_button_->font(); connection_font.setBold(true); connect_button_->setFont(connection_font);
+  connect_button_->setStyleSheet(
+      "QPushButton#connect { background: #0969da; color: white; border: 2px solid #0969da; border-radius: 6px; padding: 6px 18px; }"
+      "QPushButton#connect:hover { background: #0759ba; border-color: #0759ba; }"
+      "QPushButton#connect:pressed { background: #064c9e; }"
+      "QPushButton#connect:focus { border-color: #fbbf24; }"
+      "QPushButton#connect:disabled { background: #576579; border-color: #576579; color: #e5e7eb; }");
   state_ = new QLabel(QCoreApplication::translate("App", "Отключено"), connection_box); state_->setObjectName("connection_state");
   connection->addWidget(new QLabel(QCoreApplication::translate("App", "IP камеры")), 0, 0); connection->addWidget(host_, 0, 1);
   connection->addWidget(new QLabel(QCoreApplication::translate("App", "Модель")), 0, 2); connection->addWidget(model_, 0, 3);
@@ -184,8 +199,9 @@ void MainWindow::create_ui() {
   });
   connection->addWidget(browse_, 1, 7);
   connection->addWidget(remember_, 2, 0, 1, 2);
-  connection->addWidget(auto_liveview_, 2, 3, 1, 2);
-  connection->addWidget(auto_reconnect_, 2, 5, 1, 3);
+  connection->addWidget(auto_connect_, 2, 2, 1, 2);
+  connection->addWidget(auto_liveview_, 2, 4, 1, 2);
+  connection->addWidget(auto_reconnect_, 2, 6, 1, 2);
   connection->addWidget(state_, 3, 0, 1, 6); connection->addWidget(connect_button_, 3, 6, 1, 2);
   connection->setColumnStretch(1, 1); connection->setColumnStretch(5, 1);
   layout->addWidget(connection_box);
@@ -251,6 +267,11 @@ void MainWindow::create_ui() {
     save_settings();
   });
   connect(auto_liveview_, &QCheckBox::toggled, this, [this] { if (!loading_) save_settings(); });
+  connect(auto_connect_, &QCheckBox::toggled, this, [this](bool enabled) {
+    if (loading_) return;
+    if (!enabled) startup_connect_.stop();
+    save_settings();
+  });
   auto configure_review = [this] {
     if (loading_) return;
     review_.configure(studio_->isChecked(), review_seconds_->value()); card_.set_studio(studio_->isChecked(), review_quality_->currentIndex() == 1); save_settings();
@@ -275,6 +296,7 @@ AppSettings MainWindow::values() const {
   v.user = user_->text(); v.password = password_->text(); v.folder = folder_->text().trimmed();
   v.remember_credentials = remember_->isChecked(); v.auto_sync = false;
   v.auto_liveview = auto_liveview_->isChecked(); v.auto_reconnect = auto_reconnect_->isChecked();
+  v.auto_connect = auto_connect_->isChecked();
   v.studio_review = studio_->isChecked(); v.studio_full_jpeg = review_quality_->currentIndex() == 1; v.review_seconds = review_seconds_->value();
   v.geometry = saveGeometry(); v.sdk_terms_accepted = settings_.load().sdk_terms_accepted; return v;
 }
@@ -285,6 +307,7 @@ void MainWindow::load_settings() {
   host_->setText(v.host); model_->setText(v.model); user_->setText(v.user); password_->setText(v.password);
   folder_->setText(v.folder); remember_->setChecked(v.remember_credentials);
   auto_liveview_->setChecked(v.auto_liveview); auto_reconnect_->setChecked(v.auto_reconnect);
+  auto_connect_->setChecked(v.auto_connect);
   studio_->setChecked(v.studio_review); review_quality_->setCurrentIndex(v.studio_full_jpeg ? 1 : 0); review_seconds_->setValue(v.review_seconds);
   if (!v.geometry.isEmpty()) restoreGeometry(v.geometry);
   loading_ = false;
@@ -292,16 +315,33 @@ void MainWindow::load_settings() {
 void MainWindow::save_settings() {
   if (!loading_ && !settings_.save(values())) statusBar()->showMessage(QCoreApplication::translate("App", "Не удалось сохранить настройки: ") + settings_.path());
 }
-void MainWindow::connect_camera() {
+void MainWindow::connect_on_startup() {
+  if (!auto_connect_->isChecked() || session_.active()) return;
   const auto v = values();
+  if (!v.remember_credentials || v.user.isEmpty() || v.password.isEmpty() || !v.sdk_terms_accepted) {
+    const auto message = QCoreApplication::translate("App", "Для автоподключения сохрани имя и пароль и подключись вручную один раз.");
+    state_->setText(message); statusBar()->showMessage(message); return;
+  }
+  connect_camera(true);
+}
+void MainWindow::connect_camera(bool automatic) {
+  const auto v = values();
+  auto failed = [this, automatic](const QString& title, const QString& message) {
+    if (automatic) { state_->setText(message); statusBar()->showMessage(message); }
+    else QMessageBox::warning(this, title, message);
+  };
   QHostAddress address;
   if (!address.setAddress(v.host) || address.protocol() != QAbstractSocket::IPv4Protocol || v.model.isEmpty()) {
-    QMessageBox::warning(this, QCoreApplication::translate("App", "Подключение"), QCoreApplication::translate("App", "Введи IPv4 камеры и модель (например a6700).")); return;
+    failed(QCoreApplication::translate("App", "Подключение"), QCoreApplication::translate("App", "Введи IPv4 камеры и модель (например a6700).")); return;
   }
   if (v.folder.isEmpty() || !QDir().mkpath(v.folder)) {
-    QMessageBox::warning(this, QCoreApplication::translate("App", "Каталог"), QCoreApplication::translate("App", "Не удалось создать каталог снимков.")); return;
+    failed(QCoreApplication::translate("App", "Каталог"), QCoreApplication::translate("App", "Не удалось создать каталог снимков.")); return;
   }
   if (!settings_.load().sdk_terms_accepted) {
+    if (automatic) {
+      const auto message = QCoreApplication::translate("App", "Для автоподключения сохрани имя и пароль и подключись вручную один раз.");
+      state_->setText(message); statusBar()->showMessage(message); return;
+    }
     QMessageBox terms(this);
     terms.setWindowTitle(QCoreApplication::translate("App", "Условия использования Sony SDK"));
     terms.setTextFormat(Qt::RichText);
@@ -372,6 +412,7 @@ void MainWindow::update_file_path() {
   file_path_->setText(path); file_path_->setToolTip(path); file_path_->setCursorPosition(0);
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
+  startup_connect_.stop();
   review_.cancel();
   live_view_->leave_fullscreen(); photo_view_->leave_fullscreen(); card_widget_->leave_fullscreen();
   if (photo_window_) photo_window_->close();

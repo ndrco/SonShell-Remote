@@ -35,7 +35,8 @@ class MainWindow final : public QMainWindow {
   void show_help();
   void load_settings();
   void save_settings();
-  void connect_camera();
+  void connect_camera(bool automatic = false);
+  void connect_on_startup();
   void open_photo();
   void update_frame();
   void set_photo_directory();
@@ -52,7 +53,7 @@ class MainWindow final : public QMainWindow {
   PhotoLibrary photos_;
   StudioReview review_;
   QLineEdit *host_, *model_, *user_, *password_, *folder_, *file_path_;
-  QCheckBox *remember_, *auto_liveview_, *auto_reconnect_;
+  QCheckBox *remember_, *auto_liveview_, *auto_reconnect_, *auto_connect_;
   QPushButton *connect_button_, *browse_;
   QCheckBox *studio_, *hold_;
   QSpinBox* review_seconds_;
@@ -66,7 +67,7 @@ class MainWindow final : public QMainWindow {
   ImageViewer *live_view_, *photo_view_;
   QPointer<ImageViewer> photo_window_;
   QList<QWidget*> camera_actions_;
-  QTimer frames_timer_;
+  QTimer frames_timer_, startup_connect_;
   QDateTime last_frame_;
   QImage photo_, last_live_image_;
   QString photo_path_, photo_caption_, studio_path_;

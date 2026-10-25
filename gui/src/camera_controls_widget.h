@@ -29,4 +29,5 @@ class CameraControlsWidget final : public QGroupBox {
   QTimer refresh_timer_, deadline_;
   QString pending_, operation_, last_error_;
   bool available_af_ = false, live_ = false, connected_ = false, dirty_ = false;
+  bool awaiting_snapshot_ = false;
 };

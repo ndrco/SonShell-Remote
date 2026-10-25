@@ -7,6 +7,13 @@ password and photo directory. Enable network remote control and configure access
 in the camera menu. Connected status requires a camera response. Automatic
 reconnection is optional; Disconnect cancels retries.
 
+Connect on startup uses saved credentials and previously accepted SDK terms.
+It is enabled by default; save your credentials and connect manually once first.
+Missing or invalid settings leave the application open with an explanation.
+Manual connection/disconnection cancels the delayed startup connection;
+Disconnect cancels retries until the next launch. Clear Connect on startup to
+disable this behavior persistently. Reconnection after a network failure is separate.
+
 Remember username and password saves credentials in a private, unencrypted file
 on this computer. Clearing the checkbox removes the saved credentials.
 
@@ -71,6 +78,15 @@ the camera body.
 Camera settings · SDK shows values provided by the camera: focus mode, AF area,
 white balance and drive mode. Changing the physical camera mode may change
 availability. Use Read settings to refresh manually if necessary.
+
+Expand Photo recording for RAW/JPEG/HEIF format, JPEG/HEIF, quality, size,
+aspect ratio, RAW compression and stabilization. Choose JPEG/HEIF first, then
+the photo format from the updated choices. Video recording provides format,
+frame rate, bitrate/color and stabilization. These settings control new files
+recorded by the camera. Support depends on its model and current mode. Unsupported
+fields are disabled; read-only values remain visible. Wait for dependent settings
+to refresh after a change. Only the value you select is sent; the camera may
+adjust dependencies. Recording settings are not restored automatically on connection.
 
 To choose an AF area, enable Live View, choose a movable AF area such as Spot/Zone
 if supported, then enable Click to focus. A click sets the frame center and starts autofocus;

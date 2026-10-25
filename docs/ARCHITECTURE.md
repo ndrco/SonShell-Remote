@@ -407,3 +407,36 @@ RAW показывает лучший встроенный JPEG, MP4 — кад�
 превью: оно удерживается текущим результатом, поэтому 26 MP не вытесняют сами себя.
 Инструменты качества, размер и отмена находятся внутри ImageViewer и остаются
 доступны после его переноса в полноэкранное окно.
+
+## 2026-10-25: стартовое подключение и параметры записи (0.8)
+
+AppSettings.auto_connect хранится отдельно от auto_reconnect и по умолчанию true.
+MainWindow запускает одноразовый QTimer 250 мс после инициализации UI/сигналов.
+Проверяются remember_credentials, непустые сохранённые имя/пароль и принятые
+условия SDK. Без них есть немодальное пояснение; пользователь подключается вручную.
+В автоматическом пути неверные IPv4/модель/каталог не открывают QMessageBox.
+Ручная кнопка, снятие флажка и close/destructor останавливают таймер; дальнейшие
+попытки ведёт прежний CameraSession. Кнопка выделена локальным QSS по objectName,
+не меняя стили остальных действий. Откат автоподключения — снять флажок в окне.
+
+Registry camera_controls дополнен 11 именами записи. SDK queried choices
+расширены UInt8Array; enum ValueType при записи сохраняется, экспозиция оставляет
+свои ранее проверенные scalar types. Backend повторно запрашивает свойства
+перед setter и не принимает код вне явного списка. Настройки назначения записи
+в HostPC в список не входят. GUI создаёт только явно выбранную запись; зависимые
+значения перечитывает после Applied/error, удерживая блокировку awaiting_snapshot.
+Она также отвергает уже поставленные в очередь события выбора между Applied
+и Snapshot. Ручное обновление позволяет восстановиться после отказа чтения.
+
+Photo/video представлены отдельными сворачиваемыми секциями. Отсутствующее
+свойство/choices остаётся disabled, read-only current_label отображается без
+подстановки необъяснённого числа. Названия технических значений SDK остаются
+английскими, названия полей и справка переводятся. gen_recording_labels.py
+строит подписи enum из локального CrDeviceProperty.h; сгенерированный header
+живёт в build/gen и не добавляется в Git. GUI не зависит от SDK headers.
+
+Основание: локальные API Reference 2.02 dp_FileType, dp_CompressionFileFormatStill,
+dp_StillImageQuality, dp_ImageSize, dp_AspectRatio, dp_RAW_FileCompressionType,
+dp_Movie_File_Format, dp_Movie_Recording_FrameRateSetting, dp_Movie_Recording_Setting,
+dp_ImageStabilizationSteadyShot, dp_Movie_ImageStabilizationSteadyShot;
+тип setter сверялся с официальным app/CameraDevice.cpp Sony SDK 2.02.

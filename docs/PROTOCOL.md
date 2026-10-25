@@ -292,3 +292,36 @@ FFmpeg без уменьшения/повторного сжатия. Фото J
 CrMoviePlaybackSetting SDK 2.02 не содержит полей разрешения/битрейта. Размер
 SDK-потока определяется камерой (ILCE-6700 ранее отдала 1280×720); просмотр
 оригинала требует отдельной полной передачи и не выдаётся за повышение качества потока.
+
+## 0.8: параметры записи
+
+Формат controls list/set не меняется. Snapshot может содержать дополнительные
+имена (code всегда приходит от SDK, не задаётся в GUI):
+
+| name | Свойство SDK |
+| --- | --- |
+| file_type | FileType: RAW/JPEG/RAW+JPEG/HEIF |
+| compression_format | CompressionFileFormatStill: JPEG/HEIF |
+| image_quality | StillImageQuality |
+| image_size | ImageSize |
+| aspect_ratio | AspectRatio |
+| raw_compression | RAW_FileCompressionType |
+| steady_still | ImageStabilizationSteadyShot |
+| movie_format | Movie_File_Format |
+| movie_framerate | Movie_Recording_FrameRateSetting |
+| movie_setting | Movie_Recording_Setting |
+| steady_movie | Movie_ImageStabilizationSteadyShot |
+
+Choices читает UInt8Array/UInt16Array/UInt32Array и прежний Int16Array EV,
+не трактуя byte 128–255 как отрицательный. Неверная длина массива/тип отключают
+запись. Для перечислений setter сохраняет ValueType, полученный от SDK (как
+в CameraDevice.cpp Sony 2.02); прежние scalar setters экспозиции сохранены.
+Перед каждой записью заново проверяются white list code, enable flag и choices.
+StillImageStoreDestination и другие невыведенные свойства через set недоступны.
+
+current_label и values.label новых свойств генерируются из enum локального SDK
+при сборке; неизвестное этому SDK значение показывается hex без придумывания
+смысла. Applied подтверждает вызов SDK, после него GUI ждёт нового Snapshot
+перед следующим изменением. Зависимые значения меняет камера; GUI не отправляет
+цепочки setter и не воспроизводит настройки при reconnect. Автоподключение при
+запуске — настройка GUI, протокол команд SDK не меняет.

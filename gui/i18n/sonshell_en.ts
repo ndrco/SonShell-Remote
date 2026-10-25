@@ -4,6 +4,78 @@
   <context>
     <name>App</name>
     <message>
+      <source>JPEG / HEIF</source>
+      <translation>JPEG / HEIF</translation>
+    </message>
+    <message>
+      <source>Битрейт и цвет видео</source>
+      <translation>Video bitrate and color</translation>
+    </message>
+    <message>
+      <source>Для автоподключения сохрани имя и пароль и подключись вручную один раз.</source>
+      <translation>To connect at startup, save your username and password and connect manually once.</translation>
+    </message>
+    <message>
+      <source>Запись видео</source>
+      <translation>Video recording</translation>
+    </message>
+    <message>
+      <source>Запись фото</source>
+      <translation>Photo recording</translation>
+    </message>
+    <message>
+      <source>Качество JPEG/HEIF</source>
+      <translation>JPEG/HEIF quality</translation>
+    </message>
+    <message>
+      <source>Подключаться при запуске</source>
+      <translation>Connect on startup</translation>
+    </message>
+    <message>
+      <source>При запуске подключаться с сохранёнными именем и паролем. Сначала подключись вручную и прими условия SDK. Отключение отменяет повторы до следующего запуска.</source>
+      <translation>Connect on startup using the saved username and password. First connect manually and accept the SDK terms. Disconnect cancels retries until the next launch.</translation>
+    </message>
+    <message>
+      <source>Пропорции кадра</source>
+      <translation>Aspect ratio</translation>
+    </message>
+    <message>
+      <source>Размер фото</source>
+      <translation>Photo size</translation>
+    </message>
+    <message>
+      <source>Сжатие RAW</source>
+      <translation>RAW compression</translation>
+    </message>
+    <message>
+      <source>Стабилизация видео</source>
+      <translation>Video stabilization</translation>
+    </message>
+    <message>
+      <source>Стабилизация фото</source>
+      <translation>Photo stabilization</translation>
+    </message>
+    <message>
+      <source>Формат видео</source>
+      <translation>Video format</translation>
+    </message>
+    <message>
+      <source>Формат фото RAW/JPEG/HEIF</source>
+      <translation>Photo format RAW/JPEG/HEIF</translation>
+    </message>
+    <message>
+      <source>Частота кадров</source>
+      <translation>Frame rate</translation>
+    </message>
+    <message>
+      <source>Формат и качество новых снимков на карте. Сначала выбери JPEG / HEIF, затем формат фото. Возможности зависят от камеры.</source>
+      <translation>Format and quality of new photos on the card. Choose JPEG / HEIF first, then the photo format. Capabilities depend on the camera.</translation>
+    </message>
+    <message>
+      <source>Выбери формат видео, затем частоту и параметры записи из обновлённого списка камеры.</source>
+      <translation>Choose the video format, then the frame rate and recording settings from the updated camera choices.</translation>
+    </message>
+    <message>
       <source> · загружаю оригинал…</source>
       <translation> · loading original…</translation>
     </message>

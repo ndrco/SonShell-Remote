@@ -33,6 +33,7 @@ class RemoteTests : public QObject {
     qunsetenv("REMOTE_TEST_MODE");
     qunsetenv("REMOTE_TEST_RECORD");
     qunsetenv("REMOTE_TEST_JPEG");
+    QVERIFY(SettingsStore().save(AppSettings{}));
   }
   void credentials_opt_in_and_forget() {
     const QString path = temporary_.filePath("settings/settings.ini");
@@ -158,6 +159,48 @@ class RemoteTests : public QObject {
     QTest::mouseClick(connect_button, Qt::LeftButton);
     QTRY_COMPARE(state->text(), QString("Отключено"));
     window.close();
+  }
+  void startup_connection_data() {
+    QTest::addColumn<bool>("enabled"); QTest::addColumn<bool>("remember"); QTest::addColumn<bool>("terms");
+    QTest::addColumn<QString>("user"); QTest::addColumn<QString>("password"); QTest::addColumn<QString>("host"); QTest::addColumn<bool>("expected");
+    QTest::newRow("saved") << true << true << true << QString("test-user") << QString("test-secret") << QString("127.0.0.1") << true;
+    QTest::newRow("disabled") << false << true << true << QString("test-user") << QString("test-secret") << QString("127.0.0.1") << false;
+    QTest::newRow("not-saved") << true << false << true << QString("test-user") << QString("test-secret") << QString("127.0.0.1") << false;
+    QTest::newRow("terms") << true << true << false << QString("test-user") << QString("test-secret") << QString("127.0.0.1") << false;
+    QTest::newRow("empty-user") << true << true << true << QString() << QString("test-secret") << QString("127.0.0.1") << false;
+    QTest::newRow("empty-password") << true << true << true << QString("test-user") << QString() << QString("127.0.0.1") << false;
+    QTest::newRow("invalid-ip") << true << true << true << QString("test-user") << QString("test-secret") << QString("bad host") << false;
+  }
+  void startup_connection() {
+    QFETCH(bool, enabled); QFETCH(bool, remember); QFETCH(bool, terms); QFETCH(QString, user); QFETCH(QString, password); QFETCH(QString, host); QFETCH(bool, expected);
+    const auto record = temporary_.filePath("startup.jsonl"); QFile::remove(record); qputenv("REMOTE_TEST_RECORD", record.toUtf8());
+    AppSettings settings; settings.auto_connect = enabled; settings.remember_credentials = remember; settings.sdk_terms_accepted = terms;
+    settings.user = user; settings.password = password; settings.host = host; settings.folder = temporary_.filePath("startup-photos");
+    QVERIFY(SettingsStore().save(settings)); QCOMPARE(SettingsStore().load().auto_connect, enabled);
+    MainWindow window(FAKE_BACKEND_PATH); window.show(); auto* session = window.findChild<CameraSession*>(); QVERIFY(session);
+    auto* button = window.findChild<QPushButton*>("connect"); QVERIFY(button->height() >= 38);
+    if (expected) {
+      QTRY_COMPARE(session->state(), CameraSession::State::Connected);
+      QFile file(record); QVERIFY(file.open(QIODevice::ReadOnly)); const auto data = file.readAll();
+      QCOMPARE(data.count("\"argv\""), 1); QVERIFY(data.contains("sync off")); QVERIFY(!data.contains("test-secret"));
+      button->click(); QTRY_COMPARE(session->state(), CameraSession::State::Disconnected); QTest::qWait(350); QVERIFY(!session->active());
+    } else {
+      QTest::qWait(400); QVERIFY(!session->active()); QVERIFY(!QFileInfo::exists(record)); QVERIFY(!QApplication::activeModalWidget());
+    }
+    window.close();
+  }
+  void startup_can_be_canceled_before_launch_and_on_close() {
+    AppSettings settings; settings.remember_credentials = settings.sdk_terms_accepted = true;
+    settings.user = "test-user"; settings.password = "test-secret"; settings.folder = temporary_.filePath("canceled-startup");
+    QVERIFY(SettingsStore().save(settings));
+    { MainWindow window(FAKE_BACKEND_PATH); window.show(); window.findChild<QCheckBox*>("auto_connect")->setChecked(false);
+      QTest::qWait(400); QVERIFY(!window.findChild<CameraSession*>()->active()); window.close(); }
+    QVERIFY(!SettingsStore().load().auto_connect); settings.auto_connect = true; QVERIFY(SettingsStore().save(settings));
+    { MainWindow window(FAKE_BACKEND_PATH); window.show(); window.close(); QTest::qWait(400); QVERIFY(!window.findChild<CameraSession*>()->active()); }
+    { MainWindow window(FAKE_BACKEND_PATH); window.show(); auto* button = window.findChild<QPushButton*>("connect");
+      button->click(); QTRY_COMPARE(window.findChild<CameraSession*>()->state(), CameraSession::State::Connected);
+      button->click(); QTRY_COMPARE(window.findChild<CameraSession*>()->state(), CameraSession::State::Disconnected);
+      QTest::qWait(400); QVERIFY(!window.findChild<CameraSession*>()->active()); window.close(); }
   }
 };
 QTEST_MAIN(RemoteTests)

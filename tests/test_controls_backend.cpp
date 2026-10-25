@@ -14,14 +14,21 @@ int sets = 0, released = 0, released_lv = 0;
 unsigned last_code = 0;
 unsigned last_type = 0;
 std::uint64_t last_value = 0;
+unsigned file_type = SCRSDK::CrFileType_RawJpeg;
+bool high_byte = false, malformed_values = false;
 }
 namespace SCRSDK {
 CrError GetSelectDeviceProperties(CrDeviceHandle, CrInt32u, CrInt32u*, CrDeviceProperty** output, CrInt32* count) {
-  *count = 10; *output = new CrDeviceProperty[10];
+  *count = 21; *output = new CrDeviceProperty[21];
   const unsigned codes[] = {CrDeviceProperty_FocusMode, CrDeviceProperty_FocusArea, CrDeviceProperty_WhiteBalance,
       CrDeviceProperty_DriveMode, CrDeviceProperty_AF_Area_Position, CrDeviceProperty_S1,
-      CrDeviceProperty_IsoSensitivity, CrDeviceProperty_ShutterSpeed, CrDeviceProperty_FNumber, CrDeviceProperty_ExposureBiasCompensation};
-  for (int i = 0; i < 10; ++i) {
+      CrDeviceProperty_IsoSensitivity, CrDeviceProperty_ShutterSpeed, CrDeviceProperty_FNumber, CrDeviceProperty_ExposureBiasCompensation,
+      CrDeviceProperty_FileType, CrDeviceProperty_CompressionFileFormatStill, CrDeviceProperty_StillImageQuality,
+      CrDeviceProperty_ImageSize, CrDeviceProperty_AspectRatio, CrDeviceProperty_RAW_FileCompressionType,
+      CrDeviceProperty_ImageStabilizationSteadyShot, CrDeviceProperty_Movie_File_Format,
+      CrDeviceProperty_Movie_Recording_FrameRateSetting, CrDeviceProperty_Movie_Recording_Setting,
+      CrDeviceProperty_Movie_ImageStabilizationSteadyShot};
+  for (int i = 0; i < *count; ++i) {
     auto& property = (*output)[i]; property.SetCode(codes[i]);
     property.SetPropertyEnableFlag(writable ? CrEnableValue_True : CrEnableValue_DisplayOnly);
     if (i == 5 && !s1_writable) property.SetPropertyEnableFlag(CrEnableValue_DisplayOnly);
@@ -39,7 +46,20 @@ CrError GetSelectDeviceProperties(CrDeviceHandle, CrInt32u, CrInt32u*, CrDeviceP
     } else if (i == 9) {
       property.SetValueType(CrDataType_Int16Array); property.SetCurrentValue(static_cast<CrInt32>(-333));
       CrInt16 ev_values[] = {-333, 0}; std::memcpy(property.GetValues(), ev_values, sizeof(ev_values));
+    } else if (i == 10) {
+      property.SetCurrentValue(file_type); CrInt16u choices[] = {CrFileType_RawJpeg, CrFileType_Jpeg};
+      std::memcpy(property.GetValues(), choices, sizeof(choices));
+    } else if (i == 11 || i == 16 || i == 18 || i == 20) {
+      property.SetValueType(CrDataType_UInt8Array); property.Alloc(2, 2, 0);
+      CrInt8u choices[] = {1, 2};
+      if (i == 18) { choices[0] = high_byte ? 200 : CrRecordingFrameRateSettingMovie_50p; choices[1] = CrRecordingFrameRateSettingMovie_25p; }
+      property.SetCurrentValue(choices[0]); std::memcpy(property.GetValues(), choices, sizeof(choices));
+    } else if (i == 19) {
+      CrInt16u choices[] = {CrRecordingSettingMovie_100M_422_10bit, CrRecordingSettingMovie_50M_420_10bit};
+      property.SetCurrentValue(choices[0]); std::memcpy(property.GetValues(), choices, sizeof(choices));
     }
+    if (i == 15 && file_type == CrFileType_Jpeg) property.SetPropertyEnableFlag(CrEnableValue_DisplayOnly);
+    if (i == 12 && malformed_values) property.Alloc(3, 3, 0);
   }
   return CrError_None;
 }
@@ -65,6 +85,7 @@ CrError SetDeviceProperty(CrDeviceHandle, CrDeviceProperty* property) {
   ++sets; last_code = property->GetCode(); last_value = property->GetCurrentValue();
   last_type = property->GetValueType();
   writes.emplace_back(last_code, last_value);
+  if (last_code == CrDeviceProperty_FileType && !failed_set) file_type = last_value;
   if (last_code == CrDeviceProperty_S1 && (last_value == CrLockIndicator_Locked ? failed_press : failed_release)) return CrError_Generic;
   return failed_set ? CrError_Generic : CrError_None;
 }
@@ -80,11 +101,12 @@ class ControlsBackendTests final : public QObject {
   void init() {
     writable = frames = s1_writable = true; failed_set = failed_press = failed_release = false;
     focus_mode = SCRSDK::CrFocus_AF_S; sets = released = released_lv = 0; writes.clear();
+    file_type = SCRSDK::CrFileType_RawJpeg; high_byte = malformed_values = false;
   }
   void capabilities_use_camera_choices_and_read_only_flags() {
     const auto result = command({"controls", "list", "test-1"});
     QCOMPARE(result.value("type").toString(), QString("snapshot"));
-    const auto properties = result.value("properties").toArray(); QCOMPARE(properties.size(), 8);
+    const auto properties = result.value("properties").toArray(); QCOMPARE(properties.size(), 19);
     QCOMPARE(properties[0].toObject().value("name").toString(), QString("focus_mode"));
     QCOMPARE(properties[0].toObject().value("values").toArray().size(), 2);
     QVERIFY(properties[0].toObject().value("writable").toBool()); QVERIFY(result.value("af").toBool());
@@ -102,6 +124,38 @@ class ControlsBackendTests final : public QObject {
     writable = false;
     QCOMPARE(command({"controls", "set", "three", code, "1"}).value("message").toString(), QString("read-only"));
     QCOMPARE(sets, 1);
+  }
+  void recording_choices_keep_byte_types_labels_and_revalidate_dependencies() {
+    const auto properties = command({"controls", "list", "recording"}).value("properties").toArray();
+    auto find = [&properties](const QString& key) { for (const auto& entry : properties) if (entry.toObject().value("name") == key) return entry.toObject(); return QJsonObject(); };
+    QCOMPARE(find("file_type").value("current_label").toString(), QString("RAW+JPEG"));
+    QCOMPARE(find("movie_framerate").value("current_label").toString(), QString("50p"));
+    QCOMPARE(find("movie_setting").value("current_label").toString(), QString("100 Mbps 4:2:2 10-bit"));
+    QCOMPARE(find("aspect_ratio").value("current_label").toString(), QString("3:2"));
+    const auto rate = std::to_string(SCRSDK::CrDeviceProperty_Movie_Recording_FrameRateSetting);
+    QCOMPARE(command({"controls", "set", "rate", rate, std::to_string(SCRSDK::CrRecordingFrameRateSettingMovie_25p)}).value("type").toString(), QString("applied"));
+    QCOMPARE(last_type, unsigned(SCRSDK::CrDataType_UInt8Array));
+    const auto format = std::to_string(SCRSDK::CrDeviceProperty_FileType);
+    QCOMPARE(command({"controls", "set", "format", format, std::to_string(SCRSDK::CrFileType_Jpeg)}).value("type").toString(), QString("applied"));
+    QCOMPARE(last_type, unsigned(SCRSDK::CrDataType_UInt16Array));
+    const auto count = sets;
+    QCOMPARE(command({"controls", "set", "dependent", std::to_string(SCRSDK::CrDeviceProperty_RAW_FileCompressionType), "1"}).value("message").toString(), QString("read-only"));
+    QCOMPARE(command({"controls", "set", "destination", std::to_string(SCRSDK::CrDeviceProperty_StillImageStoreDestination), "1"}).value("message").toString(), QString("unsupported"));
+    QCOMPARE(command({"controls", "set", "rate-invalid", rate, "999"}).value("message").toString(), QString("invalid-value"));
+    QCOMPARE(sets, count);
+  }
+  void unsigned_bytes_and_malformed_arrays_are_not_misinterpreted() {
+    high_byte = true; malformed_values = true;
+    const auto properties = command({"controls", "list", "high-byte"}).value("properties").toArray();
+    for (const auto& entry : properties) {
+      const auto p = entry.toObject();
+      if (p.value("name") == "movie_framerate") { QCOMPARE(p.value("values").toArray()[0].toObject().value("value").toString(), QString("200")); QCOMPARE(p.value("current_label").toString(), QString("0xc8")); }
+      if (p.value("name") == "image_quality") QVERIFY(!p.value("writable").toBool());
+    }
+    QCOMPARE(command({"controls", "set", "high", std::to_string(SCRSDK::CrDeviceProperty_Movie_Recording_FrameRateSetting), "200"}).value("type").toString(), QString("applied"));
+    QCOMPARE(last_value, std::uint64_t(200)); QCOMPARE(last_type, unsigned(SCRSDK::CrDataType_UInt8Array));
+    const auto count = sets;
+    QCOMPARE(command({"controls", "set", "malformed", std::to_string(SCRSDK::CrDeviceProperty_StillImageQuality), "1"}).value("type").toString(), QString("error")); QCOMPARE(sets, count);
   }
   void exposure_values_keep_raw_encoding_and_signed_ev() {
     const auto properties = command({"controls", "list", "exposure"}).value("properties").toArray();

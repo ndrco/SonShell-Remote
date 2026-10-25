@@ -1,4 +1,5 @@
 #include "camera_controls.h"
+#include "recording_labels_generated.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -13,7 +14,13 @@ namespace sdk = SCRSDK;
 const std::vector<CrInt32u> codes{sdk::CrDeviceProperty_FocusMode, sdk::CrDeviceProperty_FocusArea,
     sdk::CrDeviceProperty_WhiteBalance, sdk::CrDeviceProperty_DriveMode, sdk::CrDeviceProperty_AF_Area_Position,
     sdk::CrDeviceProperty_S1, sdk::CrDeviceProperty_IsoSensitivity, sdk::CrDeviceProperty_ShutterSpeed,
-    sdk::CrDeviceProperty_FNumber, sdk::CrDeviceProperty_ExposureBiasCompensation};
+    sdk::CrDeviceProperty_FNumber, sdk::CrDeviceProperty_ExposureBiasCompensation,
+    sdk::CrDeviceProperty_FileType, sdk::CrDeviceProperty_CompressionFileFormatStill,
+    sdk::CrDeviceProperty_StillImageQuality, sdk::CrDeviceProperty_ImageSize,
+    sdk::CrDeviceProperty_AspectRatio, sdk::CrDeviceProperty_RAW_FileCompressionType,
+    sdk::CrDeviceProperty_ImageStabilizationSteadyShot, sdk::CrDeviceProperty_Movie_File_Format,
+    sdk::CrDeviceProperty_Movie_Recording_FrameRateSetting, sdk::CrDeviceProperty_Movie_Recording_Setting,
+    sdk::CrDeviceProperty_Movie_ImageStabilizationSteadyShot};
 std::string property_name(unsigned code) {
   switch (code) {
     case sdk::CrDeviceProperty_FocusMode: return "focus_mode";
@@ -24,6 +31,17 @@ std::string property_name(unsigned code) {
     case sdk::CrDeviceProperty_ShutterSpeed: return "shutter";
     case sdk::CrDeviceProperty_FNumber: return "aperture";
     case sdk::CrDeviceProperty_ExposureBiasCompensation: return "ev";
+    case sdk::CrDeviceProperty_FileType: return "file_type";
+    case sdk::CrDeviceProperty_CompressionFileFormatStill: return "compression_format";
+    case sdk::CrDeviceProperty_StillImageQuality: return "image_quality";
+    case sdk::CrDeviceProperty_ImageSize: return "image_size";
+    case sdk::CrDeviceProperty_AspectRatio: return "aspect_ratio";
+    case sdk::CrDeviceProperty_RAW_FileCompressionType: return "raw_compression";
+    case sdk::CrDeviceProperty_ImageStabilizationSteadyShot: return "steady_still";
+    case sdk::CrDeviceProperty_Movie_File_Format: return "movie_format";
+    case sdk::CrDeviceProperty_Movie_Recording_FrameRateSetting: return "movie_framerate";
+    case sdk::CrDeviceProperty_Movie_Recording_Setting: return "movie_setting";
+    case sdk::CrDeviceProperty_Movie_ImageStabilizationSteadyShot: return "steady_movie";
     default: return {};
   }
 }
@@ -63,13 +81,14 @@ struct Properties {
 };
 std::vector<std::uint64_t> choices(const sdk::CrDeviceProperty& property) {
   const auto type = property.GetValueType();
-  const int size = type == sdk::CrDataType_UInt16Array || type == sdk::CrDataType_Int16Array ? 2 : type == sdk::CrDataType_UInt32Array ? 4 : 0;
+  const int size = type == sdk::CrDataType_UInt8Array ? 1 : type == sdk::CrDataType_UInt16Array || type == sdk::CrDataType_Int16Array ? 2 : type == sdk::CrDataType_UInt32Array ? 4 : 0;
   const auto* bytes = property.GetValues(); const auto length = property.GetValueSize();
   if (!size || !bytes || length % size || length > 4096) return {};
   std::vector<std::uint64_t> out;
   for (unsigned offset = 0; offset < length; offset += size) {
     std::uint16_t small = 0; std::uint32_t large = 0;
-    if (size == 2) { std::memcpy(&small, bytes + offset, 2); out.push_back(small); }
+    if (size == 1) out.push_back(bytes[offset]);
+    else if (size == 2) { std::memcpy(&small, bytes + offset, 2); out.push_back(small); }
     else { std::memcpy(&large, bytes + offset, 4); out.push_back(large); }
   }
   return out;
@@ -143,6 +162,10 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
   if (args.size() < 3 || args[2].empty() || args[2].size() > 80 ||
       args[2].find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-") != std::string::npos) return {};
   const auto request = args[2];
+  const auto describe = [&label](unsigned code, std::uint64_t value) {
+    const auto text = recording_control_label(code, value);
+    return text.empty() ? label(code, value) : text;
+  };
   try {
     Properties properties(handle);
     if (args[1] == "list" && args.size() == 3) {
@@ -159,12 +182,12 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
         out << "{\"name\":" << quoted(name) << ",\"code\":" << code << ",\"readable\":" << (property->IsGetEnableCurrentValue() ? "true" : "false")
             << ",\"writable\":" << (property->IsSetEnableCurrentValue() && !values.empty() ? "true" : "false")
             << ",\"current\":" << quoted(std::to_string(current))
-            << ",\"current_label\":" << quoted(label(code, current)) << ",\"values\":[";
+            << ",\"current_label\":" << quoted(describe(code, current)) << ",\"values\":[";
         bool first_value = true;
         for (auto value : values) {
           if (!first_value) out << ',';
           first_value = false;
-          out << "{\"value\":" << quoted(std::to_string(value)) << ",\"label\":" << quoted(label(code, value)) << '}';
+          out << "{\"value\":" << quoted(std::to_string(value)) << ",\"label\":" << quoted(describe(code, value)) << '}';
         }
         out << "]}";
       }
@@ -177,7 +200,7 @@ std::string camera_controls(sdk::CrDeviceHandle handle, const std::vector<std::s
     sdk::CrDeviceProperty change;
     if (args[1] == "set" && args.size() == 5) {
       const auto raw_code = number(args[3]);
-      if (raw_code > 0xffffffffu || raw_code == sdk::CrDeviceProperty_AF_Area_Position || raw_code == sdk::CrDeviceProperty_S1) throw std::runtime_error("unsupported");
+      if (raw_code > 0xffffffffu || property_name(unsigned(raw_code)).empty()) throw std::runtime_error("unsupported");
       const auto* property = properties.find(unsigned(raw_code));
       if (!property || !property->IsSetEnableCurrentValue()) throw std::runtime_error("read-only");
       const auto value = number(args[4]); const auto values = choices(*property);

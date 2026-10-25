@@ -9,6 +9,7 @@ struct AppSettings {
   bool remember_credentials = false;
   bool auto_sync = false; // Legacy setting: GUI 0.4 always imports explicitly.
   bool auto_liveview = true;
+  bool auto_connect = true;
   bool auto_reconnect = true;
   bool studio_review = false;
   bool studio_full_jpeg = false;

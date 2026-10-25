@@ -46,6 +46,13 @@ endif()
 
 set(PROP_GENERATED  "${GENERATED_DIR}/prop_names_generated.h")
 set(ERROR_GENERATED "${GENERATED_DIR}/error_names_generated.h")
+set(RECORDING_GENERATED "${GENERATED_DIR}/recording_labels_generated.h")
+add_custom_command(
+  OUTPUT "${RECORDING_GENERATED}"
+  COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen_recording_labels.py"
+          --header "${PROP_HEADER}" -o "${RECORDING_GENERATED}"
+  DEPENDS "${CMAKE_SOURCE_DIR}/tools/gen_recording_labels.py" "${PROP_HEADER}"
+  COMMENT "Generating recording labels from the local SDK" VERBATIM)
 
 add_custom_command(
   OUTPUT "${PROP_GENERATED}"
@@ -66,7 +73,7 @@ add_custom_command(
 )
 
 add_custom_target(sonshell_generate_sdk_maps
-  DEPENDS "${PROP_GENERATED}" "${ERROR_GENERATED}"
+  DEPENDS "${PROP_GENERATED}" "${ERROR_GENERATED}" "${RECORDING_GENERATED}"
 )
 
 add_executable(sonshell src/main.cpp src/live_view_stream.cpp src/camera_browser.cpp src/camera_controls.cpp src/movie_stream.cpp)

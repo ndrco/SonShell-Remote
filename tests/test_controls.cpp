@@ -23,6 +23,7 @@
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QWheelEvent>
+#include <QToolButton>
 #include <QtTest>
 
 class ControlsTests final : public QObject {
@@ -37,7 +38,7 @@ class ControlsTests final : public QObject {
     qputenv("REMOTE_TEST_RECORD", temporary_.filePath("commands.jsonl").toUtf8());
   }
   void cleanup() {
-    for (const auto* key : {"REMOTE_TEST_RECORD", "REMOTE_TEST_CONTROLS_READONLY", "REMOTE_TEST_CONTROLS_FAIL", "REMOTE_TEST_CONTROLS_LIST_FAIL", "REMOTE_TEST_AF_FAIL", "REMOTE_TEST_AF_UNAVAILABLE"}) qunsetenv(key);
+    for (const auto* key : {"REMOTE_TEST_RECORD", "REMOTE_TEST_CONTROLS_READONLY", "REMOTE_TEST_CONTROLS_FAIL", "REMOTE_TEST_CONTROLS_LIST_FAIL", "REMOTE_TEST_AF_FAIL", "REMOTE_TEST_AF_UNAVAILABLE", "REMOTE_TEST_RECORDING_UNSUPPORTED", "REMOTE_TEST_RECORDING_QUALITY_READONLY"}) qunsetenv(key);
   }
   void image_coordinates_exclude_margins_and_follow_zoom_and_pan() {
     ImageView view; view.resize(1000, 400); view.show();
@@ -83,6 +84,44 @@ class ControlsTests final : public QObject {
     controls.set_live(true); QVERIFY(!controls.findChild<QCheckBox*>("mouse_af")->isEnabled());
     controls.select_point({0.5, 0.5}); QVERIFY(!commands().contains("controls af"));
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void recording_controls_change_only_explicit_values_and_refresh_dependencies() {
+    CameraSession session; CameraCard card(&session); CameraControlsWidget controls(&session, &card); controls.resize(360, 850); controls.show();
+    connect(&session, &CameraSession::state_changed, &card, [&card](auto state, const QString&) { card.set_connected(state == CameraSession::State::Connected); });
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
+    auto* format = controls.findChild<QComboBox*>("file_type"); QTRY_VERIFY(format->isEnabled());
+    QCOMPARE(format->currentText(), QString("RAW+JPEG")); QVERIFY(!commands().contains("controls set"));
+    QVERIFY(controls.findChild<QWidget*>("record_photo_body")->isHidden()); controls.findChild<QToolButton*>("record_photo")->click();
+    QVERIFY(!controls.findChild<QWidget*>("record_photo_body")->isHidden());
+    auto* compression = controls.findChild<QComboBox*>("compression_format");
+    bool blocked_after_apply = false;
+    connect(&session, &CameraSession::controls_event, &controls, [&controls, format, &blocked_after_apply](const QJsonObject& event) {
+      if (event.value("type") != "applied") return;
+      blocked_after_apply = !format->isEnabled();
+      // Даже уже поставленное в очередь событие не отправляет второй setter
+      // между Applied и снимком зависимых параметров.
+      QMetaObject::invokeMethod(controls.findChild<QComboBox*>("image_size"), "activated", Q_ARG(int, 1));
+    });
+    compression->setFocus(); QTest::keyClick(compression, Qt::Key_Down); QTRY_VERIFY(commands().contains("121 2"));
+    QTRY_COMPARE(format->currentText(), QString("RAW+HEIF")); QTRY_VERIFY(format->isEnabled()); QVERIFY(format->findText("RAW+JPEG") < 0);
+    QVERIFY(blocked_after_apply); QCOMPARE(commands().count("controls set"), 1);
+    controls.findChild<QToolButton*>("record_movie")->click(); auto* rate = controls.findChild<QComboBox*>("movie_framerate");
+    QCOMPARE(rate->currentText(), QString("50p")); rate->setFocus(); QTest::keyClick(rate, Qt::Key_Down);
+    QTRY_VERIFY(commands().contains("128 6")); QTRY_COMPARE(rate->currentText(), QString("25p")); QTRY_VERIFY(rate->isEnabled());
+    card.refresh(); QVERIFY(!rate->isEnabled()); QVERIFY(!format->isEnabled()); QTRY_VERIFY(!card.busy()); QTRY_VERIFY(rate->isEnabled());
+    session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected); QVERIFY(!rate->isEnabled()); QVERIFY(!format->isEnabled());
+  }
+  void recording_unsupported_and_read_only_current_labels_data() {
+    QTest::addColumn<bool>("unsupported"); QTest::newRow("missing") << true; QTest::newRow("read-only-current-label") << false;
+  }
+  void recording_unsupported_and_read_only_current_labels() {
+    QFETCH(bool, unsupported); qputenv(unsupported ? "REMOTE_TEST_RECORDING_UNSUPPORTED" : "REMOTE_TEST_RECORDING_QUALITY_READONLY", "1");
+    CameraSession session; CameraCard card(&session); CameraControlsWidget controls(&session, &card);
+    session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
+    QTRY_VERIFY(controls.findChild<QComboBox*>("focus_mode")->isEnabled());
+    auto* quality = controls.findChild<QComboBox*>("image_quality"); QVERIFY(!quality->isEnabled());
+    QCOMPARE(quality->currentText(), unsupported ? QString::fromUtf8("Недоступно") : QString("Camera quality"));
+    QVERIFY(!commands().contains("controls set")); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void unsupported_capabilities_do_not_start_a_retry_loop() {
     qputenv("REMOTE_TEST_CONTROLS_LIST_FAIL", "1");

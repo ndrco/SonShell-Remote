@@ -46,6 +46,20 @@ epoch = ''
 pending = None
 movie = None
 capture_sequence = 0
+recording_specs = [
+    ('file_type', '3', [('1', 'JPEG'), ('2', 'RAW'), ('3', 'RAW+JPEG')]),
+    ('compression_format', '1', [('1', 'JPEG'), ('2', 'HEIF 4:2:2')]),
+    ('image_quality', '3', [('3', 'Fine'), ('4', 'Extra fine')]),
+    ('image_size', '1', [('1', 'L'), ('2', 'M')]),
+    ('aspect_ratio', '1', [('1', '3:2'), ('2', '16:9')]),
+    ('raw_compression', '2', [('2', 'Lossless'), ('1', 'Compressed')]),
+    ('steady_still', '1', [('1', 'On'), ('0', 'Off')]),
+    ('movie_format', '5', [('5', 'XAVC HS 4K'), ('2', 'XAVC S 4K')]),
+    ('movie_framerate', '4', [('4', '50p'), ('6', '25p')]),
+    ('movie_setting', '1', [('1', '100 Mbps 4:2:2 10-bit'), ('2', '50 Mbps 4:2:0 10-bit')]),
+    ('steady_movie', '2', [('2', 'Active'), ('1', 'Standard')]),
+]
+recording_values = {name: current for name, current, _ in recording_specs}
 for line in sys.stdin:
     command = line.strip()
     record_event({'command': command})
@@ -70,12 +84,28 @@ for line in sys.stdin:
                 properties.append(dict(name=name, code=110 + n, readable=True,
                     writable=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')),
                     current=current, values=[dict(value=v, label=label) for v, label in values]))
+            if not os.environ.get('REMOTE_TEST_RECORDING_UNSUPPORTED'):
+                for n, (name, default, values) in enumerate(recording_specs):
+                    current = recording_values[name]
+                    if name == 'file_type' and recording_values['compression_format'] == '2':
+                        values = [('4', 'RAW+HEIF'), ('5', 'HEIF'), ('2', 'RAW')]
+                    writable = not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY')) and not (name == 'raw_compression' and recording_values['file_type'] == '1')
+                    if name == 'image_quality' and os.environ.get('REMOTE_TEST_RECORDING_QUALITY_READONLY'):
+                        current = '9'; writable = False
+                    properties.append(dict(name=name, code=120 + n, readable=True, writable=writable, current=current,
+                        current_label='Camera quality' if current == '9' else next((label for value, label in values if value == current), current),
+                        values=[dict(value=value, label=label) for value, label in values]))
             event('snapshot', request, channel='controls', properties=properties,
                   af=not bool(os.environ.get('REMOTE_TEST_CONTROLS_READONLY') or os.environ.get('REMOTE_TEST_AF_UNAVAILABLE')))
         else:
             if operation == 'af' and os.environ.get('REMOTE_TEST_AF_FAIL'):
                 event('error', request, channel='controls', message='af-press:32768')
                 continue
+            if operation == 'set' and len(parts) == 5 and not os.environ.get('REMOTE_TEST_CONTROLS_FAIL'):
+                index = int(parts[3]) - 120
+                if 0 <= index < len(recording_specs):
+                    name = recording_specs[index][0]; recording_values[name] = parts[4]
+                    if name == 'compression_format': recording_values['file_type'] = '4' if parts[4] == '2' else '3'
             event('error' if os.environ.get('REMOTE_TEST_CONTROLS_FAIL') else 'applied', request,
                   channel='controls', message='read-only')
     if command == 'shoot':
