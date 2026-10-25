@@ -9,6 +9,7 @@
 #include "video_preview.h"
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -18,6 +19,7 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTreeWidget>
+#include <QTimer>
 #include <QtTest>
 
 class VideoTests final : public QObject {
@@ -78,13 +80,18 @@ class VideoTests final : public QObject {
   }
   void local_video_keeps_resolution_frame_rate_and_decoded_pixels() {
     const auto path = temporary_.filePath("native.mp4");
-    QProcess encoder;
-    encoder.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=24", "-t", "1", "-an", "-threads", "1", "-c:v", "libx264", "-preset", "ultrafast", path});
-    QVERIFY(encoder.waitForFinished(20000)); QCOMPARE(encoder.exitCode(), 0);
-    QProcess reference;
-    reference.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-threads", "2", "-i", path, "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-threads", "1", "pipe:1"});
-    QVERIFY(reference.waitForFinished(10000)); QCOMPARE(reference.exitCode(), 0);
-    const auto rgb = reference.readAllStandardOutput(); QCOMPARE(rgb.size(), 1920 * 1080 * 3);
+    {
+      QProcess encoder;
+      encoder.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=24", "-t", "1", "-an", "-threads", "1", "-c:v", "libx264", "-preset", "ultrafast", path});
+      QVERIFY(encoder.waitForFinished(20000)); QCOMPARE(encoder.exitCode(), 0);
+    }
+    QByteArray rgb;
+    {
+      QProcess reference;
+      reference.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-threads", "2", "-i", path, "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-threads", "1", "pipe:1"});
+      QVERIFY(reference.waitForFinished(10000)); QCOMPARE(reference.exitCode(), 0);
+      rgb = reference.readAllStandardOutput(); QCOMPARE(rgb.size(), 1920 * 1080 * 3);
+    }
     VideoPreview player; QSignalSpy done(&player, &VideoPreview::finished), errors(&player, &VideoPreview::failed);
     int count = 0; QImage first; bool native = true;
     connect(&player, &VideoPreview::frame_ready, this, [&](const QImage& image) {
@@ -92,7 +99,16 @@ class VideoTests final : public QObject {
       ++count; native = native && image.size() == QSize(1920, 1080);
     });
     QElapsedTimer elapsed; elapsed.start();
-    player.play_local(path); QTRY_COMPARE_WITH_TIMEOUT(done.size(), 1, 10000);
+    // Непрерывный цикл, как в приложении: QTRY/qWait делает паузы между
+    // readyRead и может искусственно затормозить 142 MiB RGB через pipe.
+    QEventLoop playback;
+    QTimer deadline; deadline.setSingleShot(true);
+    connect(&player, &VideoPreview::finished, &playback, &QEventLoop::quit);
+    connect(&player, &VideoPreview::failed, &playback, &QEventLoop::quit);
+    connect(&deadline, &QTimer::timeout, &playback, &QEventLoop::quit);
+    deadline.start(10000); player.play_local(path); playback.exec();
+    QVERIFY2(!done.isEmpty() || !errors.isEmpty(), qPrintable(QString("frames=%1; decoder_running=%2").arg(count).arg(player.running())));
+    QVERIFY2(errors.isEmpty(), errors.isEmpty() ? "" : qPrintable(errors.first()[0].toString())); QCOMPARE(done.size(), 1);
     QVERIFY2(elapsed.elapsed() >= 850, "Playback must follow presentation time, rather than burst all frames during input preroll");
     QCOMPARE(errors.size(), 0); QVERIFY(native); QCOMPARE(count, 24);
     QCOMPARE(first.format(), QImage::Format_RGB888);

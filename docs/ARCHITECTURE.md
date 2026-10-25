@@ -440,3 +440,9 @@ dp_StillImageQuality, dp_ImageSize, dp_AspectRatio, dp_RAW_FileCompressionType,
 dp_Movie_File_Format, dp_Movie_Recording_FrameRateSetting, dp_Movie_Recording_Setting,
 dp_ImageStabilizationSteadyShot, dp_Movie_ImageStabilizationSteadyShot;
 тип setter сверялся с официальным app/CameraDevice.cpp Sony SDK 2.02.
+
+Проверка видеопотока использует непрерывный QEventLoop с отдельным deadline,
+как рабочий просмотрщик. QTRY/qWait между порциями readyRead делает паузы и при
+142 MiB RGB для секундного 1080p/24 может искусственно заполнить pipe, давая
+ложный таймаут. Проверки исходных 24 кадров, пикселей и темпа сохранены;
+20 повторов на локальном FFmpeg пройдены. Производственный VideoPreview не менялся.
