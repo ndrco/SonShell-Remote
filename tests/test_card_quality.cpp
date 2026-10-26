@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QTemporaryDir>
 #include <QTreeWidget>
 #include <QtTest>
@@ -144,9 +145,34 @@ class CardQualityTests final : public QObject {
     QSignalSpy ready(&card, &CameraCard::original_ready); widget.findChild<QPushButton*>("card_original")->click();
     auto* stop = widget.findChild<QPushButton*>("card_preview_cancel"); QTRY_VERIFY(stop->isEnabled());
     QTRY_COMPARE(widget.findChild<QLabel*>("card_preview_status")->text(), QString("45%")); QVERIFY(stop->isVisible());
-    stop->click(); QTRY_VERIFY(!card.busy()); QCOMPARE(ready.size(), 0); QVERIFY(!stop->isEnabled());
+    auto* progress = viewer->findChild<QProgressBar*>("card_preview_progress"); QVERIFY(progress);
+    QVERIFY(progress->isVisible()); QCOMPARE(progress->window(), viewer); QCOMPARE(progress->value(), 45);
+    QVERIFY(progress->isTextVisible());
+    if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) viewer->grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/fullscreen-download-progress.png");
+    viewer->leave_fullscreen(); QTest::qWait(20); QVERIFY(progress->isVisible()); QCOMPARE(progress->value(), 45);
+    viewer->toggle_fullscreen(); QTest::qWait(20); QVERIFY(progress->isVisible()); QCOMPARE(progress->value(), 45);
+    stop->click(); QTRY_VERIFY(!card.busy()); QCOMPARE(ready.size(), 0); QVERIFY(!stop->isEnabled()); QVERIFY(progress->isHidden());
     QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("отменена")));
     QVERIFY(!card.has_imports()); QVERIFY(QDir(session.card_cache_path()).entryList({"*.mp4"}, QDir::Files).isEmpty());
+    viewer->leave_fullscreen(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
+  }
+  void fullscreen_buttons_cancel_loading_and_navigate_without_autoplay() {
+    qputenv("REMOTE_TEST_SLOW_ORIGINAL", "1");
+    QTemporaryDir folder; CameraSession session; CameraCard card(&session); connect_card(session, card, folder.path());
+    CameraCardWidget widget(&card); widget.show(); auto* list = widget.findChild<QTreeWidget*>(); auto* viewer = widget.findChild<ImageViewer*>();
+    list->setCurrentItem(row(widget, 3)); QTRY_VERIFY(!card.busy()); viewer->toggle_fullscreen(); QTest::qWait(30);
+    auto* previous = viewer->findChild<QPushButton*>("viewer_previous"); auto* next = viewer->findChild<QPushButton*>("viewer_next");
+    QVERIFY(previous->isVisible()); QVERIFY(next->isVisible());
+    QSignalSpy ready(&card, &CameraCard::original_ready), previews(&card, &CameraCard::preview_ready);
+    QSignalSpy frames(viewer->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
+    viewer->findChild<QPushButton*>("movie_play")->click();
+    auto* progress = viewer->findChild<QProgressBar*>("card_preview_progress"); QTRY_COMPARE(progress->value(), 45); QVERIFY(progress->isVisible());
+    QVERIFY(next->isEnabled()); next->click();
+    QTRY_COMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:2"));
+    QTRY_VERIFY(!previews.isEmpty() && previews.last()[0].toString() == "1:2"); QTRY_VERIFY(!card.busy());
+    QVERIFY(commands().contains("card cancel")); QVERIFY(progress->isHidden()); QCOMPARE(ready.size(), 0);
+    previous->click(); QTRY_COMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:3")); QTRY_VERIFY(!card.busy());
+    QTest::qWait(100); QCOMPARE(frames.size(), 0); QCOMPARE(commands().count(" original"), 1); QVERIFY(!card.has_imports());
     viewer->leave_fullscreen(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void imported_original_is_reused_and_preserved() {

@@ -107,7 +107,9 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   list_->header()->setStretchLastSection(true);
   viewer_ = new ImageViewer(split); viewer_->setObjectName("card_preview");
   auto* preview_tools = new QWidget(viewer_);
-  auto* preview_layout = new QHBoxLayout(preview_tools); preview_layout->setContentsMargins(0, 0, 0, 0);
+  auto* preview_box = new QVBoxLayout(preview_tools); preview_box->setContentsMargins(0, 0, 0, 0);
+  auto* preview_layout = new QHBoxLayout; preview_layout->setContentsMargins(0, 0, 0, 0);
+  preview_box->addLayout(preview_layout);
   quality_ = new QComboBox(preview_tools); quality_->setObjectName("card_quality");
   quality_->addItem(QCoreApplication::translate("App", "Фото: исходный JPEG"), "jpeg");
   quality_->addItem(QCoreApplication::translate("App", "Фото: быстрое превью"), "quick");
@@ -119,6 +121,9 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   preview_cancel_ = new QPushButton(QCoreApplication::translate("App", "Остановить"), preview_tools); preview_cancel_->setObjectName("card_preview_cancel"); preview_cancel_->setEnabled(false);
   preview_status_ = new QLabel(preview_tools); preview_status_->setObjectName("card_preview_status");
   preview_layout->addWidget(quality_); preview_layout->addWidget(video_quality_); preview_layout->addWidget(original_); preview_layout->addWidget(preview_cancel_); preview_layout->addWidget(preview_status_);
+  preview_progress_ = new QProgressBar(preview_tools); preview_progress_->setObjectName("card_preview_progress");
+  preview_progress_->setRange(0, 100); preview_progress_->setValue(0); preview_progress_->setTextVisible(true);
+  preview_progress_->hide(); preview_box->addWidget(preview_progress_);
   qobject_cast<QVBoxLayout*>(viewer_->layout())->insertWidget(1, preview_tools);
   connect(quality_, &QComboBox::currentIndexChanged, this, [this] { original_displayed_.clear(); request_preview(); });
   connect(video_quality_, &QComboBox::currentIndexChanged, this, [this] { autoplay_original_.clear(); request_preview(); });
@@ -183,6 +188,8 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
     update_actions();
     list_->setEnabled(!busy || card_->previewing()); cancel_->setEnabled(busy);
     preview_cancel_->setEnabled(busy);
+    preview_progress_->setVisible(busy && !card_->playing_video());
+    if (busy) { preview_progress_->setRange(0, 0); preview_progress_->setFormat("%p%"); }
     if (!busy) preview_status_->clear();
     viewer_->set_video_controls_enabled(!busy || card_->playing_video());
     if (!busy && !pending_preview_.isEmpty()) QTimer::singleShot(0, this, &CameraCardWidget::request_preview);
@@ -190,9 +197,10 @@ CameraCardWidget::CameraCardWidget(CameraCard* card, QWidget* parent) : QWidget(
   connect(card_, &CameraCard::progress_changed, this, [this](int done, int total, int percent) {
     percent = std::clamp(percent, 0, 100);
     const int value = total > 0 ? int((qint64(std::clamp(done, 0, total)) * 100 + (done < total ? percent : 0)) / total) : percent;
-    progress_->setValue(value);
+    progress_->setValue(value); preview_progress_->setRange(0, 100); preview_progress_->setValue(value);
     if (card_->busy()) preview_status_->setText(QString::number(value) + "%");
-    progress_->setFormat(total ? QString("%1 / %2 · %p%").arg(done).arg(total) : "%p%");
+    const auto format = total ? QString("%1 / %2 · %p%").arg(done).arg(total) : "%p%";
+    progress_->setFormat(format); preview_progress_->setFormat(format);
   });
   connect(card_, &CameraCard::preview_ready, this, [this](const QString& key, const QImage& image, bool) {
     previews_.insert(key, new QImage(image), int((image.sizeInBytes() + 1023) / 1024));
@@ -331,7 +339,7 @@ void CameraCardWidget::request_preview() {
   auto* row = list_->currentItem(); if (!row) return;
   const auto key = row->data(0, Qt::UserRole).toString();
   original_displayed_.clear(); viewer_->stop_video(); update_actions();
-  if (card_->playing_video()) { pending_preview_ = key; card_->cancel(); return; }
+  if (card_->playing_video() || card_->loading_original()) { pending_preview_ = key; card_->cancel(); return; }
   const bool video = row->data(2, Qt::UserRole + 1).toStringList().contains("video");
   viewer_->set_remote_video(video);
   if (pending_original_ || (!video && quality_->currentData() == "jpeg" && row->data(2, Qt::UserRole + 1).toStringList().contains("jpeg"))) {

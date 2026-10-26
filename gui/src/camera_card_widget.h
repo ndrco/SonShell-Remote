@@ -46,7 +46,7 @@ class CameraCardWidget final : public QWidget {
   QLineEdit* search_;
   QLabel *status_, *count_;
   ImageViewer* viewer_;
-  QProgressBar* progress_;
+  QProgressBar *progress_, *preview_progress_;
   QList<QWidget*> actions_;
   QPushButton *cancel_, *resume_, *verify_;
   QPushButton *original_, *preview_cancel_;

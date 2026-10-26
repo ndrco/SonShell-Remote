@@ -16,6 +16,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
+#include <QListView>
 #include <QLineEdit>
 #include <QLocalSocket>
 #include <QPushButton>
@@ -73,6 +74,9 @@ class VideoTests final : public QObject {
     QVERIFY(collection[0].key != collection[1].key); QVERIFY(collection[0].format() == "MP4" || collection[1].format() == "MP4");
     GalleryWidget gallery; gallery.set_items(collection); gallery.show_photo(result);
     QVERIFY(!gallery.viewer()->findChild<QWidget*>("movie_controls")->isHidden());
+    auto* forward = gallery.viewer()->findChild<QPushButton*>("movie_forward");
+    QTRY_VERIFY(forward->isEnabled()); QSignalSpy frames(gallery.viewer()->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
+    forward->click(); QTRY_VERIFY(!frames.isEmpty()); gallery.viewer()->stop_video();
   }
   void ffmpeg_local_playback_pause_and_stop() {
     VideoPreview player; QSignalSpy frames(&player, &VideoPreview::frame_ready), errors(&player, &VideoPreview::failed);
@@ -115,6 +119,36 @@ class VideoTests final : public QObject {
     QCOMPARE(errors.size(), 0); QVERIFY(native); QCOMPARE(count, 24);
     QCOMPARE(first.format(), QImage::Format_RGB888);
     QCOMPARE(QByteArray(reinterpret_cast<const char*>(first.constBits()), first.sizeInBytes()), rgb);
+  }
+  void five_second_buttons_follow_playback_preserve_pause_and_clamp() {
+    const auto path = temporary_.filePath("seek.mp4");
+    QProcess encoder;
+    encoder.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10", "-t", "13", "-an", "-threads", "1", "-c:v", "libx264", "-preset", "ultrafast", "-g", "1", path});
+    QVERIFY(encoder.waitForFinished(10000)); QCOMPARE(encoder.exitCode(), 0);
+    ImageViewer viewer; viewer.set_local_video(path); viewer.show(); viewer.toggle_fullscreen(); QTest::qWait(20);
+    auto* player = viewer.findChild<VideoPreview*>(); QSignalSpy frames(player, &VideoPreview::frame_ready), errors(player, &VideoPreview::failed);
+    auto* backward = viewer.findChild<QPushButton*>("movie_backward"); auto* forward = viewer.findChild<QPushButton*>("movie_forward");
+    QTRY_COMPARE(player->duration_ms(), qint64(13000)); QVERIFY(backward->isVisible()); QVERIFY(forward->isEnabled());
+    viewer.play_video(); QTRY_VERIFY(player->position_ms() >= 1100);
+    viewer.findChild<QPushButton*>("movie_pause")->click(); QVERIFY(player->paused());
+    const auto paused_position = player->position_ms(); QVERIFY(paused_position < 4000);
+    const auto before = frames.size(); forward->click();
+    QCOMPARE(player->position_ms(), paused_position + 5000); QTRY_COMPARE(frames.size(), before + 1); QVERIFY(player->paused());
+    const auto image = qvariant_cast<QImage>(frames.last()[0]); QCOMPARE(image.size(), QSize(160, 90));
+    QProcess reference;
+    reference.start("ffmpeg", {"-hide_banner", "-loglevel", "error", "-ss", QString::number((paused_position + 5000) / 1000.0, 'f', 3), "-i", path, "-frames:v", "1", "-pix_fmt", "rgb24", "-threads", "1", "-f", "rawvideo", "pipe:1"});
+    QVERIFY(reference.waitForFinished(10000)); QCOMPARE(reference.exitCode(), 0);
+    QCOMPARE(QByteArray(reinterpret_cast<const char*>(image.constBits()), image.sizeInBytes()), reference.readAllStandardOutput());
+    QTest::qWait(150); QCOMPARE(frames.size(), before + 1); QCOMPARE(player->position_ms(), paused_position + 5000);
+    backward->click(); QCOMPARE(player->position_ms(), paused_position); QTRY_COMPARE(frames.size(), before + 2);
+    backward->click(); QCOMPARE(player->position_ms(), qint64(0)); QTRY_COMPARE(frames.size(), before + 3);
+    // Repeated clicks before the first new frame accumulate from the requested position.
+    forward->click(); forward->click(); QCOMPARE(player->position_ms(), qint64(10000)); QTRY_COMPARE(frames.size(), before + 4);
+    forward->click(); QCOMPARE(player->position_ms(), qint64(12900)); QTRY_COMPARE(frames.size(), before + 5);
+    QCOMPARE(errors.size(), 0); QVERIFY(player->paused());
+    if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) viewer.grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/video-seek-fullscreen.png");
+    viewer.findChild<QPushButton*>("movie_stop")->click(); QVERIFY(!player->running()); QCOMPARE(player->position_ms(), qint64(0));
+    viewer.leave_fullscreen(); viewer.set_local_video({}); QTest::qWait(50); QCOMPARE(player->duration_ms(), qint64(0));
   }
   void invalid_local_video_reports_decoder_error() {
     const auto path = temporary_.filePath("broken.mp4"); QFile file(path);
@@ -180,6 +214,36 @@ class VideoTests final : public QObject {
     QVERIFY(window.findChild<QPushButton*>("command_shoot")->isEnabled());
     tabs->setCurrentIndex(0); QVERIFY(!player->running()); window.close();
   }
+  void video_navigation_buttons_work_in_gallery_and_separate_fullscreen() {
+    QTemporaryDir root; QVERIFY(QFile::copy(mp4_, root.filePath("first.mp4"))); QVERIFY(QFile::copy(mp4_, root.filePath("second.mp4")));
+    AppSettings settings; settings.auto_connect = false; settings.folder = root.path(); QVERIFY(SettingsStore().save(settings));
+    MainWindow window(FAKE_BACKEND_PATH); window.show(); window.activateWindow(); window.findChild<QTabWidget*>("main_tabs")->setCurrentIndex(2);
+    auto* gallery = window.findChild<GalleryWidget*>(); auto* list = gallery->findChild<QListView*>("gallery_list");
+    QSignalSpy loaded(window.findChild<PhotoLibrary*>(), &PhotoLibrary::photo_loaded);
+    QTRY_COMPARE(list->model()->rowCount(), 2);
+    list->setCurrentIndex(list->model()->index(1, 0)); list->setCurrentIndex(list->model()->index(0, 0));
+    const auto first = list->currentIndex().data(GalleryModel::PathRole).toString();
+    QTRY_VERIFY(!loaded.isEmpty() && qvariant_cast<MediaResult>(loaded.last()[0]).path == first);
+    auto* viewer = gallery->viewer(); viewer->findChild<QPushButton*>("viewer_next")->click();
+    QTRY_COMPARE(list->currentIndex().row(), 1); const auto next = list->currentIndex().data(GalleryModel::PathRole).toString();
+    QTRY_VERIFY(qvariant_cast<MediaResult>(loaded.last()[0]).path == next);
+    viewer->findChild<QPushButton*>("viewer_previous")->click(); QTRY_COMPARE(list->currentIndex().row(), 0);
+    QTRY_VERIFY(qvariant_cast<MediaResult>(loaded.last()[0]).path == first);
+    gallery->findChild<QPushButton*>("open_photo_window")->click(); QTRY_VERIFY(window.findChild<ImageViewer*>("photo_window"));
+    auto* separate = window.findChild<ImageViewer*>("photo_window"); separate->toggle_fullscreen(); QTest::qWait(30);
+    auto* player = separate->findChild<VideoPreview*>(); QSignalSpy frames(player, &VideoPreview::frame_ready);
+    separate->findChild<QPushButton*>("movie_play")->click(); QTRY_VERIFY(!frames.isEmpty());
+    separate->findChild<QPushButton*>("movie_pause")->click(); QVERIFY(player->running());
+    auto* seek_forward = separate->findChild<QPushButton*>("movie_forward"); QTRY_VERIFY(seek_forward->isEnabled()); QVERIFY(seek_forward->isVisible());
+    const auto before_seek = frames.size(); seek_forward->click(); QTRY_VERIFY(frames.size() > before_seek); QVERIFY(player->paused());
+    if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) separate->grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/video-viewer-fullscreen.png");
+    auto* forward = separate->findChild<QPushButton*>("viewer_next"); QVERIFY(forward->isVisible()); forward->click();
+    QTRY_COMPARE(list->currentIndex().row(), 1); QTRY_VERIFY(qvariant_cast<MediaResult>(loaded.last()[0]).path == next);
+    QTRY_VERIFY(!player->running()); QVERIFY(!separate->findChild<QWidget*>("movie_controls")->isHidden());
+    separate->findChild<QPushButton*>("viewer_previous")->click(); QTRY_COMPARE(list->currentIndex().row(), 0);
+    QTRY_VERIFY(qvariant_cast<MediaResult>(loaded.last()[0]).path == first);
+    window.close();
+  }
   void local_file_status_contains_absolute_path_and_survives_tab_changes() {
     QTemporaryDir root; const auto path = root.filePath("2026-10-22/Slot_1/CLIP/C0001.MP4");
     QVERIFY(QDir().mkpath(QFileInfo(path).absolutePath())); QVERIFY(QFile::copy(mp4_, path));
@@ -209,6 +273,11 @@ class VideoTests final : public QObject {
     QSignalSpy frames(viewer->findChild<VideoPreview*>(), &VideoPreview::frame_ready);
     QTest::mouseClick(viewer->findChild<QPushButton*>("movie_play"), Qt::LeftButton); QTRY_VERIFY(frames.size() > 0);
     QVERIFY(viewer->findChild<QLabel*>("movie_info")->text().contains("160 × 90"));
+    auto* player = viewer->findChild<VideoPreview*>(); QSignalSpy seeks(viewer, &ImageViewer::movie_seek_requested);
+    auto* seek_forward = viewer->findChild<QPushButton*>("movie_forward"); QTRY_VERIFY(seek_forward->isEnabled());
+    const int target = int(player->position_ms() / 1000) + 5; seek_forward->click();
+    QCOMPARE(seeks.size(), 1); QCOMPARE(seeks.first()[0].toInt(), target); QTRY_VERIFY(commands().contains("card movie-seek"));
+    viewer->findChild<QPushButton*>("movie_backward")->click(); QCOMPARE(seeks.size(), 2);
     viewer->view()->setFocus(); QTest::keyClick(viewer->view(), Qt::Key_Space);
     QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("Отметка копирования снята")));
     if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) viewer->grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/video-overlay.png");

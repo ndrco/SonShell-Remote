@@ -238,9 +238,9 @@ class CameraCardTests final : public QObject {
     QTRY_COMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
     QTRY_VERIFY(!card.busy()); QTRY_VERIFY(ready.last()[0].toString() == "1:1");
     QVERIFY(list->isEnabled()); QCOMPARE(list->topLevelItem(0)->checkState(0), Qt::Checked);
-    QTest::keyClick(viewer->view(), Qt::Key_PageUp); QTRY_VERIFY(!card.busy());
+    viewer->findChild<QPushButton*>("viewer_previous")->click(); QTRY_VERIFY(!card.busy());
     QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:2"));
-    QTest::keyClick(viewer->view(), Qt::Key_PageDown); QTRY_VERIFY(!card.busy());
+    viewer->findChild<QPushButton*>("viewer_next")->click(); QTRY_VERIFY(!card.busy());
     QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
     viewer->leave_fullscreen(); widget.activateWindow(); QTest::qWait(30);
     widget.findChild<QLineEdit*>()->setText("кадр 1");

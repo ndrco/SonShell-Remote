@@ -8,6 +8,7 @@
 class QGraphicsPixmapItem;
 class QLabel;
 class QShortcut;
+class QPushButton;
 class VideoPreview;
 
 class ImageView final : public QGraphicsView {
@@ -75,12 +76,15 @@ class ImageViewer final : public QWidget {
  private:
   ImageView* view_;
   QWidget* video_bar_;
+  QPushButton *previous_, *next_;
   VideoPreview* video_;
+  void seek_video(qint64 milliseconds);
   QString video_path_;
   bool remote_video_ = false;
   QLabel* caption_;
   QLabel* zoom_label_;
   QLabel* video_info_;
+  QLabel* video_position_;
   QPointer<QWidget> embedded_parent_;
   QList<int> embedded_sizes_;
   QList<QShortcut*> navigation_;

@@ -203,3 +203,24 @@ SDK streaming remains optional in Settings → Preview → Video on camera.
 Some camera/clip combinations return audio without video despite accepting all
 connections; Start/Play success does not prove video delivery. Original playback
 avoids that SDK path and preserves source resolution and frame rate.
+
+## Viewer navigation and loading (0.8.3)
+
+Previous file and Next file select adjacent visible files in the camera card, gallery and
+separate viewer, including full screen. Search/filter order is respected; the ends
+do not wrap. Playback stops when changing files; use Play to start the next clip.
+Selecting another file during an original download cancels that download.
+
+The camera viewer shows a loading progress bar beside Stop, also in full screen.
+It matches the main progress indicator, including file counts for a queue, and
+disappears after completion/cancellation. It is a download/operation indicator,
+separate from playback controls.
+
+Back 5 s / Forward 5 s seek within the current clip from its playback position.
+Originals and local videos respect the file boundaries; seeking while paused
+shows the selected frame and keeps playback paused. Repeated clicks accumulate.
+Current time and duration appear beside the exact seek field in seconds.
+These controls work on the camera card, in the gallery, separate window and
+full screen. Seeking is disabled while duration is being read. Optional SDK
+streaming estimates position from decoded timestamps and requests camera seeks
+to whole seconds.

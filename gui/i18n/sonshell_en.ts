@@ -1484,5 +1484,21 @@ Photos and clips will be deleted in full, including RAW+JPEG, video, proxies and
       <source>&lt;p&gt;Разработка и сопровождение: &lt;a href="https://github.com/ndrco"&gt;NDRco&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Код и развитие проекта:&lt;br&gt;&lt;a href="https://github.com/ndrco/SonShell-Remote"&gt;github.com/ndrco/SonShell-Remote&lt;/a&gt;&lt;/p&gt;&lt;p&gt;На основе &lt;a href="https://github.com/goudvuur/sonshell"&gt;SonShell&lt;/a&gt; и &lt;a href="https://support.d-imaging.sony.co.jp/app/sdk/en/"&gt;Sony Camera Remote SDK&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Независимый проект для камер Sony. Код приложения: Apache-2.0; условия Sony SDK действуют отдельно.&lt;/p&gt;</source>
       <translation>&lt;p&gt;Developed and maintained by &lt;a href="https://github.com/ndrco"&gt;NDRco&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Source code and project development:&lt;br&gt;&lt;a href="https://github.com/ndrco/SonShell-Remote"&gt;github.com/ndrco/SonShell-Remote&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Based on &lt;a href="https://github.com/goudvuur/sonshell"&gt;SonShell&lt;/a&gt; and &lt;a href="https://support.d-imaging.sony.co.jp/app/sdk/en/"&gt;Sony Camera Remote SDK&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Independent project for Sony cameras. Application code: Apache-2.0; Sony SDK terms apply separately.&lt;/p&gt;</translation>
     </message>
+    <message>
+      <source>Назад 5 с</source>
+      <translation>Back 5 s</translation>
+    </message>
+    <message>
+      <source>Вперёд 5 с</source>
+      <translation>Forward 5 s</translation>
+    </message>
+    <message>
+      <source>Предыдущий файл</source>
+      <translation>Previous file</translation>
+    </message>
+    <message>
+      <source>Следующий файл</source>
+      <translation>Next file</translation>
+    </message>
   </context>
 </TS>
