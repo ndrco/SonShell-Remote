@@ -811,3 +811,26 @@ fresh-runtime-0.8.0.log and upgrade-0.8.0.log. No private data/SDK added to Git.
   offscreen 7/7, 69.39 pp. lrelease is set to a private local path via
   QT_LRELEASE_EXECUTABLE: There is no system lrelease on this machine.
 - SDK backend/hardware scripts and DEB were not changed at this stage.
+
+## 0.8.4 — English default and bilingual documentation, 2026-10-31
+
+- GUI and SDK backend built successfully. Final CTest offscreen 9/9, 75.29 s;
+  ASan remote/card/card-quality/controls/video 5/5, 49.73 s, detect_leaks=0.
+- English default/fallback, retained saved Russian preference, both help resources,
+  Qt system buttons and source/catalog placeholders verified. English/Russian
+  screenshots inspected. Unicode path fixtures retain their runtime values.
+- English documentation, retained _RU counterparts, links and excluded-document
+  references checked. The owner's PNG was copied unchanged; SHA256
+  `87f393aab8d2b17bfb1f3937900c55d09d51d26e0c34200d7acbee8216402d69`.
+- DEB 0.8.4-1ubuntu24.04 amd64: 5,634,870 bytes; source `43b9b6e`;
+  SHA256 `fae4c4c58704a7108525037d4b48d05317384b19373237187cb4885d05e93f19`. Contains both languages of INSTALL/USER_GUIDE/THIRD_PARTY,
+  localized desktop metadata, current official Sony license HTML and OSS notices.
+- Fresh Ubuntu Base 24.04.5: apt installation, isolated English/Russian GUI/help,
+  SDK loader, FFmpeg/ffprobe, installed binary hashes, content-integrity check,
+  upgrade 0.8.3 → 0.8.4 and removal passed. The initial minimal-image run stopped
+  at the documentation check because Ubuntu Base excludes /usr/share/doc by
+  default; a new root included this package's documents and completed with exit 0.
+- Logs: build-translation/ctest-final-084.log, asan-ctest-084.log;
+  build-clean/verify-release-0.8.4-final.log, fresh-runtime-0.8.4-final.log,
+  upgrade-0.8.4-final.log. No host configuration or camera files changed;
+  no new physical-camera acceptance run. Gitleaks history scan found no secrets.
