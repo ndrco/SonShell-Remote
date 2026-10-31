@@ -19,14 +19,14 @@ ExposureControl::ExposureControl(const QString& name, QWidget* parent) : QWidget
   auto* row = new QHBoxLayout; layout->addLayout(row);
   dial_ = new QDial(this); dial_->setObjectName("dial"); dial_->setFixedSize(46, 46);
   dial_->setWrapping(false); dial_->setNotchesVisible(true); dial_->setPageStep(1);
-  dial_->setToolTip(QCoreApplication::translate("App", "Поверни мышью или колёсиком. Значение применяется после отпускания."));
+  dial_->setToolTip(QCoreApplication::translate("App", "Drag the dial or use the mouse wheel. The value is applied after release."));
   editor_ = new QComboBox(this); editor_->setObjectName("value"); editor_->setEditable(true);
   editor_->setInsertPolicy(QComboBox::NoInsert); editor_->setMinimumContentsLength(10);
   editor_->lineEdit()->installEventFilter(this);
   editor_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
   editor_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  editor_->setToolTip(QCoreApplication::translate("App", "Введи значение и нажми Enter или «Задать». Список содержит значения камеры."));
-  apply_ = new QPushButton(QCoreApplication::translate("App", "Задать"), this); apply_->setObjectName("apply");
+  editor_->setToolTip(QCoreApplication::translate("App", "Type a value and press Enter or Set. The list contains values supplied by the camera."));
+  apply_ = new QPushButton(QCoreApplication::translate("App", "Apply"), this); apply_->setObjectName("apply");
   row->addWidget(dial_); row->addWidget(editor_, 1); row->addWidget(apply_);
   error_ = new QLabel(this); error_->setObjectName("validation"); error_->setWordWrap(true);
   error_->setTextFormat(Qt::PlainText); error_->hide(); layout->addWidget(error_);
@@ -87,7 +87,7 @@ void ExposureControl::set_snapshot(const QJsonObject& property) {
   int index = editor_->findData(current_);
   dial_->setRange(0, std::max(0, int(editor_->count()) - 1));
   if (index >= 0) { editor_->setCurrentIndex(index); dial_->setValue(index); }
-  else editor_->setEditText(property.value("readable").toBool() ? property.value("current_label").toString(current_) : QCoreApplication::translate("App", "Недоступно"));
+  else editor_->setEditText(property.value("readable").toBool() ? property.value("current_label").toString(current_) : QCoreApplication::translate("App", "Unavailable"));
   set_ready(ready_);
 }
 
@@ -96,7 +96,7 @@ void ExposureControl::set_ready(bool ready) {
   const bool enabled = ready && writable_;
   editor_->setEnabled(enabled); apply_->setEnabled(enabled); dial_->setEnabled(enabled && editor_->count() > 1);
   if (!enabled) { settle_.stop(); edited_ = false; }
-  setToolTip(writable_ ? QString() : QCoreApplication::translate("App", "SDK не разрешает менять этот параметр в текущем режиме"));
+  setToolTip(writable_ ? QString() : QCoreApplication::translate("App", "The SDK does not allow changing this setting in the current mode"));
 }
 
 bool ExposureControl::editing() const { return edited_ || dial_->isSliderDown() || settle_.isActive(); }
@@ -120,7 +120,7 @@ void ExposureControl::apply() {
     for (int i = 0; i < editor_->count(); ++i) if (normalized(editor_->itemText(i)) == input) { match = i; break; }
   }
   if (match < 0) {
-    error_->setText(QCoreApplication::translate("App", "Выбери доступное значение из списка камеры.")); error_->show(); return;
+    error_->setText(QCoreApplication::translate("App", "Choose an available value from the camera list.")); error_->show(); return;
   }
   { QSignalBlocker editor_guard(editor_), dial_guard(dial_); editor_->setCurrentIndex(match); editor_->setEditText(editor_->itemText(match)); dial_->setValue(match); }
   edited_ = false; error_->hide();

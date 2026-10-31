@@ -4,7 +4,8 @@ if(SONSHELL_BUILD_BACKEND)
   if(SONY_SDK_LICENSE_FILE)
     install(FILES "${SONY_SDK_LICENSE_FILE}" DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/sonshell-remote RENAME sony-sdk-license.html)
   endif()
-  install(FILES docs/INSTALL.md docs/USER_GUIDE.md docs/THIRD_PARTY.md
+  install(FILES docs/INSTALL.md docs/INSTALL_RU.md
+    docs/USER_GUIDE.md docs/USER_GUIDE_RU.md docs/THIRD_PARTY.md docs/THIRD_PARTY_RU.md
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/sonshell-remote)
   set(CPACK_GENERATOR DEB)
   set(CPACK_PACKAGE_NAME sonshell-remote)

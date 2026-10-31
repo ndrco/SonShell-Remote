@@ -5,7 +5,7 @@ struct AppSettings {
   QString host = "10.0.1.5";
   QString model = "a6700";
   QString user, password, folder;
-  QString language = "ru";
+  QString language = "en";
   bool remember_credentials = false;
   bool auto_sync = false; // Legacy setting: GUI 0.4 always imports explicitly.
   bool auto_liveview = true;

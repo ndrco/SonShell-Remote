@@ -98,8 +98,8 @@ class ControlsTests final : public QObject {
     connect(&session, &CameraSession::controls_event, &controls, [&controls, format, &blocked_after_apply](const QJsonObject& event) {
       if (event.value("type") != "applied") return;
       blocked_after_apply = !format->isEnabled();
-      // Даже уже поставленное в очередь событие не отправляет второй setter
-      // между Applied и снимком зависимых параметров.
+      // Even a queued event must not send a second setter
+      // between Applied and the dependent property snapshot.
       QMetaObject::invokeMethod(controls.findChild<QComboBox*>("image_size"), "activated", Q_ARG(int, 1));
     });
     compression->setFocus(); QTest::keyClick(compression, Qt::Key_Down); QTRY_VERIFY(commands().contains("121 2"));
@@ -120,7 +120,7 @@ class ControlsTests final : public QObject {
     session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, temporary_.path(), false});
     QTRY_VERIFY(controls.findChild<QComboBox*>("focus_mode")->isEnabled());
     auto* quality = controls.findChild<QComboBox*>("image_quality"); QVERIFY(!quality->isEnabled());
-    QCOMPARE(quality->currentText(), unsupported ? QString::fromUtf8("Недоступно") : QString("Camera quality"));
+    QCOMPARE(quality->currentText(), unsupported ? QString::fromUtf8("Unavailable") : QString("Camera quality"));
     QVERIFY(!commands().contains("controls set")); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void unsupported_capabilities_do_not_start_a_retry_loop() {
@@ -139,8 +139,8 @@ class ControlsTests final : public QObject {
     controls.set_live(true); auto* af = controls.findChild<QCheckBox*>("mouse_af");
     QTRY_VERIFY(af->isEnabled()); af->setChecked(true); controls.select_point({0.5, 0.5});
     auto* message = controls.findChild<QLabel*>("controls_message");
-    QTRY_VERIFY(message->text().contains(QString::fromUtf8("запуск AF отклонён")));
-    QTest::qWait(500); QVERIFY(message->text().contains(QString::fromUtf8("запуск AF отклонён")));
+    QTRY_VERIFY(message->text().contains(QString::fromUtf8("starting AF was rejected")));
+    QTest::qWait(500); QVERIFY(message->text().contains(QString::fromUtf8("starting AF was rejected")));
     QVERIFY(message->text().contains("32768"));
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
@@ -161,7 +161,7 @@ class ControlsTests final : public QObject {
     focus->setFocus(); QTest::keyClick(focus, Qt::Key_Down); QTRY_VERIFY(commands().contains("controls set"));
     QTRY_VERIFY(focus->isEnabled()); QTRY_COMPARE(focus->currentData().toString(), QString("1"));
     bool visible_error = false;
-    for (auto* label : controls.findChildren<QLabel*>()) if (label->text().contains(QString::fromUtf8("Команда отклонена"))) visible_error = true;
+    for (auto* label : controls.findChildren<QLabel*>()) if (label->text().contains(QString::fromUtf8("Command rejected"))) visible_error = true;
     QVERIFY(visible_error);
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
@@ -265,13 +265,13 @@ class ControlsTests final : public QObject {
     }
     QVERIFY(language.install(SettingsStore().load().language));
     MainWindow russian(FAKE_BACKEND_PATH);
-    QCOMPARE(russian.findChild<QPushButton*>("connect")->text(), QString::fromUtf8("Подключить"));
+    QCOMPARE(russian.findChild<QPushButton*>("connect")->text(), QString::fromUtf8("\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u044c"));
     if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) {
       russian.show(); QTest::qWait(30); russian.grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/main-ru.png");
     }
-    HelpDialog help("ru"); QVERIFY(help.findChild<QTextBrowser*>()->toPlainText().contains("Delete только ставит отметку."));
+    HelpDialog help("ru"); QVERIFY(help.findChild<QTextBrowser*>()->toPlainText().contains(QString::fromUtf8("Delete \u0442\u043e\u043b\u044c\u043a\u043e \u0441\u0442\u0430\u0432\u0438\u0442 \u043e\u0442\u043c\u0435\u0442\u043a\u0443.")));
     QSettings raw(SettingsStore().path(), QSettings::IniFormat); raw.setValue("language", "invalid"); raw.sync();
-    QCOMPARE(SettingsStore().load().language, QString("ru"));
+    QCOMPARE(SettingsStore().load().language, QString("en"));
   }
 };
 QTEST_MAIN(ControlsTests)

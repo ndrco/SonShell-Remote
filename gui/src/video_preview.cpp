@@ -17,11 +17,11 @@ VideoPreview::VideoPreview(QObject* parent) : QObject(parent) {
   connect(&decoder_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this](int code, QProcess::ExitStatus) {
     read_frames(); read_progress();
     if (intentional_) return;
-    if (code != 0 || !received_) emit failed(QCoreApplication::translate("App", "Не удалось декодировать видео") + ": " + QString::fromUtf8(diagnostic_).left(600));
+    if (code != 0 || !received_) emit failed(QCoreApplication::translate("App", "Could not decode video") + ": " + QString::fromUtf8(diagnostic_).left(600));
     emit finished();
   });
   connect(&decoder_, &QProcess::errorOccurred, this, [this](auto error) {
-    if (error == QProcess::FailedToStart) emit failed(QCoreApplication::translate("App", "FFmpeg недоступен. Переустанови приложение."));
+    if (error == QProcess::FailedToStart) emit failed(QCoreApplication::translate("App", "FFmpeg is unavailable. Reinstall the application."));
   });
   probe_timeout_.setSingleShot(true); probe_timeout_.setInterval(5000);
   connect(&probe_timeout_, &QTimer::timeout, &probe_, &QProcess::kill);
@@ -188,12 +188,12 @@ void VideoPreview::read_frames() {
       const auto match = header.match(QString::fromLatin1(frames_.left(80)));
       if (!match.hasMatch()) {
         if (frames_.size() < 80) break;
-        stop(); emit failed(QCoreApplication::translate("App", "Не удалось декодировать видео")); return;
+        stop(); emit failed(QCoreApplication::translate("App", "Could not decode video")); return;
       }
       const auto width = match.captured(1).toInt(), height = match.captured(2).toInt();
       const qint64 pixels = qint64(width) * height;
       if (width <= 0 || height <= 0 || pixels > max_frame_bytes / 3) {
-        stop(); emit failed(QCoreApplication::translate("App", "Превышен лимит буфера видеопревью")); return;
+        stop(); emit failed(QCoreApplication::translate("App", "Video preview buffer limit exceeded")); return;
       }
       frame_size_ = {width, height}; payload_size_ = pixels * 3;
       frames_.remove(0, match.capturedLength());

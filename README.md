@@ -1,120 +1,111 @@
+[English](README.md) · [Russian](README_RU.md)
+
 # SonShell Remote
 
 <a href="https://github.com/ndrco"><img src="gui/assets/ndrco.png" alt="NDRco" width="96" align="right"></a>
 
-Настольное приложение для управления камерами Sony под Linux на Qt 6:
-Live View, съёмка, отбор фотографий и видео на карте, просмотр и импорт.
-Разработка и сопровождение — [NDRco](https://github.com/ndrco).
-Основано на [SonShell](https://github.com/goudvuur/sonshell) (Apache-2.0) и
+A Qt 6 desktop application for controlling Sony cameras on Linux: Live View,
+remote capture, camera settings, photo and video review, selection and import.
+Developed and maintained by [NDRco](https://github.com/ndrco), based on
+[SonShell](https://github.com/goudvuur/sonshell) and the
 [Sony Camera Remote SDK](https://support.d-imaging.sony.co.jp/app/sdk/en/).
 
-**Статус: в разработке, версия 0.8.3.** Проверенная платформа — Ubuntu 24.04
-amd64; аппаратные проверки выполнялись на Sony ILCE-6700. Доступность отдельных
-функций зависит от камеры, прошивки и режима съёмки.
+**Version 0.8.4 — in development.** The tested installation target is Ubuntu 24.04
+amd64. Hardware checks have been performed on a Sony ILCE-6700; available commands
+depend on the camera model, firmware and shooting mode.
 
-![SonShell Remote: параметры камеры, отбор и просмотр файлов карты](docs/screenshots/sonshell-remote.png)
+![SonShell Remote: Live View and camera controls](docs/screenshots/sonshell-remote.png)
 
-*Настоящий интерфейс 0.8.3 на демонстрационных данных, без подключения камеры.
-Изображение в просмотрщике — авторская векторная тестовая сцена; личные фотографии
-и настройки не использовались.*
+**Shoot without automatically transferring RAW → review the camera card →
+select or reject captures → import all, new or selected files.**
 
-Сценарий работы: **съёмка без автоматической передачи RAW → просмотр карты →
-отбор/удаление брака → копирование всех, новых или отмеченных файлов**.
+## Features
 
-- [Сборка и запуск](docs/BUILD.md)
-- [Установка на чистую Ubuntu](docs/INSTALL.md)
-- [Руководство и клавиши](docs/USER_GUIDE.md)
-- [Архитектура](docs/ARCHITECTURE.md)
-- [Проверки](docs/TESTING.md)
-- [Изменения](CHANGELOG.md)
+- Embedded Live View with zoom, panning and full screen; separate image viewer
+  with Fit and 100% views.
+- Remote shutter, autofocus and video recording. Click-to-focus moves the AF
+  point and triggers focusing when supported by the current camera mode.
+- ISO, shutter speed, aperture and exposure compensation: mouse dials, wheel,
+  supported-value lists and manual entry. ISO AUTO fits in the field.
+- Focus, white balance, drive mode, photo/video recording settings and stabilization
+  exposed according to the camera's SDK capabilities.
+- Connection state, automatic reconnection and optional startup connection using
+  saved credentials. Credentials are saved only when the checkbox is enabled.
+- Camera-card browser for photos and videos, independent copy/reject marks,
+  format filters, thumbnails and confirmed deletion.
+- Original JPEG previews; original video playback through a temporary cache.
+  Large originals are downloaded on request, with progress and cancellation.
+- Import all, new or selected captures; choose RAW/JPEG and the destination.
+  Files are stored under `YYYY-MM-DD/Slot_N/original hierarchy`.
+- SHA256 verification, a persistent import journal and resumable queues.
+  An interrupted individual file is transferred again from the beginning.
+- Local gallery with thumbnails, search, sorting, RAW+JPEG grouping and EXIF.
+  RAW viewing uses its embedded JPEG.
+- Optional studio review for 2–10 seconds after capture, followed by Live View.
+  Choose a compressed preview or an original JPEG from the card; RAW is not
+  automatically transferred.
+- Previous/next file buttons, video seeking by ±5 seconds, keyboard navigation,
+  full-screen selection overlays, download progress and cancellation.
+- Settings menu for connection, directory and preview options; offline help (F1)
+  and English/Russian interfaces. English is the default; a saved language is retained.
 
-## Возможности версии 0.8.3
+On the camera card, **Space** toggles a copy mark and **Delete** toggles a reject
+mark. Deletion requires a separate confirmation. Use **←/→**, **Page Up/Page Down**
+to browse, **F11** for full screen and **Esc** to return.
 
-- Настройки подключения, каталог и параметры превью — в Settings; журнал по запросу.
-- Встроенный Live View, съёмка/AF/видео/экспозиция, переподключение.
-- Заметная кнопка подключения и подключение при запуске с сохранённым доступом;
-  ручное отключение отменяет повторы в текущем сеансе.
-- Параметры записи фото и видео, размеры/качество/RAW, стабилизация по
-  возможностям камеры; отдельные сворачиваемые разделы и обновление зависимостей.
-- ISO, выдержка, диафрагма и EV: крутилки мышью/колесом, список и ручной ввод;
-  текущие значения и шаги из камеры. ISO AUTO целиком помещается в поле.
-- Галерея JPEG/PNG и RAW, пары RAW+JPEG, миниатюры, поиск, сортировка, фильтры.
-- EXIF и встроенные JPEG-превью RAW; полноразмерное проявление RAW пока не реализовано.
-- Съёмка без автоматической передачи оригиналов, в том числе после обновления с 0.3.
-- Вкладка «В камере»: исходный JPEG по умолчанию, быстрые превью SDK,
-  отбор и удаление брака с подтверждением. Видео: Play загружает оригинал и само запускает
-  просмотр; RAW — по кнопке. Размер, временный кеш, прогресс и отмена; импорт не отмечается.
-- Копирование всех, новых или отмеченных кадров; выбор RAW/JPEG, каталога, прогресс и отмена.
-- Учёт завершённых копий для «новых»; полный повторный импорт сохраняет прежние файлы.
-- SHA256 при импорте, проверка локальных копий без камеры, сохранение и продолжение
-  очереди после обрыва/перезапуска. Недокачанный файл передаётся заново целиком.
-- Студийный просмотр 2–10 секунд: сжатое превью или исходный JPEG с карты,
-  включая RAW+JPEG; RAW автоматически не загружается. События серии объединяются.
-- Отдельное окно просмотра, 100%, масштаб/панорамирование и полный экран.
-- Видео на карте: миниатюры, исходное видео через Play, опциональный поток SDK, отбор, удаление и копирование;
-  локальная галерея видео с исходными размером и частотой кадров, без JPEG-перекодирования.
-  Предпросмотр без звука; для SDK потока нужны входящие TCP от камеры (см. docs/INSTALL.md).
-- Полный путь выбранного файла внизу, с выделением и копированием.
-- Импорт по локальным датам съёмки: YYYY-MM-DD/Slot_N/исходная иерархия.
-- Прозрачные надписи Space/Delete у краёв кадра, в том числе в fullscreen.
-- Кнопки соседних файлов и перемотки видео на ±5 секунд, прогресс загрузки
-  и отмена доступны в fullscreen.
-- Перелистывание ←/→ и Page Up/Page Down в превью и отдельном окне; контрастные отметки.
+## Install
 
-Справка — меню «Справка» или F1; язык — «Настройки → Язык» (русский/английский,
-со следующего запуска). На карте: Space отмечает копию, Delete — брак;
-удаление требует отдельного подтверждения. Параметры WB/drive/фокуса и выбор точки
-AF мышью доступны по возможностям SDK конкретной камеры. Пользователь подтвердил
-исправленный запуск AF в 0.6.2; приёмка новых крутилок остаётся отдельной проверкой.
+Download the Ubuntu 24.04 amd64 package from
+[GitHub Releases](https://github.com/ndrco/SonShell-Remote/releases/latest):
 
-## Установка
+```bash
+sudo apt update
+sudo apt install ./sonshell-remote_0.8.4-1ubuntu24.04_amd64.deb
+```
 
-В репозитории публикуются исходники и документация. SDK скачивается отдельно
-у Sony и не входит в Git. Использованные версии: SDK 2.02.00, Qt 6.4.2,
-C++17. Полные команды для сборки GUI, backend и DEB — в [инструкции](docs/BUILD.md).
+The DEB includes the application backend and Sony runtime libraries. Ubuntu
+installs Qt, ExifTool and FFmpeg dependencies through apt; no compiler or separate
+SDK installation is needed on the target machine. Sony SDK terms apply separately
+and are presented before the first camera connection.
+
+See [installation and removal](docs/INSTALL.md) and the [user guide](docs/USER_GUIDE.md).
+
+## Build from source
 
 ```bash
 git clone https://github.com/ndrco/SonShell-Remote.git
 cd SonShell-Remote
 ```
 
-Если установочный пакет уже собран, на Ubuntu 24.04 amd64 его можно установить
-без компилятора и отдельного SDK. Runtime включён в DEB, зависимости ставит apt:
+The GUI and tests can be built without Sony SDK. Camera control requires a backend
+built with a separately obtained SDK. The development baseline is C++17, Qt 6.4.2
+and Sony SDK 2.02.00. See [build instructions](docs/BUILD.md).
 
-```bash
-sudo apt install ./sonshell-remote_0.8.3-1ubuntu24.04_amd64.deb
-```
+## Current limitations
 
-[Чистая установка, удаление и ограничения платформ](docs/INSTALL.md).
+- Other Ubuntu versions and ARM64 require separate builds and installation checks.
+- One camera over IPv4/Wi-Fi/LAN; USB discovery and multiple cameras are not yet
+  exposed in the GUI.
+- RAW development is not implemented; viewing uses an embedded JPEG.
+- Full-resolution studio review requires a JPEG on the card, including RAW+JPEG.
+  RAW-only uses a compressed preview. Physical bursts need further hardware testing.
+- Main video playback downloads the complete original before starting. Optional
+  SDK streaming can fail to deliver video frames for some ILCE-6700 clips.
+- Video preview has no audio; copying preserves the original file in full.
+- Automated tests do not replace acceptance testing on each camera and configuration.
 
-## Ограничения текущей версии
+## Documentation
 
-- Другие версии Ubuntu и ARM64 требуют отдельных сборок и проверок.
-- RAW показывается через встроенный JPEG; проявление RAW не реализовано.
-- Студийный просмотр полного разрешения требует JPEG на карте; RAW-only использует
-  сжатое превью. Серии и аппаратный спуск требуют дополнительной приёмки.
-- Основной Play видео загружает оригинал целиком в кеш. Прямой SDK-поток доступен
-  как опция, но на некоторых роликах ILCE-6700 не выдаёт видеокадры.
-- Воспроизведение видео без звука; копирование сохраняет исходный файл целиком.
-- Управление одной камерой по IPv4/Wi-Fi/LAN. USB, обнаружение и несколько камер
-  в GUI пока не реализованы.
+- [User guide](docs/USER_GUIDE.md) · [Russian](docs/USER_GUIDE_RU.md)
+- [Installation](docs/INSTALL.md) · [Build](docs/BUILD.md)
+- [Architecture](docs/ARCHITECTURE.md) · [Protocol](docs/PROTOCOL.md)
+- [Localization](docs/LOCALIZATION.md) · [Test results](docs/TESTING.md)
+- [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
+`gui/` contains the Qt application; `src/` the backend and CLI; `cmake/` the SDK
+and packaging integration; `tests/` camera-free checks; `docs/` project documents.
 
-## Структура
-
-| Каталог | Назначение |
-|---|---|
-| gui/ | Qt: интерфейс, сеанс камеры, настройки, изображения |
-| src/ | SonShell CLI и SDK |
-| cmake/ | Сборка backend и размещение runtime SDK |
-| tests/ | Проверки без физической камеры |
-| docs/ | Документация и план развития |
-| docs/upstream/ | Оригинальная документация SonShell |
-| scripts/, tools/, config/ | Унаследованные hooks, генераторы и примеры |
-
-Неофициальный проект. Доступность команд зависит от модели, прошивки, режима
-камеры и версии SDK. Реальные аппаратные проверки указываются отдельно.
-
-История SonShell сохранена до `107f9fa`; исходная лицензия — [Apache-2.0](LICENSE).
-Условия Sony SDK действуют отдельно. [Происхождение и сторонние компоненты](docs/THIRD_PARTY.md).
-Для участия в разработке см. [CONTRIBUTING.md](CONTRIBUTING.md).
+The SonShell history is preserved through `107f9fa`. Application source is
+licensed under [Apache-2.0](LICENSE). Sony SDK and third-party components retain
+their own terms; see [third-party notices](docs/THIRD_PARTY.md). This is an
+independent project, not a Sony product or support service.

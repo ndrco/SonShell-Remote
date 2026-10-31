@@ -2,7 +2,6 @@
 Type=Application
 Name=SonShell Remote
 Comment=Control Sony cameras and transfer photographs
-Comment[ru]=Управление камерами Sony и передача фотографий
 Exec=sonshell-remote
 Icon=sonshell-remote
 Terminal=false

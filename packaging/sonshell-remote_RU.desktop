@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SonShell Remote
+Comment=Управление камерами Sony и передача фотографий
+Exec=sonshell-remote
+Icon=sonshell-remote
+Terminal=false
+Categories=Graphics;Photography;
+StartupNotify=true

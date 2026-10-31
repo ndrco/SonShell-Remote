@@ -1,811 +1,813 @@
-# Проверки
+[English](TESTING.md) · [Russian](TESTING_RU.md)
 
-## Результаты 2026-10-19
+# Checks
 
-- Ubuntu 24.04 amd64, GCC 13.3, Qt 6.4.2, Sony SDK 2.02.00.
-- Сборка GUI без SDK, GUI + headless backend и backend с OpenCV: успешно.
-- CTest: 1 набор, 8 поведенческих сценариев, 0 ошибок (Qt также выполняет init/cleanup).
-- Проверены: opt-in и удаление имени/пароля, 0600, масштаб и возврат из полного
-  экрана, незавершённый JPEG и замена файла, фрагментированные события, команды
-  без секрета в argv, переподключение/отмена, выключение повторов, остановка
-  зависшего процесса без блокировки UI, интеграция MainWindow + встроенный JPEG.
-- DEB создан CPack, зависимости рассчитаны dpkg-shlibdeps. desktop-file-validate: успешно.
-- Полная установка через apt в чистом Ubuntu Base 24.04 amd64: успешно.
-  Использован официальный rootfs с проверкой SHA256, proot только для apt/dpkg;
-  runtime запускался в отдельном bwrap user/mount/PID/network namespace, без
-  доступа к рабочему дереву и SDK. apt установленного приложения разрешил все
-  зависимости. Базовому rootfs перед запуском создан machine-id/runtime directory,
-  которые обычно уже есть в установленной Ubuntu Desktop.
-- Установленный GUI: --version выводит SonShell Remote 0.2.0; окно живёт до
-  контрольного timeout 3 с (код 124), аварийного завершения нет. Offscreen plugin
-  сообщает ожидаемое отсутствие propagateSizeHints; это ограничение тестового
-  графического backend, не ошибка сборки. Ldd backend и PTP adapter: все зависимости найдены.
-- Финальный DEB повторно установлен; SHA256 установленного GUI совпадает с
-  содержимым пакета. Удаление через apt remove успешно, исполняемый файл удалён.
-- Скриншот интерфейса проверен визуально; управляющие элементы и Live View видимы,
-  наложений и обрезанного текста в размере 1280×870 нет.
-- В чистом образе все packaged SDK .so разрешают зависимости с приватным
-  LD_LIBRARY_PATH; backend --version выводит 0.2.0 (REMOTE/1). SDK Init и попытка
-  соединения с изолированным 127.0.0.1 завершаются ожидаемым Camera not available / CrError_Connect_ConnectIP и кодом 2
-  при отсутствии камеры, без ошибок загрузчика и аварийного завершения.
-- Физическая камера не использовалась. Работа SDK при съёмке, реальная скорость
-  Live View, передача RAW+JPEG и сетевой обрыв требуют аппаратной приёмки ниже.
-
-Автоматические проверки используют fake backend и временные настройки/изображения;
-они не подтверждают работу физической камеры с SDK.
-
-## Аппаратный сценарий
-
-1. Подключение с Access Authentication; проверить неверный пароль.
-2. Сохранить поля флажком, перезапустить; снять флажок, проверить удаление.
-3. Live View внутри GUI: Fit, 100%, колесо, F11, Esc, возврат и продолжение потока.
-4. Снять JPEG, дождаться передачи; отдельное окно, 100%, панорамирование и полный
-   экран. Проверить большой и повёрнутый JPEG.
-5. Выключить Wi-Fi/камеру: действия отключаются; после включения восстановлены
-   соединение, Auto Sync и Live View.
-6. Во время ожидания нажать «Отключить»: повторы прекращаются.
-7. Закрыть GUI при подключении/передаче: backend должен завершиться.
-8. Auto Sync и Sync All для RAW+JPEG; сверить скачанные оригиналы.
-
-## Повторение установочной проверки
-
-Образ: https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ — amd64
-base tar.gz и его SHA256SUMS. В этой сессии всё размещено внутри `build-clean/`;
-хостовая система и установленный прототип не менялись.
-
-1. Распаковать проверенный rootfs в build-clean/rootfs. Установить DEB командой
-   `apt-get install /packages/sonshell-remote_0.2.0-1ubuntu24.04_amd64.deb` внутри
-   rootfs (proot -0, bind только /dev, /proc, resolv.conf и каталог пакетов).
-2. Создать rootfs/etc/machine-id и приватный XDG_RUNTIME_DIR для минимального образа.
-3. Запускать установленное приложение в bwrap с rootfs как /, `--unshare-all`,
-   чистым env, QT_QPA_PLATFORM=offscreen. Рабочее дерево и SDK не монтировать.
-4. Проверить `sonshell-remote --version`, запуск окна под timeout, ldd backend и
-   адаптеров, отсутствие SDK путей в RUNPATH, затем `apt remove sonshell-remote`.
-
-Это проверка userspace установки и запуска, не полноценная VM с Ubuntu Desktop,
-драйвером графики и физической камерой. Для стабильного релиза нужна проверка
-в реальной Ubuntu Desktop с сетью и камерой по сценарию выше.
-
-## Версия 0.3 — 2026-10-21
-
-- Среда: Ubuntu 24.04 amd64, Qt 6.4.2, ExifTool 12.76, Sony SDK 2.02.00.
-- Два набора CTest, 15 поведенческих сценариев: успешно (21,31 с в окончательном package build).
-- Добавлены проверки EXIF и поворота JPEG, извлечения и поворота встроенного RAW
-  JPEG с отдельным размером RAW, пар/фильтров/поиска, исключения скрытого staging,
-  публикации и отказа от перезаписи готового файла, смены каталога/отмены чтения,
-  перезапуска/удержания студийного таймера и полного сценария с fake backend.
-- В полном сценарии: Unicode/пробел в имени, прогресс передачи, новый JPEG
-  показывается в 1200×800 вместо Live View 640×480; затем поток восстанавливается.
-  Sync All обновляет галерею, но не включает студийный показ.
-- RAW fixture — синтетический TIFF/DNG со встроенным JPEG и EXIF; генерируется
-  тестом, не является файлом реальной камеры. Тест подтверждает форматный путь
-  чтения превью, но не заменяет проверки ARW с разных моделей Sony.
-- При визуальной проверке найден heap-use-after-free при закрытии окна:
-  finished QProcess обращался к разрушенному списку действий. ASan подтвердил
-  точную причину; явный teardown MainWindow/CameraSession устранил ошибку.
-- Оба набора повторены под AddressSanitizer: 0 ошибок доступа к памяти,
-  ASAN_OPTIONS=detect_leaks=0:halt_on_error=1; утечки этим запуском не проверялись.
-- Backend собирается с SDK 2.02, headless и OpenCV. SDK/hardware новые пути
-  передачи ещё не проверены на камере; fake backend не заменяет такую проверку.
-- Скриншоты 1280×870 и отдельной галереи проверены: миниатюры, фильтры, просмотр,
-  EXIF и текущий прогресс видны. Боковые блоки прокручиваются в меньшем окне.
-
-### Установка 0.3
-
-DEB 0.3 установлен apt в отдельный Ubuntu Base 24.04 amd64 без dev-пакетов:
-ExifTool и Perl установлены автоматически из Depends. В bwrap с изолированной
-сетью и чистым окружением проверены версии GUI/backend и запуск окна до
-контрольного timeout (код 124, без crash).
-
-В этом же образе отдельный небольшой helper вызывает MediaReader из той же
-статической библиотеки GUI: успешно прочитаны встроенный JPEG 400×600, поворот 6,
-модель ILCE-6700 и размер RAW 6000×4000 синтетического DNG. В образ не монтировались
-исходники проекта или исходный SDK — только helper и синтетическая fixture.
-Это проверяет runtime ExifTool и JPEG decoder, не аппаратную совместимость камеры.
-
-Окончательный DEB повторно установлен после правки подписи источника: GUI и
-backend выводят 0.3.0, окно запускается без crash. SHA256 установленного GUI
-совпадает с содержимым пакета. Удаление через apt remove успешно, файл GUI удалён.
-Исходный прототип и настройки/сервисы хоста не изменялись.
-
-### Аппаратная приёмка 0.3
-
-1. JPEG + RAW+JPEG + RAW: сверить оригиналы, EXIF, ориентацию и подпись источника.
-2. Auto Sync и Sync All: файлы появляются только готовыми, готовые не дублируются.
-3. Студия 2/3/10 секунд, серия и кнопка камеры; удержание/снятие удержания,
-   изменение интервала, отключение режима, потеря связи и закрытие окна.
-4. Остановить Sync при передаче; на камере без immediate cancel дождаться текущего
-   файла. Повторить Sync после отмены/обрыва, проверить отсутствие неполных final файлов.
-5. Большая карта/каталог и большой RAW без превью: UI остаётся управляемым,
-   ошибка чтения объясняется, исходный RAW не меняется.
-
-## Версия 0.4 — 2026-10-21
-
-Сценарий 0.3 пересмотрен после аппаратного замечания пользователя: тяжёлые RAW
-передавались после каждого спуска. Проверки ниже относятся к новому отложенному
-импорту. Производительность физической камеры в этой сессии не измерялась.
+## Results 2026-10-19
 
 - Ubuntu 24.04 amd64, GCC 13.3, Qt 6.4.2, Sony SDK 2.02.00.
-- GUI без SDK и backend headless/OpenCV собираются. GUI не включает Sony headers.
-- 4 набора, 25 поведенческих сценариев: базовые 8, медиа 7, карта GUI 6,
-  backend карты 4 (init/cleanup Qt не включены в число сценариев).
-- Fake backend: обычный спуск, list и preview не вызывают card copy и не создают
-  оригиналы в каталоге назначения; старый auto_sync=true не восстанавливается.
-- Проверены RAW+JPEG, выбор одного формата, выбранные/все/новые, сохранение журнала
-  между контроллерами, исчезновение локального файла и новый каталог назначения.
-  Полная повторная копия получает суффиксы, «новые» повторно не передаются.
-- Отмена останавливает очередь; удаление и копирование имеют разные отметки.
-  Отмена диалога не отправляет удаление; защищённый кадр не удаляется; SDK ошибка
-  не считается успехом и прекращает дальнейшие удаления.
-- Новый backend тестируется подменами функций API на этапе линковки. SDK runtime
-  используется для конструкторов/деструкторов структур; Init/Connect и реальные
-  камера/сеть в этих тестах не вызываются. Проверены compressed API без original
-  fallback, явная оригинальная передача и отмена до terminal callback, проверка
-  длины, повторный contentId с другой идентичностью, эпохи каталога, symlinks,
-  capability/protection и успешный/неуспешный OnWarningExt удаления.
-- GUI наборы и backend карты прошли AddressSanitizer с
-  `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`. Ошибок доступа к памяти нет;
-  утечки этим запуском не проверялись.
-- Дополнительная проверка закрытия с полноэкранным превью выявила сохранение
-  fullscreen state при возврате в QSplitter. Исправлены сброс состояния, порядок
-  панелей и восстановление размеров. Регрессия проверяется в тесте MainWindow.
-- Интерфейс 1280×870 проверен визуально: карта и локальные файлы разделены,
-  превью/источник/масштаб, слот/дата/статус, независимые отметки и кнопки видимы.
+- Building GUI without SDK, GUI + headless backend and backend with OpenCV: successful.
+- CTest: 1 set, 8 behavior scenarios, 0 errors (Qt also does init/cleanup).
+- Tested: opt-in and removal of username/password, 0600, scale and return from full
+  screen, incomplete JPEG and file replacement, fragmented events, commands
+  no secret in argv, reconnect/cancel, turn off replays, stop
+  hung process without blocking UI, MainWindow integration + built-in JPEG.
+- DEB created by CPack, dependencies calculated by dpkg-shlibdeps. desktop-file-validate: successful.
+- Full installation via apt in clean Ubuntu Base 24.04 amd64: successful.
+  Used official rootfs with SHA256 verification, proot only for apt/dpkg;
+  runtime was launched in a separate bwrap user/mount/PID/network namespace, without
+  access to the working tree and SDK. apt of the installed application allowed everything
+  dependencies. The base rootfs has a machine-id/runtime directory created before starting,
+  which are usually already installed in Ubuntu Desktop.
+- Installed GUI: --version outputs SonShell Remote 0.2.0; window lives up to
+  control timeout 3 s (code 124), no abnormal termination. Offscreen plugin
+  reports expected missing propagateSizeHints; this is a test limitation
+  graphical backend, not build error. Ldd backend and PTP adapter: all dependencies found.
+- Final DEB reinstalled; The SHA256 of the installed GUI matches
+  package contents. Removal via apt remove was successful, the executable file was deleted.
+- Interface screenshot checked visually; controls and Live View are visible,
+  There are no overlays or cropped text at 1280x870.
+- In a clean image, all packaged SDK .so resolve dependencies with private
+  LD_LIBRARY_PATH; backend --version outputs 0.2.0 (REMOTE/1). SDK Init and try
+  connections to isolated 127.0.0.1 fail with the expected Camera not available / CrError_Connect_ConnectIP and code 2
+  in the absence of a camera, without bootloader errors and crashes.
+- No physical camera was used. SDK operation when shooting, real speed
+  Live View, RAW+JPEG transfer and network interruption require lower receiving hardware.
 
-### Аппаратная приёмка 0.4 (ещё не выполнена)
+Automatic checks use fake backend and temporary settings/images;
+they do not confirm that the physical camera works with the SDK.
 
-1. Обновить 0.3 с Auto Sync=true; серия тяжёлых RAW с программного и аппаратного
-   спуска. Проверить отсутствие оригинальных передач и сравнить задержки Live View.
-2. Обновить карту после серии; сравнить список и форматы с картой, включая оба
-   слота и одинаковые имена. Неподдерживаемый/пустой слот должен быть объяснён.
-3. Перебирать превью RAW и RAW+JPEG, Fit/100%/F11/Esc и закрытие окна в fullscreen.
-   Подтвердить, что передаётся compressed preview, а не оригинал.
-4. Отобрать несколько кадров, скопировать JPEG, затем новые RAW; сравнить размеры
-   и содержимое с картой. Повторные «новые» не передаются, «все» создают полные
-   дополнительные копии без перезаписи. Проверить другой каталог назначения.
-5. Тестовый кадр с резервной копией: отменить диалог удаления, затем удалить
-   RAW+JPEG целиком. Проверить защиту/неподдерживаемую модель и ошибку SDK.
-6. Остановить большую передачу, выключить сеть, переподключиться и снова скопировать
-   новые. Частичные файлы не должны появляться под финальными именами.
-7. Студийное превью по отдельному флажку, возврат через 2/3/10 с и удержание;
-   ручной импорт не включает студию и не запрашивает RAW на спуске.
-8. Большая карта и длинная очередь: оценить задержки списка и обновлений. Qt
-   список пока не виртуализирован; профилирование этого случая остаётся в плане.
+## Hardware scenario
 
-### Установка 0.4
+1. Connection with Access Authentication; check incorrect password.
+2. Save fields by checkbox, restart; uncheck the box, check deletion.
+3. Live View inside GUI: Fit, 100%, wheel, F11, Esc, return and continue flow.
+4. Remove JPEG, wait for transfer; separate window, 100%, pan and full
+   screen. Check a large and rotated JPEG.
+5. Turn off Wi-Fi/camera: actions are disabled; restored after switching on
+   connection, Auto Sync and Live View.
+6. While waiting, click “Disable”: the repetitions stop.
+7. Close GUI on connection/transfer: backend should exit.
+8. Auto Sync and Sync All for RAW+JPEG; check the downloaded originals.
 
-Окончательная Release сборка: 4/4 CTest, 25 сценариев, 0 ошибок, 25,00 с.
-Три GUI набора прошли ASan; после последнего изменения режима полного импорта
-повторён затронутый camera-card-tests. Четыре сценария backend также прошли ASan.
+## Repeat installation check
 
-Для выпуска заново распакован официальный Ubuntu Base 24.04.5 amd64 в отдельный
-`build-clean/rootfs-0.4`, SHA256 tar.gz проверен по ранее полученному SHA256SUMS.
-Runtime зависимости установлены apt из репозиториев Ubuntu с нуля, без dev-пакетов.
-Окончательный DEB повторно установлен после последней правки; хеши установленных
-GUI и backend совпали с содержимым DEB. В отдельном bwrap namespace без доступа
-к рабочему дереву/исходному SDK проверены:
+Image: https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ – amd64
+base tar.gz and its SHA256SUMS. In this session everything is placed inside `build-clean/`;
+the host system and installed prototype did not change.
 
-- GUI и backend `--version`: 0.4.0; ExifTool: 12.76.
-- GUI живёт до контрольного timeout 3 с (код 124), без аварийного завершения.
-- Ldd backend и PTP adapter: отсутствующих библиотек нет.
-- SDK Init/попытка подключения к изолированному 127.0.0.1: ожидаемый
-  CrError_Connect_ConnectIP, код 2, без loader error/crash; физическая камера
-  и сеть пользователя недоступны этому запуску.
-- Удаление через apt remove успешно, установленный GUI удалён.
+1. Unpack the verified rootfs into build-clean/rootfs. Install DEB command
+   `apt-get install /packages/sonshell-remote_0.2.0-1ubuntu24.04_amd64.deb` inside
+   rootfs (root -0, bind only /dev, /proc, resolv.conf and package directory).
+2. Create rootfs/etc/machine-id and private XDG_RUNTIME_DIR for the minimal image.
+3. Run the installed application in bwrap with rootfs as /, `--unshare-all`,
+   clean env, QT_QPA_PLATFORM=offscreen. Do not mount the working tree and SDK.
+4. Check `sonshell-remote --version`, launching a window under timeout, ldd backend and
+   adapters, lack of SDK paths in RUNPATH, then `apt remove sonshell-remote`.
 
-Все установочные файлы, тестовые настройки и изображения находятся в build-каталогах
-или QTemporaryDir. Исходный прототип, настройки и сервисы хоста не менялись.
-Пакет: `build-package/sonshell-remote_0.4.0-1ubuntu24.04_amd64.deb`; контрольные
-суммы и исходный commit записаны рядом в `RELEASE-0.4.txt`. Аппаратная приёмка
-и скорость работы реальной камеры остаются непроверенными.
+This is a userspace installation and startup check, not a full-fledged VM with Ubuntu Desktop,
+graphics driver and physical camera. Verification is required for a stable release
+in a real Ubuntu Desktop with a network and camera according to the scenario above.
 
-## Версия 0.4.1 — 2026-10-21
+## Version 0.3 - 2026-10-21
 
-При read-only проверке запущенной версии 0.4 видно: обработано 2 файла, 2 ошибки
-«Небезопасный путь на карте», индикатор 50%, «Остановить» выключена, остальные
-действия доступны. Это окончание очереди с отказами до вызова SDK transfer,
-а не зависший transfer. Пользователь подтвердил удаление и один физический слот
-α6700. Копирование новой версией на камере ещё не проверено.
+- Environment: Ubuntu 24.04 amd64, Qt 6.4.2, ExifTool 12.76, Sony SDK 2.02.00.
+- Two sets of CTest, 15 behavioral scenarios: successful (21.31 s in the final package build).
+- Added EXIF and JPEG rotation checks, embedded RAW extraction and rotation
+  JPEG with separate RAW size, pairs/filters/search, exclusion of hidden staging,
+  publication and refusal to overwrite the finished file, change directory/cancel reading,
+  restart/hold studio timer and full script with fake backend.
+- In full script: Unicode/space in name, transfer progress, new JPEG
+  shown at 1200x800 instead of Live View 640x480; then the flow is restored.
+  Sync All updates the gallery but does not include the studio show.
+- RAW fixture - synthetic TIFF/DNG with built-in JPEG and EXIF; generated
+  test, is not a real camera file. The test confirms the format path
+  reading previews, but does not replace checking ARW from different Sony models.
+- Visual inspection found heap-use-after-free when closing the window:
+  finished QProcess accessed the destroyed list of actions. ASan confirmed
+  exact reason; explicit teardown of MainWindow/CameraSession fixed the error.
+- Both sets repeated under AddressSanitizer: 0 memory access errors,
+  ASAN_OPTIONS=detect_leaks=0:halt_on_error=1; Leaks were not tested by this run.
+- Backend is built with SDK 2.02, headless and OpenCV. SDK/hardware new ways
+  the programs have not yet been tested on camera; fake backend does not replace such verification.
+- Screenshots 1280x870 and a separate gallery are checked: thumbnails, filters, preview,
+  EXIF and current progress are visible. Side blocks scroll in a smaller window.
 
-Добавлены проверки:
+### Installation 0.3
 
-- Пути с namespace тома, C:/ и обратными разделителями копируются в ожидаемую
-  иерархию Slot_1/DCIM; `..` и symlinks по-прежнему блокируются.
-- Отсутствующий физический слот 2 не даёт slot-error; поддерживаемый, но неготовый
-  слот сообщает проблему; доступный слот перечитывается.
-- Очередь из пары RAW+JPEG заканчивается на 100% и при успехе, и при двух отказах.
-  «Остановить» отключена только после завершения операции.
-- Отметки копии и брака переключаются независимо в тёмной палитре; визуально
-  проверены крупные белые квадраты, тёмная рамка и цветные галочки.
-- Стрелки и Page Up/Page Down работают в превью карты на полном экране, в локальной
-  галерее и отдельном окне фото. Поиск и порядок списка сохраняются.
-- Быстрые нажатия во время ответа камеры выбирают последний кадр; старое превью
-  не подменяет выбор. Отметки сохраняются. Скрытый фильтром текущий кадр не
-  блокирует переход к видимым.
+DEB 0.3 installed by apt into a separate Ubuntu Base 24.04 amd64 without dev packages:
+ExifTool and Perl are installed automatically from Depends. In bwrap with isolated
+GUI/backend versions were checked using the network and a clean environment and the window was launched up to
+control timeout (code 124, without crash).
 
-SDK-free GUI проверяется с fake backend; SDK backend — линковочными подменами API.
-Новые проверки не инициируют соединение с реальной камерой и не удаляют её файлы.
-Временные настройки/синтетические изображения и диагностические скриншоты не
-добавляются в Git. Запущенный пользовательский сеанс не закрывается и не меняется.
+In the same image, a separate small helper calls MediaReader from the same
+GUI static library: successfully read embedded JPEG 400x600, rotation 6,
+model ILCE-6700 and RAW size 6000×4000 synthetic DNG. Not mounted into image
+project sources or source SDK - only helper and synthetic fixture.
+This checks runtime ExifTool and JPEG decoder, not camera hardware compatibility.
 
-Окончательная Release сборка: CTest 4/4, 35 случаев без init/cleanup, 28,32 с.
-GUI наборы прошли ASan; после уточнения случая скрытого текущего кадра повторён
-затронутый camera-card-tests (3,94 с). SDK backend также прошёл ASan (9 случаев).
-ASAN_OPTIONS=detect_leaks=0:halt_on_error=1: ошибок доступа нет, утечки не проверялись.
+The final DEB is re-installed after editing the source signature: GUI and
+backend output 0.3.0, the window starts without crash. SHA256 of installed GUI
+matches the contents of the package. Removal via apt remove was successful, the GUI file was deleted.
+The original prototype and host settings/services were not changed.
 
-DEB 0.4.1 проверен обновлением с 0.4.0 в изолированном Ubuntu Base 24.04 amd64
-с ранее установленными runtime зависимостями. GUI/backend выводят 0.4.1;
-окно живёт до timeout 3 с (124), SDK соединение с изолированным 127.0.0.1
-заканчивается ожидаемым CrError_Connect_ConnectIP/кодом 2, loader errors нет.
-Хеши обоих установленных исполняемых файлов совпали с DEB; apt remove успешен.
-Исходный SDK, рабочее дерево и камера пользователя недоступны runtime namespace.
-Аппаратную скорость/правильность новой передачи эти проверки не подтверждают.
+### Hardware acceptance 0.3
 
-## Версия 0.5 — 2026-10-21
+1. JPEG + RAW+JPEG + RAW: check originals, EXIF, orientation and source signature.
+2. Auto Sync and Sync All: files appear only ready, ready ones are not duplicated.
+3. Studio 2/3/10 seconds, burst and camera button; hold/remove hold,
+   changing the interval, turning off the mode, losing connection and closing the window.
+4. Stop Sync during transfer; on a camera without immediate cancel wait for the current one
+   file. Repeat Sync after cancellation/break, check for the absence of incomplete final files.
+5. Large card/catalog and large RAW without preview: UI remains manageable,
+   the reading error is explained, the original RAW is not changed.
 
-Добавлены проверки без камеры:
+## Version 0.4 - 2026-10-21
 
-- Space/Delete переключают свои столбцы независимо от текущей ячейки; fullscreen,
-  повторное нажатие, защита кадра и обычное редактирование поиска. Команды удаления
-  при нажатии Delete не отправляются.
-- Преобразование клика в координаты изображения при fit, zoom и pan; поля и
-  перетаскивание исключены. Выбор точки выключается вместе с функцией.
-- Fake backend: доступные/только читаемые параметры, точка AF только при Live View,
-  отключение при потере соединения, восстановление значения после отказа,
-  отсутствие цикла опроса при недоступном capabilities API.
-- Link-time подстановки SDK: варианты GetValues, повторная валидация set,
-  упаковка AF x/y, границы рамки, отсутствие рамки, отказ SDK и неверный ввод.
-  SDK Init/Connect не вызываются. Служебные setters LiveViewProperty в SDK 2.02
-  не заполняют метаданные, поэтому тест подставляет getters и не пишет private память.
-- Русский/английский MainWindow, F1 из fullscreen, полная встроенная справка,
-  сохранение языка для следующего запуска и fallback неизвестного значения.
-- Полнота английского TS каталога, завершённость переводов и подстановки.
+Scenario 0.3 revised after hardware user comment: heavy RAW
+transmitted after each shutter release. The checks below apply to the new deferred
+import. Physical camera performance was not measured in this session.
 
-На этой стадии физическая камера не использовалась. Доступность и точность AF,
-ориентация, аппаратные изменения режимов и поведение после переключения
-фото/видео требуют отдельной проверки на α6700. Успешный set не означает резкость.
+- Ubuntu 24.04 amd64, GCC 13.3, Qt 6.4.2, Sony SDK 2.02.00.
+- GUI without SDK and backend headless/OpenCV are built. GUI does not include Sony headers.
+- 4 sets, 25 behavioral scenarios: basic 8, media 7, GUI card 6,
+  backend cards 4 (init/cleanup Qt not included in scripts).
+- Fake backend: normal shutter release, list and preview do not call card copy and do not create
+  originals in the destination catalogue; the old auto_sync=true is not restored.
+- RAW+JPEG checked, select one format, selected/all/new, save log
+  between controllers, local file disappearing and new destination directory.
+  The full repeated copy receives suffixes, the “new” ones are not transmitted again.
+- Cancellation stops the queue; deleting and copying have different marks.
+  Canceling the dialog does not send the deletion; the protected frame is not deleted; SDK error
+  is not considered a success and stops further deletions.
+- The new backend is tested by substituting API functions at the linking stage. SDK runtime
+  used for constructors/destructors of structures; Init/Connect and real
+  The camera/network is not called in these tests. Tested compressed API without original
+  fallback, explicit original transfer and cancellation to terminal callback, check
+  lengths, repeated contentId with different identity, directory epochs, symlinks,
+  capability/protection and successful/unsuccessful OnWarningExt removal.
+- GUI sets and backend cards passed AddressSanitizer with
+  `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`. There are no memory access errors;
+  Leaks were not tested by this run.
+- Additional check of closing with full-screen preview revealed saving
+  fullscreen state when returning to QSplitter. Fixed state reset, order
+  panels and size restoration. The regression is checked in the MainWindow test.
+- 1280x870 interface checked visually: card and local files are separated,
+  preview/source/scale, slot/date/status, independent marks and buttons are visible.
 
-### Итоговая сборка и установка 0.5
+### Hardware acceptance 0.4 (not yet completed)
 
-- Полная Release CMake/CTest: 7/7, 46 случаев Qt без init/cleanup и отдельная
-  проверка каталога (197/197 используемых строк), 31,35 с, без ошибок.
-- SDK headless и прежний backend OpenCV собраны. ASan: 5/5 GUI/каталог; после
-  последней правки повторён затронутый controls-tests (3,22 с), backend 2/2.
-  Leak detection выключен из-за системных Qt/SDK библиотек; ошибок доступа нет.
-- Русский/английский интерфейс и справка визуально просмотрены по offscreen
-  скриншотам; переносы новой панели позволяют узкую боковую колонку.
-- Заново распакован официальный Ubuntu Base 24.04.5 amd64 в
-  `build-clean/rootfs-0.5`, tar.gz проверен по SHA256SUMS. Apt с нуля устанавливает
-  runtime зависимости, в том числе qt6-translations-l10n; SDK/dev-пакеты снаружи
-  недоступны изолированному запуску.
-- Bwrap с отдельной сетью: GUI/backend --version = 0.5.0, ExifTool = 12.76;
-  оба языка GUI живут до контрольного timeout, английский --help переведён;
-  ldd backend/PTP adapter без отсутствующих библиотек. Init SDK и подключение
-  к изолированному localhost завершаются ожидаемым CrError_Connect_ConnectIP,
-  код 2, без аварии; физическая камера не используется.
-- SHA256 установленных GUI/backend совпал с файлами DEB. Apt remove успешен.
-  Дополнительно установлена 0.4.1 и выполнено обновление до 0.5.0 с удалением.
-- Пакет `build-package/sonshell-remote_0.5.0-1ubuntu24.04_amd64.deb`;
-  контрольная сумма/commit — `SHA256SUMS-0.5.0.txt`, `RELEASE-0.5.0.txt` рядом.
-  Логи: `build-clean/fresh-install-0.5.log`, `fresh-runtime-0.5.log`,
-  `upgrade-0.5.log`, `verify-0.5.log`; настройки и службы хоста не менялись.
+1. Update 0.3 with Auto Sync=true; a series of heavy RAW from software and hardware
+   shutter release Check for original transfers and compare Live View latency.
+2. Update the card after the series; compare list and formats with card, including both
+   slots and the same names. The unsupported/empty slot needs to be explained.
+3. Iterate through RAW and RAW+JPEG previews, Fit/100%/F11/Esc and closing the window in fullscreen.
+   Confirm that the compressed preview is being transmitted, and not the original.
+4. Select several frames, copy JPEG, then new RAW; compare sizes
+   and contents with a card. Repeated “new” ones are not transmitted, “all” create complete
+   additional copies without overwriting. Check another destination directory.
+5. Test frame with backup: Cancel delete dialog, then delete
+   Entire RAW+JPEG. Check security/unsupported model and SDK error.
+6. Stop a large transfer, turn off the network, reconnect and copy again
+   new. Partial files should not appear under final names.
+7. Studio preview using a separate flag, return after 2/3/10 s and hold;
+   manual import does not include studio and does not request RAW on release.
+8. Large card and long queue: evaluate list and update delays. Qt
+   the list is not yet virtualized; profiling of this case remains in the plan.
 
-## Версия 0.6 — 2026-10-23
+### Installation 0.4
 
-Проверки новых сценариев без физической камеры:
+Final Release build: 4/4 CTest, 25 scenarios, 0 errors, 25.00 sec.
+Three GUI kits passed ASan; after the last change to full import mode
+affected camera-card-tests has been repeated. Four backend scripts also passed ASan.
 
-- Space/Delete в fullscreen дают видимое подтверждение, постоянные состояния
-  и объяснение запрета для защищённого файла. Отметки меняются и поверх движущегося
-  видео. Синтетический ролик и оверлей проверены визуально по скриншоту.
-- Реальный FFmpeg декодирует сгенерированные MP4/H.265: первый кадр в MediaReader,
-  воспроизведение/пауза/остановка, поток через QLocalSocket и EOF с дочитыванием.
-- Видео и фото одного имени индексируются раздельно. Галерея/фильтры видят MP4,
-  remote MP4+XML копируется по локальной дате, New не повторяет завершённый импорт;
-  прежняя структура Slot_N продолжает учитываться через старый ledger.
-- Backend с подменой SDK включает MP4/sidecar, принудительно использует Thumbnail,
-  копирует оригинал только явно. Локальная дата, fallback UTC, календарные границы
-  и високосный год проверены отдельно от текущего времени компьютера.
-- SDK movie подстановки проверяют start/play/pause/seek/cancel/StopComplete,
-  старый request, отказ запуска и fatal при неподтверждённой остановке.
-- MainWindow отключает конфликтующие команды на время movie и возвращает Live View
-  после перехода на другую вкладку. SDK Init/Connect в этих тестах не вызывается;
-  маршрут movie в подстановке определяется для loopback без отправки датаграмм.
+For release, the official Ubuntu Base 24.04.5 amd64 was extracted into a separate one
+`build-clean/rootfs-0.4`, SHA256 tar.gz verified against previously received SHA256SUMS.
+Runtime dependencies were installed by apt from Ubuntu repositories from scratch, without dev packages.
+The final DEB is reinstalled after the last edit; hashes of installed
+The GUI and backend matched the contents of the DEB. In a separate bwrap namespace without access
+to the working tree/source SDK checked:
 
-Синтетический H.265 не подтверждает формат/доставку данных реальной камерой.
-Аппаратная приёмка: streaming и сетевые порты α6700, firmware, локальная дата около
-полуночи/часового пояса, длинные MP4, пауза/seek, защита/удаление состава записи.
-Предпросмотр без звука до 1280×720/12 fps, оригиналы не перекодируются.
+- GUI and backend `--version`: 0.4.0; ExifTool: 12.76.
+- GUI lives until control timeout 3 s (code 124), without crash.
+- Ldd backend and PTP adapter: no missing libraries.
+- SDK Init/attempt to connect to isolated 127.0.0.1: expected
+  CrError_Connect_ConnectIP, code 2, without loader error/crash; physical camera
+  and the user's network are not available to this run.
+- Removal via apt remove was successful, the installed GUI was removed.
 
-Release: CTest 8/8, 56 случаев Qt без init/cleanup и проверка каталога переводов,
-36,46 с. ASan GUI/каталог 6/6 и backend 2/2; после финальных изменений повторены
-camera-card-tests, controls-tests, video-tests (3/3, 11,28 с). Leak detection
-отключён; ошибок доступа нет. Headless и OpenCV backend собраны.
+All installation files, test settings and images are located in the build directories
+or QTemporaryDir. The original prototype, settings and host services did not change.
+Package: `build-package/sonshell-remote_0.4.0-1ubuntu24.04_amd64.deb`; control
+the checksums and the original commit are written side by side in `RELEASE-0.4.txt`. Hardware acceptance
+and the speed of the actual camera remain untested.
 
-### Установка выпуска 0.6
+## Version 0.4.1 - 2026-10-21
 
-Заново распакован официальный Ubuntu Base 24.04.5 amd64 в `build-clean/rootfs-0.6`
-с проверкой tar.gz по SHA256SUMS. Apt установил все runtime зависимости с нуля,
-включая FFmpeg. В отдельном bwrap namespace без доступа к рабочему дереву и SDK
-проверены GUI/backend 0.6.0, русский/английский запуск до контрольного timeout,
-переведённый --help, ldd без отсутствующих библиотек, ExifTool и реальный
-цикл H.265 encode/decode → JPEG. Подключение SDK к изолированному loopback даёт
-ожидаемый CrError_Connect_ConnectIP/код 2; камера и сеть пользователя не используются.
-Хеши установленных GUI/backend совпали с DEB. Дополнительно пройдены установка
-0.5.0 → обновление 0.6.0 → apt remove. Настройки и службы хоста не менялись.
+When reading-only checking the running version 0.4, you can see: 2 files processed, 2 errors
+“Unsafe path on the card”, indicator 50%, “Stop” off, the rest
+actions are available. This is the end of the queue with failures before calling SDK transfer,
+and not a frozen transfer. User confirmed deletion and one physical slot
+α6700. Copying with the new version on the camera has not yet been tested.
 
-Пакет: `build-package/sonshell-remote_0.6.0-1ubuntu24.04_amd64.deb`.
-Логи: `build-clean/fresh-install-0.6.log`, `fresh-runtime-0.6.log`,
-`upgrade-0.6.log`, `verify-0.6.log`; контрольная сумма/commit —
-`build-package/SHA256SUMS-0.6.0.txt` и `RELEASE-0.6.0.txt`.
+Added checks:
+
+- Paths with volume namespace, C:/ and back separators are copied to the expected
+  hierarchy Slot_1/DCIM; `..` and symlinks are still blocked.
+- Missing physical slot 2 does not give slot-error; supported but not ready
+  slot reports problem; the available slot is reread.
+- The queue from the RAW+JPEG pair ends at 100% both with success and with two failures.
+  "Stop" is disabled only after the operation is completed.
+- Copy and defect marks are switched independently in the dark palette; visually
+  Large white squares, dark frames and colored checkmarks have been checked.
+- Arrows and Page Up/Page Down work in card preview on full screen, in local
+  gallery and a separate photo window. The search and list order are preserved.
+- Quick presses while the camera is responding select the last frame; old preview
+  does not replace choice. The marks are saved. The current frame hidden by the filter is not
+  blocks the transition to visible.
+
+SDK-free GUI is tested with fake backend; SDK backend - linking API substitutions.
+The new checks do not initiate a connection to the real camera and do not delete its files.
+Temporary settings/synthetic images and diagnostic screenshots are not
+are added to Git. The running user session is not closed or changed.
+
+Final Release build: CTest 4/4, 35 cases without init/cleanup, 28.32 sec.
+GUI kits have passed ASan; after clarifying the case of a hidden current frame, repeated
+affected by camera-card-tests (3.94s). The SDK backend also passed ASan (9 cases).
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1: no access errors, leaks were not checked.
+
+DEB 0.4.1 tested by updating from 0.4.0 in isolated Ubuntu Base 24.04 amd64
+with previously installed runtime dependencies. GUI/backend output 0.4.1;
+window lives up to timeout 3 s (124), SDK connection to isolated 127.0.0.1
+ends with the expected CrError_Connect_ConnectIP/code 2, no loader errors.
+The hashes of both installed executables matched the DEB; apt remove is successful.
+The original SDK, work tree and user camera are not accessible by runtime namespace.
+These checks do not confirm the hardware speed/correctness of the new transfer.
+
+## Version 0.5 - 2026-10-21
+
+Added checks without a camera:
+
+- Space/Delete switch their columns regardless of the current cell; fullscreen,
+  pressing again, frame protection and normal search editing. Removal commands
+  are not sent when pressing Delete.
+- Convert click to image coordinates for fit, zoom and pan; fields and
+  drag and drop excluded. Point selection is disabled along with the function.
+- Fake backend: available/read-only parameters, AF point only in Live View,
+  shutdown when connection is lost, restore value after failure,
+  absence of a polling cycle when the capabilities API is unavailable.
+- Link-time substitution SDK: GetValues options, set re-validation,
+  AF x/y packing, frame borders, missing frame, SDK failure and invalid input.
+  SDK Init/Connect are not called. Utility setters LiveViewProperty in SDK 2.02
+  do not fill in metadata, so the test substitutes getters and does not write private memory.
+- Russian/English MainWindow, F1 from fullscreen, full built-in help,
+  saving the language for the next launch and fallback of an unknown value.
+- Completeness of the English TS catalog, completeness of translations and substitutions.
+
+At this stage, no physical camera was used. AF availability and accuracy,
+orientation, hardware mode changes and post-switch behavior
+Photos/videos require separate verification on the α6700. A successful set does not mean sharpness.
+
+### Final build and installation 0.5
+
+- Full Release CMake/CTest: 7/7, 46 Qt cases without init/cleanup and separate
+  directory check (197/197 lines used), 31.35 sec, no errors.
+- SDK headless and the previous OpenCV backend are assembled. ASan: 5/5 GUI/directory; after
+  the last edit repeated the affected controls-tests (3.22 s), backend 2/2.
+  Leak detection is disabled due to system Qt/SDK libraries; no access errors.
+- Russian/English interface and help are visually viewed on offscreen
+  screenshots; The new panel transfers allow for a narrow side column.
+- Re-packaged official Ubuntu Base 24.04.5 amd64 in
+  `build-clean/rootfs-0.5`, tar.gz verified by SHA256SUMS. Apt installs from scratch
+  runtime dependencies, including qt6-translations-l10n; SDK/dev packages externally
+  not available for isolated launch.
+- Bwrap with separate network: GUI/backend --version = 0.5.0, ExifTool = 12.76;
+  both GUI languages ​​live until the control timeout, English --help translated;
+  ldd backend/PTP adapter without missing libraries. Init SDK and connection
+  to isolated localhost are completed with the expected CrError_Connect_ConnectIP,
+  code 2, no accident; no physical camera is used.
+- SHA256 of installed GUI/backend matches DEB files. Apt remove is successful.
+  Additionally, 0.4.1 was installed and updated to 0.5.0 with removal.
+- Package `build-package/sonshell-remote_0.5.0-1ubuntu24.04_amd64.deb`;
+  checksum/commit - `SHA256SUMS-0.5.0.txt`, `RELEASE-0.5.0.txt` nearby.
+  Logs: `build-clean/fresh-install-0.5.log`, `fresh-runtime-0.5.log`,
+  `upgrade-0.5.log`, `verify-0.5.log`; the host settings and services did not change.
+
+## Version 0.6 - 2026-10-23
+
+Testing new scenarios without a physical camera:
+
+- Space/Delete in fullscreen give visible confirmation, permanent states
+  and an explanation of the prohibition for a protected file. The marks change and over the moving
+  video. The synthetic video and overlay were checked visually using the screenshot.
+- Real FFmpeg decodes generated MP4/H.265: first frame in MediaReader,
+  play/pause/stop, stream via QLocalSocket and EOF with read-through.
+- Videos and photos of the same name are indexed separately. Gallery/filters see MP4,
+  remote MP4+XML is copied by local date, New does not repeat the completed import;
+  the old Slot_N structure continues to be taken into account through the old ledger.
+- Backend with SDK substitution includes MP4/sidecar, forces use of Thumbnail,
+  copies the original only explicitly. Local date, fallback UTC, calendar boundaries
+  and leap year are checked separately from the current computer time.
+- SDK movie substitutions check start/play/pause/seek/cancel/StopComplete,
+  old request, startup failure and fatal for unconfirmed stop.
+- MainWindow disables conflicting commands for the duration of the movie and returns Live View
+  after switching to another tab. SDK Init/Connect is not called in these tests;
+  The movie route in the substitution is defined for loopback without sending datagrams.
+
+Synthetic H.265 does not validate the data format/delivery of the actual camera.
+Hardware acceptance testing: streaming and network ports α6700, firmware, local date approx.
+midnight/time zone, long MP4, pause/seek, protect/delete recording composition.
+Preview without sound up to 1280×720/12 fps, originals are not re-encoded.
+
+Release: CTest 8/8, 56 Qt cases without init/cleanup and translation directory check,
+36.46 s. ASan GUI/directory 6/6 and backend 2/2; repeated after final changes
+camera-card-tests, controls-tests, video-tests (3/3, 11.28 sec). Leak detection
+disabled; no access errors. Headless and OpenCV backend are assembled.
+
+### Installing release 0.6
+
+The official Ubuntu Base 24.04.5 amd64 has been re-packed into `build-clean/rootfs-0.6`
+with tar.gz verification using SHA256SUMS. Apt installed all runtime dependencies from scratch,
+including FFmpeg. In a separate bwrap namespace without access to the working tree and SDK
+GUI/backend 0.6.0 tested, Russian/English launch before control timeout,
+translated --help, ldd without missing libraries, ExifTool and real
+H.265 encode/decode → JPEG loop. Connecting the SDK to an isolated loopback gives
+expected CrError_Connect_ConnectIP/code 2; The camera and user network are not used.
+The hashes of the installed GUI/backend matched the DEB. Additionally completed installation
+0.5.0 → update 0.6.0 → apt remove. The host settings and services did not change.
+
+Package: `build-package/sonshell-remote_0.6.0-1ubuntu24.04_amd64.deb`.
+Logs: `build-clean/fresh-install-0.6.log`, `fresh-runtime-0.6.log`,
+`upgrade-0.6.log`, `verify-0.6.log`; checksum/commit —
+`build-package/SHA256SUMS-0.6.0.txt` and `RELEASE-0.6.0.txt`.
 
 
-## Версия 0.6.1 — 2026-10-23
+## Version 0.6.1 - 2026-10-23
 
-- Release: CMake build и CTest 8/8, 62 Qt-сценария без init/cleanup плюс проверка
-  перевода. SDK backend 2.02 собран с headless и OpenCV.
-- Новая проверка 1920×1080/24 fps получает все 24 кадра, сравнивает декодированные
-  RGB-пиксели первого кадра с эталонным FFmpeg выводом. Время воспроизведения
-  не короче 850 мс для секундного клипа: проверен темп по PTS без начального рывка. Проверены повреждённый
-  локальный файл, пустой канал камеры без ложной ошибки FFmpeg и полный путь
-  камеры/локального файла при переключении вкладок.
-- H.265 по QLocalSocket начинает показывать кадры до EOF (короткий ролик), после
-  EOF получены все 24 кадра. Backend отдельно проверяет дописывание очереди после
-  NormalTermination и структурированную movie-no-data с подтверждением остановки.
-- ASan: GUI remote/media/card/video 4/4 и SDK mock card-backend 1/1 без ошибок
-  доступа, detect_leaks=0. После последнего изменения повторён video-tests Release
-  и ASan; поведение не приравнивается к проверке утечек.
-- Скачанный пользователем ролик H.264 10-bit 4:2:2, 1920×1080, 50/1, 144 кадра:
-  все 144 кадра получены и переданы ImageView в размере 1920×1080. Оригинал не
-  менялся и в Git не добавлялся. Это проверка локального файла, не SDK потока.
+- Release: CMake build and CTest 8/8, 62 Qt scripts without init/cleanup plus check
+  translation. SDK backend 2.02 is built with headless and OpenCV.
+- New 1920×1080/24 fps check receives all 24 frames, compares decoded ones
+  RGB pixels of the first frame with reference FFmpeg output. Playing time
+  no shorter than 850 ms for a second clip: PTS tempo checked without initial jerk. Checked damaged
+  local file, empty camera channel without false FFmpeg error and full path
+  camera/local file when switching tabs.
+- H.265 over QLocalSocket starts showing frames before EOF (short video), after
+  EOF received all 24 frames. The backend separately checks the addition of the queue after
+  NormalTermination and structured movie-no-data with stop confirmation.
+- ASan: GUI remote/media/card/video 4/4 and SDK mock card-backend 1/1 without errors
+  access, detect_leaks=0. After the last change, video-tests Release was repeated
+  and ASan; behavior does not amount to leak testing.
+- User-downloaded video H.264 10-bit 4:2:2, 1920×1080, 50/1, 144 frames:
+  all 144 frames are received and transmitted to ImageView at 1920x1080. The original is not
+  changed and was not added to Git. This is a local file check, not a stream SDK.
 
-### Аппаратная диагностика
+### Hardware diagnostics
 
-На подключённой ILCE-6700 прочитан каталог карты, выполнены Start/Play Movie
-Playback, получены StatusChanged/NormalTermination. Видеобайты не поступали.
-Журнал ядра за то же время подтвердил UFW BLOCK TCP SYN от камеры на порт 55001
-компьютера; трасса socket/bind/listen подтвердила корректный адрес и слушающие
-порты SDK. Сетевые payload и учётные данные трассировкой не записывались.
+On the connected ILCE-6700 the card directory has been read, Start/Play Movie has been executed
+Playback, received StatusChanged/NormalTermination. No video bytes were received.
+The kernel log for the same time confirmed UFW BLOCK TCP SYN from the camera on port 55001
+computer; the socket/bind/listen trace confirmed the correct address and listeners
+SDK ports. Network payloads and credentials were not recorded by the trace.
 
-С отдельного согласия пользователя через системный диалог администратора
-добавлено адресное правило UFW: входящие TCP 55001/55003/55005 от 10.0.1.5 к
-10.0.1.84. Откат — команда delete allow в INSTALL.md. После восстановления
-подключения камеры к Wi-Fi выполнена повторная аппаратная проверка:
+With the individual consent of the user through the system administrator dialog
+added UFW address rule: incoming TCP 55001/55003/55005 from 10.0.1.5 to
+10.0.1.84. Rollback - delete allow command in INSTALL.md. After recovery
+The camera's connection to Wi-Fi has been re-checked hardware-wise:
 
-- На ILCE-6700 получено и декодировано превью SDK 1280×720 без копирования MP4.
-- Pause, повторный Play, Seek на 1 с приняты SDK; после Seek получены кадры,
-  всего в сценарии 56. Ошибок SDK/декодера не было. Точность позиции по timecode
-  отдельно не измерялась.
-- StopComplete получен; после monitor start снова прочитан настоящий Live View
-  JPEG 1024×576. Автоматический переход MainWindow проверен отдельно fake backend.
-- Лог аппаратного сценария: build-package/hardware-movie-07.log, exit 0;
-  учётные данные/изображения в Git не добавлялись.
+- A 1280×720 SDK preview was received and decoded on the ILCE-6700 without ripping MP4.
+- Pause, repeat Play, Seek for 1 s accepted by SDK; after Seek frames are received,
+  There were 56 total in the script. There were no SDK/decoder errors. Position accuracy by timecode
+  was not measured separately.
+- StopComplete received; after monitor start the real Live View is read again
+  JPEG 1024x576. Automatic transition of MainWindow is tested separately by fake backend.
+- Hardware script log: build-package/hardware-movie-07.log, exit 0;
+  Git credentials/images were not added.
 
-Первоначальный SSH ServerConnectFailed 0x8214 воспроизводился при недоступном
-адресе камеры и исчез после восстановления сети пользователем. Этот отказ не
-смешивается с воспроизведённой блокировкой входящего потока UFW.
+Initial SSH ServerConnectFailed 0x8214 was reproduced when unavailable
+camera address and disappeared after the user restored the network. This refusal is not
+mixed with the reproduced blocking of the incoming UFW stream.
 
-### Изолированная установка
+### Isolated installation
 
-Заново распакован официальный Ubuntu Base 24.04.5 amd64, архив проверен SHA256.
-Apt установил DEB 0.6.1 со всеми зависимостями с нуля. В bwrap без доступа к
-рабочему дереву/исходному SDK проверены версии GUI/backend, RU/EN запуск, English
---help, ExifTool, H.265 encode/decode и вывод RGB24/PPM, ldd без отсутствующих
-библиотек. SDK loopback завершается ожидаемым ConnectIP/кодом 2; камера и сеть
-пользователя в этом тесте не используются. Хеши GUI/backend совпали с пакетом.
-Пройдены 0.6.0 → 0.6.1 и удаление; зависимости/службы хоста не менялись.
-Окончательный пакет повторно установлен в этот же образ: хеши GUI/backend
-совпали с DEB, RU/EN и SDK loader прошли проверку, затем пакет удалён. Helper из
-той же GUI core отрисовал все 24 кадра 1920×1080; секундный ролик занял 1012 мс.
-Окончательный CTest 8/8, 38,65 с. Лог: build-clean/verify-final-0.6.1.log.
+The official Ubuntu Base 24.04.5 amd64 has been re-unpacked, the archive has been verified by SHA256.
+Apt installed DEB 0.6.1 with all dependencies from scratch. In bwrap without access to
+GUI/backend, RU/EN launch, English versions have been checked for the working tree/source SDK
+--help, ExifTool, H.265 encode/decode and RGB24/PPM output, ldd without missing ones
+libraries. SDK loopback fails with expected ConnectIP/Code 2; camera and network
+usernames are not used in this test. The GUI/backend hashes matched the package.
+Passed 0.6.0 → 0.6.1 and removal; Host dependencies/services did not change.
+Final package re-installed into the same image: GUI/backend hashes
+matched DEB, RU/EN and SDK loader were checked, then the package was deleted. Helper from
+the same GUI core rendered all 24 frames 1920x1080; a second clip took 1012 ms.
+Final CTest 8/8, 38.65 pp. Log: build-clean/verify-final-0.6.1.log.
 
-Артефакты: build-package/sonshell-remote_0.6.1-1ubuntu24.04_amd64.deb,
-SHA256SUMS-0.6.1.txt, RELEASE-0.6.1.txt. Логи: build-package/release-0.6.1.log,
+Artifacts: build-package/sonshell-remote_0.6.1-1ubuntu24.04_amd64.deb,
+SHA256SUMS-0.6.1.txt, RELEASE-0.6.1.txt. Logs: build-package/release-0.6.1.log,
 final-video-0.6.1.log, local-view-quality-0.6.1.log; build-clean/verify-0.6.1.log,
-fresh-runtime-0.6.1.log, upgrade-0.6.1.log. Личные файлы, SDK и диагностика с камеры
-не входят в репозиторий.
+fresh-runtime-0.6.1.log, upgrade-0.6.1.log. Personal files, SDK and diagnostics from the camera
+are not included in the repository.
 
 
-## Версия 0.6.2 — 2026-10-23
+## Version 0.6.2 - 2026-10-23
 
-- Release CMake build и CTest: 8/8, 67 Qt-сценариев без init/cleanup плюс проверка
-  перевода. SDK backend 2.02 собран headless и с OpenCV.
-- Подменённый SDK проверяет порядок AF_Area_Position → S1 Locked → S1 Unlocked,
-  отсутствие S1 при ошибке координат/установки точки, отключение в MF/недоступном
-  S1, отпускание после отказа нажатия и повтор после отказа отпускания. S1 не
-  доступен через generic controls set. GUI показывает отдельный отказ AF после
-  перемещения точки и сохраняет ошибку после обновления snapshot.
-- Controls GUI и backend повторены под ASan: 2/2 набора без ошибок доступа,
-  detect_leaks=0. Это не проверка утечек.
-- Попытка аппаратной проверки через тот же CameraControlsWidget/CameraSession
-  не дошла до AF: камера 10.0.1.5 недоступна, SDK SSH ServerConnectFailed 0x8214.
-  Позже пользователь подтвердил работу исправления (2026-10-24), без перечня
-  конкретных режимов. Полная аппаратная матрица AF остаётся открытой.
-- DEB 0.6.2 прошёл установку/обновление 0.6.1 → 0.6.2 в изолированном
-  Ubuntu Base 24.04.5 amd64 с runtime зависимостями, установленными при чистой
-  проверке 0.6.1. Зависимости не менялись. RU/EN, версии, SDK loader,
-  хеши установленных бинарников и удаление проверены. Хостовые настройки/службы
-  не менялись; helper вывел 24 кадра 1920×1080 за 1013 мс.
+- Release CMake build and CTest: 8/8, 67 Qt scripts without init/cleanup plus check
+  translation. SDK backend 2.02 is built headless and with OpenCV.
+- The spoofed SDK checks the order AF_Area_Position → S1 Locked → S1 Unlocked,
+  absence of S1 in case of coordinate/point setting error, shutdown in MF/unavailable
+  S1, release after failure to press and repeat after failure to release. S1 is not
+  available via generic controls set. GUI shows separate AF failure after
+  moving the point and keeps the error after updating the snapshot.
+- Controls GUI and backend repeated under ASan: 2/2 sets without access errors,
+  detect_leaks=0. This is not a leak test.
+- Attempt to hardware check through the same CameraControlsWidget/CameraSession
+  did not reach AF: camera 10.0.1.5 is unavailable, SDK SSH ServerConnectFailed 0x8214.
+  The user later confirmed the fix worked (2026-10-24), no list
+  specific modes. The full hardware AF matrix remains open.
+- DEB 0.6.2 was installed/updated 0.6.1 → 0.6.2 in an isolated
+  Ubuntu Base 24.04.5 amd64 with runtime dependencies installed when clean
+  check 0.6.1. Dependencies did not change. RU/EN, versions, SDK loader,
+  hashes of installed binaries and removal are verified. Host Settings/Services
+  did not change; helper output 24 frames 1920×1080 in 1013 ms.
 
-Артефакт: build-package/sonshell-remote_0.6.2-1ubuntu24.04_amd64.deb. Логи:
+Artifact: build-package/sonshell-remote_0.6.2-1ubuntu24.04_amd64.deb. Logs:
 build-package/release-0.6.2.log, build-asan/af-tests.log,
 build-asan-backend/af-tests.log, build-clean/verify-final-0.6.2.log.
 
-## Версия 0.6.3 — 2026-10-24
+## Version 0.6.3 - 2026-10-24
 
-- Release CMake build и CTest: 8/8, 71 Qt-сценарий без init/cleanup плюс проверка
-  перевода, 46,11 с. Sony SDK 2.02 backend собран headless и с OpenCV.
-- Проверки GUI: итог drag только после release, объединение колеса в одну
-  команду и отмена при блокировке; ручной ISO/выдержка/f-number/отрицательная EV,
-  запятая и единицы, неподдерживаемый ввод и Esc. Callback не сбрасывает черновик;
-  отключение и read-only блокируют управление. Геометрия поля ISO проверена для
-  AUTO в главном окне. RU/EN окно просмотрено offscreen по снимкам экрана;
-  горизонтальная прокрутка панели устранена увеличением минимальной ширины.
-- SDK fixture проверяет реальные 16/32-битные кодировки, Int16Array EV, отрицательный
-  текущий EV, скалярные типы записи, повторную валидацию значений/read-only.
-- Controls GUI и backend под ASan без ошибок доступа; detect_leaks=0, утечки
-  этим запуском не проверяются. Логи: build-asan/exposure-tests.log,
+- Release CMake build and CTest: 8/8, 71 Qt script without init/cleanup plus check
+  translation, 46.11 p. Sony SDK 2.02 backend is built headless and with OpenCV.
+- GUI checks: drag result only after release, merging the wheel into one
+  command and cancellation when blocked; manual ISO/shutter speed/f-number/negative EV,
+  comma and ones, unsupported input and Esc. Callback does not reset the draft;
+  disable and read-only block control. ISO field geometry tested for
+  AUTO in the main window. RU/EN window viewed offscreen using screenshots;
+  Horizontal scrolling of the panel has been eliminated by increasing the minimum width.
+- SDK fixture checks real 16/32-bit encodings, Int16Array EV, negative
+  current EV, scalar record types, value re-validation/read-only.
+- Controls GUI and backend under ASan without access errors; detect_leaks=0, leaks
+  are not checked by this run. Logs: build-asan/exposure-tests.log,
   build-asan-backend/exposure-tests.log.
-- Физическая камера не использовалась для изменения экспозиции: рабочая сессия
-  пользователя оставлена открытой. Аппаратная приёмка крутилок остаётся открытой.
+- Physical camera was not used to change exposure: working session
+  user is left open. Hardware acceptance of dials remains open.
 
-### Чистая установка и обновление 0.6.3
+### Clean installation and update 0.6.3
 
-Заново распакован официальный Ubuntu Base 24.04.5 amd64, SHA256 архива проверен.
-В пустой образ apt установил 0.6.3 и 249 зависимостей; ранее скачанные DEB
-использованы только как кэш, установленных runtime зависимостей в образе не было.
-В bwrap без доступа к исходникам/SDK/сети проверены версии GUI/backend 0.6.3,
-RU/EN запуск, English --help, Qt переводы, ExifTool, H.265 encode/decode и RGB24/PPM,
-ldd без отсутствующих библиотек. SDK localhost завершился ожидаемым отказом
-ConnectIP/кодом 2. Хеши установленных GUI/backend совпали с DEB.
-Пройдены удаление, установка 0.6.2 → обновление 0.6.3 и повторное удаление.
-Хостовые настройки/службы и исходный прототип не менялись.
+The official Ubuntu Base 24.04.5 amd64 has been re-unpacked, the SHA256 of the archive has been checked.
+In an empty image, apt installed 0.6.3 and 249 dependencies; previously downloaded DEB
+used only as a cache; there were no runtime dependencies installed in the image.
+In bwrap without access to sources/SDK/network, GUI/backend versions 0.6.3 have been tested,
+RU/EN launch, English --help, Qt translations, ExifTool, H.265 encode/decode and RGB24/PPM,
+ldd without missing libraries. SDK localhost failed as expected
+ConnectIP/code 2. The hashes of the installed GUI/backend matched the DEB.
+Completed uninstallation, installation 0.6.2 → update 0.6.3 and uninstallation again.
+The host settings/services and the original prototype were not changed.
 
-Артефакты: build-package/sonshell-remote_0.6.3-1ubuntu24.04_amd64.deb,
-SHA256SUMS-0.6.3.txt, RELEASE-0.6.3.txt. Логи: build-package/release-0.6.3.log,
+Artifacts: build-package/sonshell-remote_0.6.3-1ubuntu24.04_amd64.deb,
+SHA256SUMS-0.6.3.txt, RELEASE-0.6.3.txt. Logs: build-package/release-0.6.3.log,
 final-ui-0.6.3.log; build-clean/verify-0.6.3.log, fresh-install-0.6.3.log,
-fresh-runtime-0.6.3.log, upgrade-0.6.3.log. RU/EN снимки финального окна:
-build-package/final-ui-0.6.3/ (синтетическая камера, без личных снимков/паролей).
+fresh-runtime-0.6.3.log, upgrade-0.6.3.log. RU/EN pictures of the final window:
+build-package/final-ui-0.6.3/ (synthetic camera, no personal photos/passwords).
 
-## Версия 0.7.0 — 2026-10-24
+## Version 0.7.0 - 2026-10-24
 
-### Проверки без камеры
+### Checks without a camera
 
-- CMake Release, CTest 8/8: 80 Qt-сценариев без init/cleanup и проверка переводов.
-  SDK backend собран headless и с OpenCV, дополнительно используется OpenSSL EVP.
-- SDK fixture: известная SHA256 содержимого, отмена во время хеширования без
-  публикации, JPEG original через preview, запрет RAW/MP4 в режиме исходного JPEG.
-- GUI: повреждение при прежних размере/mtime, повторная проверка не заменяет
-  эталон, повторное копирование сохраняет повреждённый файл. Старый ledger без
-  суммы остаётся «без эталона». Локальная проверка доступна без подключения;
-  отмена не посылает команду SDK. После успешной копии строка/отметки сохраняются.
-- JPEG → остановка на RAW → disconnect/перезапуск → новый content-id → продолжение
-  только RAW, очищение завершённой очереди. Другая камера/идентичность отвергается.
-- Полноразмерный студийный JPEG 6192×4128, RAW-only fallback, отсутствие копий
-  в каталоге назначения, удаление временного JPEG, возврат к Live View, полный
-  путь SDK в статусе. Два спуска во время задержанного превью показывают последний
-  кадр; повторный callback не загружает тот же кадр снова.
-- ASan: remote/media/camera-card и card-backend без ошибок доступа,
-  detect_leaks=0 (утечки этим не проверялись). Финальный media-набор повторён
-  после добавления студийного пути. Снимки окна RU/EN проверены offscreen.
+- CMake Release, CTest 8/8: 80 Qt scripts without init/cleanup and translation checking.
+  The SDK backend is built headless and with OpenCV, additionally OpenSSL EVP is used.
+- SDK fixture: known SHA256 content, cancel during hashing without
+  publications, JPEG original via preview, prohibition of RAW/MP4 in original JPEG mode.
+- GUI: corruption at the same size/mtime, re-check does not replace
+  standard, repeated copying saves the damaged file. Old ledger without
+  the amount remains “without a standard”. Local scanning is available without a connection;
+  cancel does not send the SDK command. After a successful copy, the line/marks are saved.
+- JPEG → stop on RAW → disconnect/restart → new content-id → continue
+  RAW only, clearing the completed queue. The other camera/identity is rejected.
+- Full-size studio JPEG 6192×4128, RAW-only fallback, no copies
+  in destination directory, delete temporary JPEG, return to Live View, full
+  SDK path in status. Two shutter releases during a delayed preview show the latter
+  frame; repeated callback does not load the same frame again.
+- ASan: remote/media/camera-card and card-backend without access errors,
+  detect_leaks=0 (leaks were not checked by this). Final media set repeated
+  after adding the studio path. RU/EN window shots were checked offscreen.
 
-### Аппаратная проверка ILCE-6700
+### ILCE-6700 Hardware Test
 
-В отдельном CameraSession/CameraCard с новой GUI core прочитано 356 записей.
-Копирование существующей RAW+JPEG записи в QTemporaryDir: JPEG 5 195 156 байт,
-затем остановка очереди после первого файла (pending=1). SDK процесс остановлен,
-соединение запущено заново, «Продолжить импорт» получило только RAW 32 325 632
-байта. Итог: две копии, очередь пуста, локальная проверка SHA256 — исправны 2,
-изменены/отсутствуют/без эталона 0. JPEG повторно не копировался.
+In a separate CameraSession/CameraCard with the new GUI core, 356 entries were read.
+Copying an existing RAW+JPEG entry to QTemporaryDir: JPEG 5,195,156 bytes,
+then stopping the queue after the first file (pending=1). SDK process stopped
+connection restarted, “Continue import” received only RAW 32,325,632
+byte. Result: two copies, queue empty, local SHA256 check - OK 2,
+altered/missing/no reference 0. JPEG was not copied again.
 
-Исходный JPEG той же записи получен через preview ... jpeg: 5 195 156 байт,
-6192×4128. В проверочном Qt ImageViewer работал таймер 50 мс; максимальный
-интервал 56 мс, 310 срабатываний за весь сценарий с переподключением. Это
-измерение данного прогона, не гарантия задержек на всех картах/машинах.
-Физический спуск/серии в этом прогоне не выполнялись: использовался существующий
-кадр. Эти сценарии остаются отдельной приёмкой; автоматические тесты их имитируют.
-Файлы камеры и режим съёмки не менялись, проверочные копии были временными.
+The original JPEG of the same recording was received via preview ... jpeg: 5,195,156 bytes,
+6192x4128. In the test Qt ImageViewer, the timer was 50 ms; maximum
+interval 56 ms, 310 operations for the entire scenario with reconnection. This
+Measuring a given run does not guarantee latency on all cards/machines.
+No physical shutter release/series was performed in this run: an existing one was used
+frame. These scenarios remain a separate practice; automated tests simulate them.
+The camera files and shooting mode did not change, the test copies were temporary.
 
-Рабочий GUI закрывался штатно для освобождения подключения, затем был запущен
-заново и подключение восстановлено. Глобальные настройки/службы не менялись.
-Логи аппаратного прогона содержат приватную диагностику только в игнорируемом
+The working GUI was closed normally to free the connection, then it was launched
+again and the connection is restored. Global settings/services have not changed.
+Hardware run logs contain private diagnostics only in the ignored
 build-package/hardware-import-0.7.0.log, hardware-import-run-0.7.0.log.
 
-### Установка
+### Installation
 
-Новый Ubuntu Base 24.04.5 amd64 распакован с проверкой SHA256. DEB и зависимости
-установлены через apt с нуля (скачанные ранее пакеты использованы только как кэш).
-В bwrap без исходников/SDK/сети проверены RU/EN запуск, версии, Qt переводы,
-ExifTool, FFmpeg H.265 и RGB24/PPM, ldd, SDK localhost с ожидаемым ConnectIP/кодом 2.
-Runtime helper на той же GUI core проверил локальную SHA256 без камеры и обнаружил
-повреждение при прежних размере/mtime. Хеши установленных GUI/backend совпали
-с DEB. Обновление 0.6.3 → 0.7.0 и удаление пройдены.
+New Ubuntu Base 24.04.5 amd64 unpacked with SHA256 check. DEB and dependencies
+installed via apt from scratch (previously downloaded packages are used only as a cache).
+In bwrap without sources/SDK/network, RU/EN launch, versions, Qt translations are checked,
+ExifTool, FFmpeg H.265 and RGB24/PPM, ldd, SDK localhost with expected ConnectIP/code 2.
+Runtime helper on the same GUI core checked the local SHA256 without a camera and found
+damage at the same size/mtime. The hashes of the installed GUI/backend matched
+with DEB. Update 0.6.3 → 0.7.0 and removal completed.
 
-Финальный пакет повторно установлен в тот же образ после последней поправки
-студийного пути. RU/EN, SDK loader, хеши бинарников, локальная SHA256 и удаление
-повторно проверены; контрольная сумма DEB проверена отдельно. Итоговый CTest
-8/8, 56,90 с. 265 записей перевода, 256 используемых строк. Финальный ASan media
-12/12 с init/cleanup; прочие затронутые GUI/SDK наборы также пройдены.
+The final package is re-installed into the same image after the last amendment
+studio way. RU/EN, SDK loader, binary hashes, local SHA256 and deletion
+re-checked; The DEB checksum is verified separately. Final CTest
+8/8, 56.90 s. 265 translation records, 256 used strings. Final ASan media
+12/12 with init/cleanup; other affected GUI/SDK sets have also been passed.
 
-Артефакты: build-package/sonshell-remote_0.7.0-1ubuntu24.04_amd64.deb,
-SHA256SUMS-0.7.0.txt, RELEASE-0.7.0.txt. Логи: build-package/release-0.7.0.log,
+Artifacts: build-package/sonshell-remote_0.7.0-1ubuntu24.04_amd64.deb,
+SHA256SUMS-0.7.0.txt, RELEASE-0.7.0.txt. Logs: build-package/release-0.7.0.log,
 final-ui-0.7.0.log; build-asan/import-tests.log, studio-tests.log;
 build-asan-backend/import-tests.log; build-clean/verify-0.7.0.log,
-verify-final-0.7.0.log, final-runtime-0.7.0.log. Личные данные и SDK в Git не добавлены.
+verify-final-0.7.0.log, final-runtime-0.7.0.log. Personal data and SDK are not added to Git.
 
-## 0.7.1 — качество просмотра карты, 2026-10-24
+## 0.7.1 - card viewing quality, 2026-10-24
 
-### Автоматические проверки
+### Automatic checks
 
-- Финальный Release: CMake GUI + SDK headless, backend OpenCV, CTest 9/9,
-  61,08 с. 88 сценариев Qt без init/cleanup и отдельная проверка переводов.
-  Каталог EN: 278 записей, 268 используемых строк, плейсхолдеры совпадают.
-- Новый card-quality-tests: исходный JPEG 6192×4128 и пиксели вместо сжатых
-  320×180, 100%/полный экран; RAW+JPEG передаёт только JPEG, RAW-only только
-  по кнопке и с лучшим встроенным JPEG; оригинал MP4 1920×1080 вместо миниатюры,
-  кадры локального декодера в исходном размере; пауза/остановка при смене вкладки.
-- Повторное открытие из кеша без передачи, вытеснение прежнего временного файла,
-  сохранение импортированной копии и её открытие без SDK, отмена с прогрессом
-  в полном экране, защита от устаревших результатов при быстром перелистывании.
-  Просмотр не создаёт ledger/очередь импорта и не меняет признак «Новый».
-- Backend: original использует DataFile для RAW/MP4, сохраняет расширение,
-  отвергает XML, неполный оригинал не публикуется, отмена подтверждается SDK mock.
-- ASan: card-quality-tests 8/8 и card-backend-tests 22/22 с init/cleanup,
-  без ошибок доступа; detect_leaks=0 для Qt/offscreen, это не проверка утечек.
+- Final Release: CMake GUI + SDK headless, backend OpenCV, CTest 9/9,
+  61.08 s. 88 Qt scripts without init/cleanup and separate checking of translations.
+  Catalog EN: 278 entries, 268 used lines, placeholders are the same.
+- New card-quality-tests: original JPEG 6192x4128 and pixels instead of compressed
+  320x180, 100%/full screen; RAW+JPEG transmits only JPEG, RAW-only only
+  by button and with the best built-in JPEG; original MP4 1920×1080 instead of thumbnail,
+  local decoder frames in original size; pause/stop when changing tabs.
+- Re-opening from cache without transfer, displacing the previous temporary file,
+  saving the imported copy and opening it without SDK, canceling with progress
+  in full screen, protection from outdated results when scrolling quickly.
+  Viewing does not create a ledger/import queue and does not change the “New” attribute.
+- Backend: original uses DataFile for RAW/MP4, saves extension,
+  rejects XML, incomplete original is not published, cancellation is confirmed by SDK mock.
+- ASan: card-quality-tests 8/8 and card-backend-tests 22/22 with init/cleanup,
+  no access errors; detect_leaks=0 for Qt/offscreen, this is not a leak check.
 
-### Аппаратная проверка ILCE-6700
+### ILCE-6700 Hardware Test
 
-Через SDK 2.02 прочитан каталог из 695 записей. Штатный GUI временно закрывался
-для освобождения единственного сеанса; проверка использовала сохранённые
-настройки без вывода учётных данных и отдельный временный каталог.
+A directory of 695 entries was read using SDK 2.02. The regular GUI was temporarily closed
+to release a single session; check used saved ones
+settings without displaying credentials and a separate temporary directory.
 
-- Выбор существующего RAW+JPEG в CameraCardWidget открыл только JPEG:
-  6 139 791 байт, 6192×4128. Размер совпал с каталогом; показаны исходные пиксели.
-- Выбран существующий MP4 67 383 474 байт. Сначала миниатюра, затем явная кнопка
-  оригинала: первый кадр и пять кадров воспроизведения 3840×2160. Это отдельная
-  полная передача MP4, а не увеличение SDK-потока 1280×720.
-- Повторное открытие JPEG и MP4 использовало кеш: всего три события передачи
-  (JPEG, миниатюра MP4, MP4), повторных загрузок оригиналов не было.
-- 50-мс таймер GUI отработал 306 раз; максимальный интервал 117 мс в этом прогоне.
-  Журнал импорта не создавался. Съёмка/удаление/режим записи камеры не менялись.
-  Проверочные оригиналы удалены из временных каталогов.
+- Selecting an existing RAW+JPEG in CameraCardWidget opened only JPEG:
+  6,139,791 bytes, 6192x4128. The size matched the catalogue; original pixels are shown.
+- An existing MP4 of 67,383,474 bytes is selected. First thumbnail, then explicit button
+  original: first frame and five frames of playback 3840x2160. This is a separate
+  full MP4 transfer rather than upscaling the 1280x720 SDK stream.
+- JPEG and MP4 reopening used cache: three transfer events in total
+  (JPEG, MP4, MP4 thumbnail), there were no re-uploads of the originals.
+- 50ms GUI timer worked 306 times; the maximum interval is 117 ms in this run.
+  No import log was created. The shooting/deleting/recording mode of the camera did not change.
+  The proof originals have been removed from the temporary directories.
 
-Рабочий GUI перезапущен на финальной сборке, совпадение исполняемого файла
-с текущим build проверено. При восстановлении сеанса после проверки камера
-перестала отвечать по сети; автоматическое переподключение оставлено включённым.
-Это не отменяет приведённую успешную проверку файлов, но повторное подключение
-в рабочем GUI в этом состоянии не подтверждено. Глобальные настройки не менялись.
+Working GUI restarted on final build, executable file matches
+checked with current build. When restoring the session after checking the camera
+stopped responding over the network; Automatic reconnection is left enabled.
+This does not cancel the above successful file verification, but reconnecting
+not confirmed in the production GUI in this state. Global settings have not changed.
 
-### Установка
+### Installation
 
-Финальный DEB установлен через apt с зависимостями в новый Ubuntu Base 24.04.5
-amd64 с проверенным SHA256; ранее скачанные DEB использованы только как кеш.
-В bwrap без исходников/SDK/сети проверены RU/EN GUI, версия 0.7.1, Qt переводы,
-ExifTool, FFmpeg H.265/RGB24/PPM, ldd, SDK localhost (ожидаемый отказ ConnectIP,
-код 2) и helper локальной SHA256, обнаруживающий порчу с прежними размером/mtime.
-Хеши установленных GUI/backend совпали с содержимым DEB. Пройдены удаление,
-установка предыдущей 0.7.0, обновление до 0.7.1 и повторное удаление.
+The final DEB is installed via apt with dependencies into the new Ubuntu Base 24.04.5
+amd64 with verified SHA256; previously downloaded DEBs are used only as cache.
+In bwrap without sources/SDK/network, RU/EN GUI, version 0.7.1, Qt translations have been tested,
+ExifTool, FFmpeg H.265/RGB24/PPM, ldd, SDK localhost (expected ConnectIP failure,
+code 2) and a local SHA256 helper that detects corruption with the same size/mtime.
+The hashes of the installed GUI/backend matched the contents of the DEB. Removal completed
+installing the previous 0.7.0, updating to 0.7.1 and uninstalling again.
 
-Артефакт: build-package/sonshell-remote_0.7.1-1ubuntu24.04_amd64.deb,
-5 568 786 байт; SHA256 95fcf6afe8c06b4a29e44ea2faf2c176ac627f8d02f5ad1e32778101dac10259.
-Исходный коммит d3578f9; SHA256SUMS-0.7.1.txt и RELEASE-0.7.1.txt рядом с DEB.
-Логи: build-package/package-0.7.1.log, asan-quality-071.log,
+Artifact: build-package/sonshell-remote_0.7.1-1ubuntu24.04_amd64.deb,
+5,568,786 bytes; SHA256 95fcf6afe8c06b4a29e44ea2faf2c176ac627f8d02f5ad1e32778101dac10259.
+Original commit d3578f9; SHA256SUMS-0.7.1.txt and RELEASE-0.7.1.txt next to DEB.
+Logs: build-package/package-0.7.1.log, asan-quality-071.log,
 asan-backend-071.log, hardware-quality-0.7.1.log;
 build-clean/verify-release-0.7.1.log, fresh-install-0.7.1.log,
-fresh-runtime-0.7.1.log, upgrade-0.7.1.log. SDK, фото и приватные логи в Git не добавлены.
+fresh-runtime-0.7.1.log, upgrade-0.7.1.log. SDK, photos and private logs have not been added to Git.
 
-## 0.8.0 — подключение и параметры записи, 2026-10-25
+## 0.8.0 - connection and recording parameters, 2026-10-25
 
-### Автоматические проверки
+### Automatic checks
 
-- CMake Release GUI + SDK backend headless, отдельный backend OpenCV — успешно.
-  Финальный CTest 9/9, 70,04 с: 101 сценарий Qt без init/cleanup плюс проверка
-  переводов. 296 записей EN, 286 используемых строк; плейсхолдеры совпали.
-- Автоподключение: сохранённый доступ/условия, выключенный флажок, несохранённые
-  данные, пустые имя/пароль, непринятые условия, неверный IPv4. При пропуске нет
-  backend/модального окна. Старт отменяется флажком, закрытием, ранним ручным
-  подключением/отключением; два подключения не запускаются. Пароля в argv/логе нет.
-- Новые поля: актуальные значения, UInt8Array без знакового искажения,
-  прочие типы/EV без регрессии, неверные длины choices, read-only/unsupported,
-  зависимость формата RAW+JPEG → RAW+HEIF. После Applied поля ждут Snapshot;
-  уже поставленное в очередь событие не отправляет вторую запись. Передача
-  блокирует изменения. StoreDestination и коды вне списка отвергаются backend.
+- CMake Release GUI + SDK backend headless, separate OpenCV backend - successful.
+  Final CTest 9/9, 70.04s: 101 Qt scripts without init/cleanup plus check
+  translations. 296 EN entries, 286 usable lines; placeholders matched.
+- Auto-connect: saved access/conditions, unchecked, unsaved
+  data, empty username/password, unaccepted conditions, incorrect IPv4. If you miss it, no
+  backend/modal window. Start is canceled by flag, closing, early manual
+  connection/disconnection; two connections do not start. There is no password in argv/log.
+- New fields: actual values, UInt8Array without sign distortion,
+  other types/EV without regression, incorrect length choices, read-only/unsupported,
+  format dependence RAW+JPEG → RAW+HEIF. After Applied, the fields wait for Snapshot;
+  an already queued event does not send a second entry. Transfer
+  blocks changes. StoreDestination and codes outside the list are rejected by the backend.
 - ASan: remote-tests 18/18, controls-tests 16/16, controls-backend-tests 12/12
-  с init/cleanup, без ошибок доступа; detect_leaks=0, утечки этим не проверялись.
-- При полном прогоне выявлен ложный таймаут старого видеотеста: паузы QTRY/qWait
-  между readyRead искусственно тормозили большой RGB-pipe. Отдельный рабочий
-  цикл воспроизводил все кадры. Проверка заменена на непрерывный QEventLoop с
-  тем же deadline 10 с. 20 повторов по 1,24–1,33 с: 24 кадра 1920×1080,
-  точное совпадение RGB и темп сохранены. Production VideoPreview не менялся.
-- Интерфейс проверен визуально в 1280×870 (RU, offscreen) и 1779×1299 (EN,
-  штатная тёмная тема): крупная синяя кнопка и фокус, четыре флажка подключения,
-  сворачиваемые разделы фото/видео, читаемые подписи.
+  with init/cleanup, no access errors; detect_leaks=0, leaks were not checked by this.
+- During a full run, a false timeout of the old video test was detected: QTRY/qWait pauses
+  between readyRead the large RGB pipe was artificially slowed down. Individual worker
+  the loop played back all the frames. The check has been replaced with a continuous QEventLoop with
+  same deadline 10 s. 20 repetitions of 1.24–1.33 s: 24 frames 1920×1080,
+  exact RGB match and tempo are preserved. Production VideoPreview has not changed.
+- The interface was checked visually at 1280×870 (RU, offscreen) and 1779×1299 (EN,
+  standard dark theme): large blue button and focus, four connection flags,
+  collapsible photo/video sections, readable captions.
 
-### Аппаратная проверка ILCE-6700
+### ILCE-6700 Hardware Test
 
-После подтверждения пользователя камера была доступна. Рабочий GUI на момент
-первого запуска проверки отсутствовал. Проверка использовала MainWindow, его
-стартовый таймер и сохранённый доступ, скопированный в приватные временные
-настройки; целевой каталог также был временным. Учётные данные не выводились.
+After user confirmation, the camera was available. Working GUI at the moment
+the first scan run was missing. The test used MainWindow, its
+start timer and saved access copied to private temporary
+settings; the target directory was also temporary. Credentials were not displayed.
 
-- Подключение без клика сработало ровно один раз, Live View запустился.
-- Из 11 новых полей 10 readable/writable: FileType, CompressionFileFormatStill,
+- Connection without clicking worked exactly once, Live View started.
+- Of the 11 new fields, 10 are readable/writable: FileType, CompressionFileFormatStill,
   StillImageQuality, ImageSize, AspectRatio, RAW_FileCompressionType,
   ImageStabilizationSteadyShot, Movie_File_Format, Movie_Recording_FrameRateSetting,
-  Movie_Recording_Setting. Movie_ImageStabilizationSteadyShot в текущем режиме
-  недоступен (read/write=false, choices=0) и правильно заблокирован.
-- Значения и подписи получены от SDK: RAW+JPEG, JPEG, Fine, L, 3:2, Lossless,
-  On, XAVC S HD, 50p, 50 Mbps 4:2:2 10-bit. Выполнен setter ImageSize с его же
-  текущим значением L; Applied и последующее чтение подтвердили то же значение.
-- Ручное отключение завершило сеанс, через 500 мс он оставался отключённым.
-  Съёмка/удаление/смена форматов не выполнялись. Матрица реальных переключений
-  фото/видео, зависимостей режимов, частот и других моделей ещё не пройдена.
+  Movie_Recording_Setting. Movie_ImageStabilizationSteadyShot in current mode
+  unavailable (read/write=false, choices=0) and properly blocked.
+- Values and captions obtained from SDK: RAW+JPEG, JPEG, Fine, L, 3:2, Lossless,
+  On, XAVC S HD, 50p, 50 Mbps 4:2:2 10-bit. Setter ImageSize with its own
+  current value of L; Applied and subsequent reading confirmed the same meaning.
+- Manual disconnect ended the session, after 500ms it remained disconnected.
+  Shooting/deleting/changing formats was not performed. Real switching matrix
+  photo/video, dependencies of modes, frequencies and other models have not yet been completed.
 
-Рабочий GUI затем запущен с обычными настройками. После финальной сборки снова
-штатно перезапущен; запущенный исполняемый файл совпал с итоговым build.
-Глобальные настройки/службы не менялись. Автоподключение можно отключить своим
-флажком в окне; это не меняет отдельную настройку повторов после обрыва.
+The working GUI is then launched with normal settings. After the final build again
+restarted normally; the launched executable file coincided with the final build.
+Global settings/services have not changed. You can disable auto-connection with your
+checkbox in the window; this does not change the individual replay setting after a break.
 
-### Установка
+### Installation
 
-Финальный DEB установлен через apt с зависимостями в новый Ubuntu Base 24.04.5
-amd64 с проверенным SHA256. Кеш ранее скачанных пакетов использовался только для
-доставки зависимостей. В bwrap без исходников/SDK/сети проверены RU/EN запуск,
-версия 0.8.0, Qt переводы, ExifTool, FFmpeg H.265/RGB24/PPM, ldd, SDK localhost
-(ожидаемые ConnectIP/код 2), helper локальной SHA256. Хеши GUI/backend в корне
-совпали с DEB. Удаление, установка 0.7.1, обновление до 0.8.0 и удаление пройдены.
+The final DEB is installed via apt with dependencies into the new Ubuntu Base 24.04.5
+amd64 with verified SHA256. The cache of previously downloaded packages was used only for
+delivery of dependencies. In bwrap without sources/SDK/network, RU/EN launch is checked,
+version 0.8.0, Qt translations, ExifTool, FFmpeg H.265/RGB24/PPM, ldd, SDK localhost
+(expected ConnectIP/Code 2), local SHA256 helper. GUI/backend hashes in the root
+coincided with DEB. Uninstallation, installation 0.7.1, update to 0.8.0 and removal completed.
 
-Артефакт: build-package/sonshell-remote_0.8.0-1ubuntu24.04_amd64.deb,
-5 578 506 байт; SHA256 4913a209222aa1a0ee35adbf212c8a931242bfc59327617d36da657999676bd9.
-Исходный коммит c55734f (реализация 8bdeb9d), RELEASE-0.8.0.txt и
-SHA256SUMS-0.8.0.txt рядом с пакетом. Логи: build-package/ctest-final-080.log,
+Artifact: build-package/sonshell-remote_0.8.0-1ubuntu24.04_amd64.deb,
+5,578,506 bytes; SHA256 4913a209222aa1a0ee35adbf212c8a931242bfc59327617d36da657999676bd9.
+Original commit c55734f (8bdeb9d implementation), RELEASE-0.8.0.txt and
+SHA256SUMS-0.8.0.txt next to the package. Logs: build-package/ctest-final-080.log,
 asan-remote-080.log, asan-controls-080.log, asan-backend-080.log,
 hardware-controls-0.8.0.log, hardware-controls-run-080.log,
 video-eventloop-repeat-080-1.log … -20.log, package-0.8.0.log;
 build-clean/verify-release-0.8.0.log, fresh-install-0.8.0.log,
-fresh-runtime-0.8.0.log и upgrade-0.8.0.log. Приватные данные/SDK в Git не добавлены.
+fresh-runtime-0.8.0.log and upgrade-0.8.0.log. No private data/SDK added to Git.
 
-## 0.8.1 — видео, оверлеи и Settings, 2026-10-25
+## 0.8.1 - videos, overlays and Settings, 2026-10-25
 
-### Автоматические проверки
+### Automatic checks
 
-- CMake Release GUI + SDK backend собраны. Полный CTest offscreen 9/9, 73.11 с.
-  После ограничения перечитывания каталога при закрытии Settings повторены
-  затронутые remote/video: 2/2, 19.12 с; закрытие без смены каталога не пересоздаёт
-  строки и не прерывает локальное видео. В наборе 105 сценариев Qt без init/cleanup.
-- Play сам загружает оригинал и начинает показ; повтор не делает передачу и не
-  запускает SDK movie. Отменённый результат после перелистывания не запускается;
-  переключение вкладки останавливает плеер. SDK режим проверяется отдельно.
-- Поля доступа/каталога скрыты в Settings, изменения каталога/студии/качества
-  карты сохраняются. Modeless окно сохраняет соединение; поля доступа disabled
-  до Disconnect. Меню показывает журнал. Проверка Space/Delete дополнена
-  положением надписей у краёв и прозрачностью; Delete не отправляет удаление.
-- ASan GUI без SDK: remote/card/card-quality/video 4/4, 32.90 с; после последней
-  правки remote/video 2/2, 18.93 с. Ошибок доступа нет; detect_leaks=0,
-  проверка не объявляется аудитом утечек. Каталог EN: 313 подписей, 299 используются.
+- CMake Release GUI + SDK backend assembled. Full CTest offscreen 9/9, 73.11 p.
+  After restricting the re-reading of the directory when closing Settings, repeated
+  affected remote/video: 2/2, 19.12 sec; closing without changing directory does not recreate
+  lines and does not interrupt local video. The set contains 105 Qt scripts without init/cleanup.
+- Play itself downloads the original and starts showing; replay does not transmit and does not
+  launches SDK movie. The canceled result does not run after flipping;
+  switching tabs stops the player. SDK mode is checked separately.
+- Access/catalog fields are hidden in Settings, catalog/studio/quality changes
+  the cards are saved. Modelless window saves connection; access fields disabled
+  to Disconnect. The menu shows the log. Space/Delete check has been added
+  position of inscriptions at the edges and transparency; Delete does not send a delete.
+- ASan GUI without SDK: remote/card/card-quality/video 4/4, 32.90 s; after the last one
+  edits remote/video 2/2, 18.93 p. There are no access errors; detect_leaks=0,
+  the inspection is not declared a leak audit. Catalog EN: 313 signatures, 299 in use.
 
-### Аппаратная проверка отдельно от подстановки
+### Hardware check separate from substitution
 
-- ILCE-6700: SDK MoviePlayback двух существующих роликов C0048 и C0010 отдал
-  аудио и NormalTermination, видеокадров не было. Трасса только вызовов
-  bind/listen/accept/connect подтвердила соединение камеры со всеми входящими
-  TCP 55001/55003/55005. Payload/учётные данные не записывались. Повтор с Seek
-  не восстановил поток; причина внутри SDK/камеры не установлена. Настройки
-  сети, форматы записи и файлы камеры не менялись.
-- Основной Play в окончательной сборке MainWindow загрузил оригинал
-  67 818 488 байт и автоматически показал 1920×1080; пауза/продолжение,
-  остановка и повтор из того же кеша успешны. В сценарии 12 кадров, только две
-  передачи (миниатюра и оригинал), журнал импорта остался пустым.
-- Space/Delete поставили обе отметки в fullscreen; надпись «Отмечено как брак»
-  внизу (y=617, высота viewport=682), постоянные отметки сверху. Screenshots
-  Settings/главного окна/оверлея осмотрены и оставлены в игнорируемой сборке.
-  Команда удаления не выполнялась. UI heartbeat 50 мс продолжался: 293 события,
-  максимальный промежуток 191 мс. Это один ролик/сеть, не гарантия всех форматов.
-- Отдельная проверка возврата viewer из fullscreen в QSplitter сохранила размеры
-  582/592 и видимость. Вспомогательные исходники/логи и данные не добавлены в Git.
+- ILCE-6700: SDK MoviePlayback of two existing videos C0048 and C0010 gave
+  audio and NormalTermination, there were no video frames. Call only route
+  bind/listen/accept/connect confirmed the connection of the camera with all incoming
+  TCP 55001/55003/55005. Payload/credentials were not recorded. Replay with Seek
+  did not restore the flow; The reason inside the SDK/camera is not identified. Settings
+  networks, recording formats and camera files have not changed.
+- The main Play in the final build MainWindow loaded the original
+  67,818,488 bytes and automatically showed 1920x1080; pause/continue,
+  stopping and retrying from the same cache is successful. There are 12 frames in the script, only two
+  transfers (thumbnail and original), the import log remained empty.
+- Space/Delete set both checkboxes to fullscreen; the inscription “Marked as defective”
+  below (y=617, viewport height=682), constant marks above. Screenshots
+  Settings/main window/overlay are inspected and left in the ignored build.
+  The delete command was not executed. UI heartbeat 50ms lasted: 293 events,
+  maximum interval 191 ms. This is one video/network, not a guarantee of all formats.
+- Separate check of viewer return from fullscreen in QSplitter preserved dimensions
+  582/592 and visibility. Supporting sources/logs and data are not added to Git.
 
-### Пакет и чистая Ubuntu
+### Package and clean Ubuntu
 
-- DEB 0.8.1-1ubuntu24.04 amd64: 5 583 032 байт, исходный коммит `50894fa`.
+- DEB 0.8.1-1ubuntu24.04 amd64: 5,583,032 bytes, original commit `50894fa`.
   SHA256 `2cfcbec288c7b1447f7cae2f35f63ec31f82786b6ec0dd74a5eea9d78424bd7b`.
-- Свежий Ubuntu Base 24.04.5 amd64: установка apt с зависимостями с нуля.
-  В bwrap без исходников/SDK с хоста/сети запущены GUI RU/EN, help/version,
-  ExifTool, FFmpeg H.265/PPM; проверены Qt translations и ldd. SDK localhost
-  дал ожидаемый ConnectIP/exit 2: это загрузка SDK, не подключение к камере.
-- Установленные бинарники совпали с DEB по SHA256; runtime helper обнаружил
-  порчу импортированной копии при неизменных размере/mtime. Обновление
-  0.8.0 → 0.8.1 и удаление успешны. Хостовые пакеты/службы не менялись.
-- Логи: build-clean/fresh-install-0.8.1.log, fresh-runtime-0.8.1.log,
-  upgrade-0.8.1.log, verify-release-0.8.1.log; аппаратный лог
-  build-package/hardware-preview-0.8.1.log. SHA256SUMS/RELEASE рядом с DEB.
+- Fresh Ubuntu Base 24.04.5 amd64: apt installation with dependencies from scratch.
+  In bwrap without sources/SDK, GUI RU/EN, help/version, are launched from the host/network
+  ExifTool, FFmpeg H.265/PPM; Qt translations and ldd have been checked. SDK localhost
+  gave the expected ConnectIP/exit 2: this is an SDK download, not a connection to the camera.
+- The installed binaries matched DEB by SHA256; runtime helper detected
+  Damage to the imported copy with unchanged size/mtime. Update
+  0.8.0 → 0.8.1 and removal successful. Host packages/services have not changed.
+- Logs: build-clean/fresh-install-0.8.1.log, fresh-runtime-0.8.1.log,
+  upgrade-0.8.1.log, verify-release-0.8.1.log; hardware log
+  build-package/hardware-preview-0.8.1.log. SHA256SUMS/RELEASE next to DEB.
 
-## 0.8.2 — About и NDRco, 2026-10-25
+## 0.8.2 — About and NDRco, 2026-10-25
 
-- CMake Release GUI + SDK backend собраны; GUI без SDK собран с ASan.
-  CTest offscreen 9/9, 70.80 с; состав прежний, 105 сценариев Qt без init/cleanup.
-  Новый низкорисковый экран проверен визуально без добавления тестов текстовых
-  констант. Каталог EN: 316 подписей, 301 используется.
-- About RU/EN открыт через настоящий QAction MainWindow в изолированной
-  конфигурации; показан PNG из Qt resources, версия 0.8.2 и все четыре URL.
-  Двойной вызов поднимает одно окно, Close освобождает его, повторное открытие
-  создаёт новое, закрытие MainWindow закрывает About. ASan без ошибок доступа,
-  detect_leaks=0. Screenshots обоих языков 580×359 осмотрены, logo 112×112;
-  все тексты помещаются. Это offscreen-проверка интерфейса, не аппаратный тест.
-- Иконка скачана из публичного профиля ndrco без преобразования изображения;
-  источник, дата и SHA256 записаны в gui/assets/README.md. Сеть при показе About
-  не используется; браузерные переходы во время проверки не выполнялись.
-- GitHub CLI 2.45.0 уже установлен и авторизован как ndrco через keyring.
-  users/ndrco успешно вернул профиль/иконку; repo view для ndrco/SonShell-Remote
-  вернул Could not resolve. Репозиторий не создавался, push не выполнялся;
-  установка CLI или изменение глобальной конфигурации не потребовались.
-- DEB 0.8.2-1ubuntu24.04 amd64: 5 627 536 байт, коммит `a6fa9f8`.
+- CMake Release GUI + SDK backend assembled; GUI without SDK built with ASan.
+  CTest offscreen 9/9, 70.80 s; the composition is the same, 105 Qt scripts without init/cleanup.
+  The new low-risk screen was tested visually without adding text tests
+  constants Catalog EN: 316 signatures, 301 in use.
+- About RU/EN is opened through a real QAction MainWindow in an isolated
+  configurations; showing a PNG from Qt resources, version 0.8.2 and all four URLs.
+  Double call raises one window, Close releases it, reopens
+  creates a new one, closing MainWindow closes About. ASan without access errors,
+  detect_leaks=0. Screenshots of both languages ​​580×359 viewed, logo 112×112;
+  all texts are included. This is an offscreen interface test, not a hardware test.
+- The icon was downloaded from the ndrco public profile without image conversion;
+  source, date and SHA256 are recorded in gui/assets/README.md. Network when showing About
+  not used; browser transitions were not performed during the scan.
+- GitHub CLI 2.45.0 is already installed and authorized as ndrco via keyring.
+  users/ndrco successfully returned profile/icon; repo view for ndrco/SonShell-Remote
+  returned Could not resolve. The repository was not created, the push was not performed;
+  no CLI installation or global configuration changes were required.
+- DEB 0.8.2-1ubuntu24.04 amd64: 5,627,536 bytes, commit `a6fa9f8`.
   SHA256 `0c6ff20403d38a3488c84627dcd72610cd07eb91b08d5f20d77ce534ee9b8b24`.
-- Чистый Ubuntu Base 24.04.5: apt устанавливает зависимости; GUI RU/EN,
+- Clean Ubuntu Base 24.04.5: apt installs dependencies; GUI RU/EN,
   help/version, Qt translations, ExifTool, FFmpeg H.265/PPM, SDK loader, ldd
-  и контроль SHA256 импортированной копии прошли в изоляции. Установленные
-  бинарники совпадают с DEB. Обновление 0.8.1 → 0.8.2 и удаление успешны.
-- Первый запуск верификатора вывел успешное завершение всех проверок, но его
-  оболочка завершилась SIGTERM/143; проверка полностью повторена в новом корне
-  rootfs-0.8.2-recheck без управления окном рабочего стола, итоговый exit 0.
-  Логи build-clean/verify-release-0.8.2-recheck.log, fresh-install-0.8.2-recheck.log,
+  and SHA256 control of the imported copy took place in isolation. Installed
+  The binaries are the same as DEB. Update 0.8.1 → 0.8.2 and removal successful.
+- The first launch of the verifier showed the successful completion of all checks, but it
+  shell exited SIGTERM/143; the check was completely repeated in the new root
+  rootfs-0.8.2-recheck without managing the desktop window, resulting in exit 0.
+  Logs build-clean/verify-release-0.8.2-recheck.log, fresh-install-0.8.2-recheck.log,
   fresh-runtime-0.8.2-recheck.log, upgrade-0.8.2-recheck.log; SHA256SUMS/RELEASE
-  рядом с DEB. Системные пакеты и сервисы хоста не менялись.
+  next to DEB. System packages and host services have not changed.
 
-## 0.8.3 — навигация, перемотка и прогресс, 2026-10-26
+## 0.8.3 - navigation, rewind and progress, 2026-10-26
 
-- CMake Release GUI + Sony SDK backend собраны; CTest offscreen 9/9,
-  74,81 с. GUI без SDK: ASan remote/card/card-quality/video 4/4, 37,31 с,
-  detect_leaks=0; ошибок доступа к памяти не обнаружено.
-- Синтетический 13-секундный MP4: перемотка от текущей позиции после
-  воспроизведения, сохранение паузы, один новый кадр после seek, повторные быстрые
-  нажатия, границы 0/последний кадр, Stop. Пиксели кадра после +5 с совпали
-  с независимым декодированием FFmpeg на запрошенной отметке. Прежняя проверка
-  исходного 1920×1080/24 fps и RGB без перекодирования также прошла.
-- Проверены галерея, отдельное окно/fullscreen и mock-поток SDK с командами seek.
-  Навигация учитывает выбранные файлы; смена во время передачи оригинала
-  отправляет cancel, не импортирует файл и не запускает поздний autoplay.
-- Индикатор оригинала в fullscreen показал 45%, сохранил значение после выхода
-  и повторного входа; отмена была доступна и скрыла полосу без завершённого файла.
-  RU/EN screenshots осмотрены при 800×800: кнопки соседних файлов вверху,
-  перемотка внизу, текст/контролы помещаются. Артефакты в build-package игнорируются.
-- Это проверки без камеры. Точность SDK seek аппаратно не проверялась;
-  его позиция оценивается по декодированному потоку, камера принимает целые секунды.
-- DEB 0.8.3-1ubuntu24.04 amd64: 5 635 432 байта, коммит `82860b8`.
+- CMake Release GUI + Sony SDK backend assembled; CTest offscreen 9/9,
+  74.81 s. GUI without SDK: ASan remote/card/card-quality/video 4/4, 37.31 s,
+  detect_leaks=0; No memory access errors were detected.
+- Synthetic 13 second MP4: rewind from current position after
+  playback, pause saving, one new frame after seek, repeated fast
+  pressing, boundaries 0/last frame, Stop. The pixels of the frame coincided after +5 s
+  with independent FFmpeg decoding at the requested mark. Previous check
+  the original 1920×1080/24 fps and RGB without recoding also passed.
+- Tested gallery, separate window/fullscreen and SDK mock stream with seek commands.
+  Navigation takes into account selected files; change during transfer of the original
+  sends cancel, does not import the file and does not trigger late autoplay.
+- The original indicator in fullscreen showed 45%, saved the value after exit
+  and re-entry; cancel was available and hid the bar without a completed file.
+  RU/EN screenshots viewed at 800×800: buttons for adjacent files at the top,
+  rewind at the bottom, text/controls are placed. Artifacts in build-package are ignored.
+- These are checks without a camera. SDK seek accuracy has not been tested in hardware;
+  its position is estimated from the decoded stream, the camera takes whole seconds.
+- DEB 0.8.3-1ubuntu24.04 amd64: 5,635,432 bytes, commit `82860b8`.
   SHA256 `d33804a333ef2558dc910a168b12c433e2f9c6f21c94646931d58faa459f011d`.
-- Свежий Ubuntu Base 24.04.5: apt установил пакет и зависимости с нуля.
-  В изолированном bwrap без хостовых исходников/SDK/сети запущены GUI RU/EN,
-  help/version, ExifTool, FFmpeg HEVC/PPM; ffprobe прочёл duration=8 с из MP4.
-  Проверены Qt translations, SDK loader/ldd (localhost ConnectIP/exit 2),
-  SHA256 установленных бинарников и обнаружение порчи локальной копии.
-  Обновление 0.8.2 → 0.8.3 и удаление успешны; верификатор завершился с exit 0.
-  Логи build-clean/verify-release-0.8.3.log, fresh-install-0.8.3.log,
-  fresh-runtime-0.8.3.log, upgrade-0.8.3.log; RELEASE/SHA256SUMS рядом с DEB.
-  Хостовые пакеты/службы и исходный прототип не менялись.
+- Fresh Ubuntu Base 24.04.5: apt installed the package and dependencies from scratch.
+  In an isolated bwrap without host sources/SDK/network, GUI RU/EN is running,
+  help/version, ExifTool, FFmpeg HEVC/PPM; ffprobe read duration=8 s from MP4.
+  Tested Qt translations, SDK loader/ldd (localhost ConnectIP/exit 2),
+  SHA256 of installed binaries and detection of corruption of the local copy.
+  Update 0.8.2 → 0.8.3 and removal successful; the verifier exited with exit 0.
+  Logs build-clean/verify-release-0.8.3.log, fresh-install-0.8.3.log,
+  fresh-runtime-0.8.3.log, upgrade-0.8.3.log; RELEASE/SHA256SUMS next to DEB.
+  The host packages/services and the original prototype were not changed.
 
-## Аудит 0.8.3 — 2026-10-31
+## Audit 0.8.3 - 2026-10-31
 
-- Сверка исходного задания и уточнений с кодом и сохранёнными аппаратными
-  результатами зафиксирована в документации. Исторические пункты плана
-  отделены от актуального остатка работ; код приложения не менялся.
-- Повторная CMake Release сборка GUI и SDK backend успешна. CTest offscreen:
-  9/9, 80,89 с. Лог build-package/audit-2026-10-31-ctest.log, вне Git.
-- SHA256 и размер локального DEB 0.8.3 совпали с результатом выпуска выше.
-  ASan, чистая установка и обновление в этот раз не повторялись.
-- GitHub CLI 2.45.0: авторизованный пользователь ndrco, repo view указанного
-  адреса вернул Could not resolve. Создание репозитория/push не выполнялись.
-- Новых аппаратных проверок не было; настройки, файлы камеры и запущенное
-  приложение не изменялись.
+- Verification of the original task and clarifications with the code and saved hardware
+  the results are recorded in the documentation. Historical points of the plan
+  separated from the current balance of work; The application code has not changed.
+- Re-build of CMake Release GUI and SDK backend is successful. CTest offscreen:
+  9/9, 80.89 pp. Log build-package/audit-2026-10-31-ctest.log, outside of Git.
+- SHA256 and local DEB 0.8.3 size matched the release result above.
+  ASan, clean installation and update were not repeated this time.
+- GitHub CLI 2.45.0: authorized user ndrco, repo view specified
+  addresses returned Could not resolve. Repository creation/push was not performed.
+- There were no new hardware checks; settings, camera files and running
+  the application has not been changed.
 
-## Публикация GitHub — 2026-10-31
+## Publication GitHub - 2026-10-31
 
-- По следующей команде владельца создан PUBLIC ndrco/SonShell-Remote, main.
-  История сохранена, README со скриншотом доступен публично; Apache-2.0
-  распознана GitHub. Метаданные, HTML README и HTTP 200 изображения проверены.
-- Gitleaks 8.30.1: история HEAD, ноль находок; отдельно проверен состав путей
-  на SDK/runtime, снимки, настройки и fingerprints. Сам инструмент и логи вне Git.
-- Публичное клонирование по HTTPS без авторизации успешно. Файлы README,
-  LICENSE и скриншота совпали побайтно с локальными. Скриншот — реальный UI
-  с SDK-free backend, без камеры/личных данных; PNG 1640×1080 осмотрен.
-- Из свежего клона `5f0a680` Release GUI без SDK собран GCC 13.3.0; CTest
-  offscreen 7/7, 69,39 с. lrelease задан приватным локальным путём через
-  QT_LRELEASE_EXECUTABLE: на этой машине системный lrelease отсутствует.
-- SDK backend/аппаратные сценарии и DEB на этом этапе не изменялись.
+- The following command from the owner created PUBLIC ndrco/SonShell-Remote, main.
+  The history has been saved, the README with a screenshot is publicly available; Apache-2.0
+  recognized by GitHub. Metadata, HTML README and HTTP 200 images are checked.
+- Gitleaks 8.30.1: HEAD history, zero finds; The composition of the paths was checked separately
+  on SDK/runtime, snapshots, settings and fingerprints. The tool itself and the logs are outside of Git.
+- Public cloning over HTTPS without authorization is successful. README files
+  LICENSE and the screenshot matched the local ones, byte-by-byte. Screenshot - real UI
+  with SDK-free backend, without camera/personal data; PNG 1640×1080 inspected.
+- GCC 13.3.0 was compiled from a fresh clone `5f0a680` Release GUI without SDK; CTest
+  offscreen 7/7, 69.39 pp. lrelease is set to a private local path via
+  QT_LRELEASE_EXECUTABLE: There is no system lrelease on this machine.
+- SDK backend/hardware scripts and DEB were not changed at this stage.

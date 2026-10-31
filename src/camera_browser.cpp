@@ -21,16 +21,16 @@ std::string json(const std::string& value) {
   out << '"'; return out.str();
 }
 std::string unhex(const std::string& value) {
-  if (value.empty() || value.size() % 2 || value.size() > 16000) throw std::runtime_error("Неверный каталог назначения");
+  if (value.empty() || value.size() % 2 || value.size() > 16000) throw std::runtime_error("Invalid destination directory");
   std::string out;
-  auto digit = [](char c) -> unsigned { if (c >= '0' && c <= '9') return c - '0'; if (c >= 'a' && c <= 'f') return c - 'a' + 10; throw std::runtime_error("Неверное кодирование пути"); };
+  auto digit = [](char c) -> unsigned { if (c >= '0' && c <= '9') return c - '0'; if (c >= 'a' && c <= 'f') return c - 'a' + 10; throw std::runtime_error("Invalid path encoding"); };
   for (size_t i = 0; i < value.size(); i += 2) out += char(digit(value[i]) * 16 + digit(value[i + 1]));
-  if (out.find('\0') != std::string::npos) throw std::runtime_error("Недопустимый путь");
+  if (out.find('\0') != std::string::npos) throw std::runtime_error("Invalid path");
   return out;
 }
 unsigned number(const std::string& value) {
   size_t used = 0; auto result = std::stoul(value, &used);
-  if (used != value.size() || result > 0xffffffffu) throw std::runtime_error("Неверный идентификатор");
+  if (used != value.size() || result > 0xffffffffu) throw std::runtime_error("Invalid identifier");
   return static_cast<unsigned>(result);
 }
 std::string key(unsigned slot, unsigned id) { return std::to_string(slot) + ":" + std::to_string(id); }
@@ -42,19 +42,19 @@ std::string date(const sdk::CrCaptureDate& d) {
   return out.str();
 }
 std::string sdk_error(unsigned code) {
-  std::ostringstream out; out << "Ошибка Sony SDK: 0x" << std::hex << code; return out.str();
+  std::ostringstream out; out << "Sony SDK error: 0x" << std::hex << code; return out.str();
 }
 std::filesystem::path relative_path(std::string path) {
-  if (path.find('\0') != std::string::npos) throw std::runtime_error("Неверный путь на карте");
+  if (path.find('\0') != std::string::npos) throw std::runtime_error("Invalid path on the camera card");
   std::replace(path.begin(), path.end(), '\\', '/');
   const std::filesystem::path remote(path);
-  if (remote.filename().empty()) throw std::runtime_error("Пустое имя файла на карте");
+  if (remote.filename().empty()) throw std::runtime_error("Empty filename on the camera card");
   std::filesystem::path out;
   bool first = true;
   for (const auto& part : remote) {
     auto name = part.string();
     if (part == "/" || part == "." || part.empty()) continue;
-    if (part == "..") throw std::runtime_error("Небезопасный путь на карте: переход в родительский каталог");
+    if (part == "..") throw std::runtime_error("Unsafe camera card path: parent directory traversal");
     // Sony paths can contain a camera volume namespace (e.g. C:/DCIM/...).
     // It is not a host drive or a directory to recreate under the selected root.
     if (first && name.find(':') != std::string::npos && part != remote.filename()) {
@@ -69,7 +69,7 @@ std::filesystem::path relative_path(std::string path) {
     }
     out /= local;
   }
-  if (out.empty() || out.filename() == ".") throw std::runtime_error("Пустое имя файла на карте");
+  if (out.empty() || out.filename() == ".") throw std::runtime_error("Empty filename on the camera card");
   return out;
 }
 }
@@ -107,14 +107,14 @@ bool CameraBrowser::command(const std::vector<std::string>& args) {
   if (args.size() == 2 && args[1] == "cancel") {
     std::lock_guard<std::mutex> lock(queue_mutex_);
     canceled_ = true; movie_.cancel();
-    for (const auto& pending : queue_) error(pending[2], "Операция отменена");
+    for (const auto& pending : queue_) error(pending[2], "Operation canceled");
     queue_.clear(); result_cv_.notify_all();
     return true;
   }
   if (args.size() < 3 || stopping_) return false;
   if (args[2].empty() || args[2].size() > 80 || args[2].find_first_not_of("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-") != std::string::npos) return false;
   std::lock_guard<std::mutex> lock(queue_mutex_);
-  if (queue_.size() >= 8) { error(args[2], "Очередь камеры занята"); return false; }
+  if (queue_.size() >= 8) { error(args[2], "Camera queue is busy"); return false; }
   queue_.push_back(args); queue_cv_.notify_one(); return true;
 }
 void CameraBrowser::run() {
@@ -159,7 +159,7 @@ bool CameraBrowser::slot_supported(unsigned slot) {
 std::vector<CameraBrowser::Content> CameraBrowser::read_slot(unsigned slot) {
   const bool deletable = enabled(slot == 1 ? sdk::CrDeviceProperty_DeleteContentOperationEnableStatusSLOT1 : sdk::CrDeviceProperty_DeleteContentOperationEnableStatusSLOT2);
   if (!enabled(slot == 1 ? sdk::CrDeviceProperty_MediaSLOT1_ContentsInfoListEnableStatus : sdk::CrDeviceProperty_MediaSLOT2_ContentsInfoListEnableStatus))
-    throw std::runtime_error("Список карты недоступен: проверь наличие карты, режим и поддержку камерой");
+    throw std::runtime_error("Card catalog unavailable: check the card, camera mode and model support");
   sdk::CrContentsInfo* list = nullptr; CrInt32u count = 0;
   sdk::CrCaptureDate base_date;
   auto err = sdk::GetRemoteTransferContentsInfoList(handle_, static_cast<sdk::CrSlotNumber>(slot), sdk::CrGetContentsInfoListType_All, &base_date, 0, &list, &count);
@@ -215,25 +215,25 @@ void CameraBrowser::list(const std::string& request) {
 void CameraBrowser::execute(const std::vector<std::string>& args) {
   if (args[1] == "list" && args.size() == 3) { list(args[2]); return; }
   const bool erase_command = args[1] == "delete";
-  if ((erase_command && args.size() != 6) || (!erase_command && args.size() != 8)) throw std::runtime_error("Неверная команда карты");
-  if (args[3] != epoch_) throw std::runtime_error("Каталог устарел; обнови список камеры");
+  if ((erase_command && args.size() != 6) || (!erase_command && args.size() != 8)) throw std::runtime_error("Invalid card command");
+  if (args[3] != epoch_) throw std::runtime_error("Catalog is out of date; refresh the camera list");
   const auto found = catalog_.find(key(number(args[4]), number(args[5])));
-  if (found == catalog_.end()) throw std::runtime_error("Кадр отсутствует в каталоге");
+  if (found == catalog_.end()) throw std::runtime_error("Capture is missing from the catalog");
   // Re-read before destructive action; content IDs can be reused after card changes.
   if (erase_command) { erase(args, found->second); return; }
   const auto& content = found->second;
   if (revision_ != catalog_revision_) {
     const auto current = read_slot(content.slot);
     if (std::none_of(current.begin(), current.end(), [&](const Content& c) { return c.id == content.id && c.signature == content.signature; }))
-      throw std::runtime_error("Содержимое карты изменилось; обнови список");
+      throw std::runtime_error("Card contents changed; refresh the list");
   }
   auto file = std::find_if(content.files.begin(), content.files.end(), [&](const File& f) { return f.id == number(args[6]); });
-  if (file == content.files.end()) throw std::runtime_error("Файл отсутствует в каталоге");
+  if (file == content.files.end()) throw std::runtime_error("File is missing from the catalog");
   if (args[1] == "movie") {
-    if (file->format != sdk::CrContentsFile_FileFormat_Mp4) throw std::runtime_error("Выбери видео MP4");
+    if (file->format != sdk::CrContentsFile_FileFormat_Mp4) throw std::runtime_error("Select an MP4 video");
     const auto socket = std::filesystem::path(unhex(args[7]));
     if (!socket.is_absolute() || std::filesystem::canonical(socket.parent_path()) != std::filesystem::canonical(cache_) ||
-        !std::filesystem::is_socket(std::filesystem::symlink_status(socket))) throw std::runtime_error("Неверный канал видеопревью");
+        !std::filesystem::is_socket(std::filesystem::symlink_status(socket))) throw std::runtime_error("Invalid video preview channel");
     std::unique_lock<std::mutex> serial(transfers_);
     { std::lock_guard<std::mutex> lock(queue_mutex_); movie_request_ = args[2]; }
     struct ClearRequest {
@@ -241,12 +241,12 @@ void CameraBrowser::execute(const std::vector<std::string>& args) {
       ~ClearRequest() { std::lock_guard<std::mutex> lock(mutex); request.clear(); }
     } clear_request{queue_mutex_, movie_request_};
     movie_.run(handle_, camera_host_, content.slot, content.id, file->id, socket.string(), [this, &args](const std::string& state) {
-      if (state == "fatal") { stopping_ = true; event("fatal", args[2], "\"message\":" + json("Камера не подтвердила остановку видео; требуется переподключение")); }
+      if (state == "fatal") { stopping_ = true; event("fatal", args[2], "\"message\":" + json("Camera did not confirm video stop; reconnect required")); }
       else event(state == "stopped" ? "movie-stopped" : "movie-state", args[2], "\"state\":" + json(state));
     });
     return;
   }
-  if (args[1] != "copy" && args[1] != "preview") throw std::runtime_error("Неизвестная команда карты");
+  if (args[1] != "copy" && args[1] != "preview") throw std::runtime_error("Unknown card command");
   transfer(args, content, *file);
 }
 bool CameraBrowser::transfer_result(CrInt32u notify, CrInt32u percent) {
@@ -262,37 +262,37 @@ bool CameraBrowser::transfer_result(CrInt32u notify, CrInt32u percent) {
 }
 void CameraBrowser::transfer(const std::vector<std::string>& args, const Content& content, const File& file) {
   std::unique_lock<std::mutex> serial(transfers_);
-  if (stopping_ || canceled_) throw std::runtime_error("Операция отменена");
+  if (stopping_ || canceled_) throw std::runtime_error("Operation canceled");
   const bool preview = args[1] == "preview";
   const bool full_jpeg = preview && args[7] == "jpeg";
   const bool original = preview && args[7] == "original";
   std::filesystem::path destination;
   if (preview) {
-    if (args[7] != "screen" && args[7] != "thumb" && !full_jpeg && !original) throw std::runtime_error("Неизвестный размер превью");
+    if (args[7] != "screen" && args[7] != "thumb" && !full_jpeg && !original) throw std::runtime_error("Unknown preview size");
     if (original && (!file.size || (file.format != sdk::CrContentsFile_FileFormat_Jpeg &&
         file.format != sdk::CrContentsFile_FileFormat_Raw && file.format != sdk::CrContentsFile_FileFormat_Heif &&
-        file.format != sdk::CrContentsFile_FileFormat_Mp4))) throw std::runtime_error("Оригинал этого формата недоступен для просмотра");
+        file.format != sdk::CrContentsFile_FileFormat_Mp4))) throw std::runtime_error("Original preview is unavailable for this format");
     if (full_jpeg && (file.format != sdk::CrContentsFile_FileFormat_Jpeg || !file.size || file.size > 128 * 1024 * 1024))
-      throw std::runtime_error("Студийный просмотр принимает только JPEG до 128 MiB, без RAW");
-    if (cache_.empty()) throw std::runtime_error("Каталог превью недоступен");
+      throw std::runtime_error("Studio review accepts JPEG files up to 128 MiB, without RAW");
+    if (cache_.empty()) throw std::runtime_error("Preview directory unavailable");
     const auto extension = !original || file.format == sdk::CrContentsFile_FileFormat_Jpeg ? ".jpg" :
         file.format == sdk::CrContentsFile_FileFormat_Raw ? ".arw" : file.format == sdk::CrContentsFile_FileFormat_Mp4 ? ".mp4" : ".hif";
     destination = std::filesystem::path(cache_) / (args[2] + extension);
     if (original) {
       const auto space = std::filesystem::space(destination.parent_path());
       if (space.available < file.size || space.available - file.size < 64 * 1024 * 1024)
-        throw std::runtime_error("Недостаточно места для временного оригинала (нужен запас 64 MiB)");
+        throw std::runtime_error("Not enough space for the temporary original (64 MiB reserve required)");
     }
   } else {
     auto root = std::filesystem::path(unhex(args[7]));
-    if (!root.is_absolute()) throw std::runtime_error("Выбери абсолютный каталог назначения");
+    if (!root.is_absolute()) throw std::runtime_error("Select an absolute destination directory");
     std::filesystem::create_directories(root);
     root = std::filesystem::canonical(root);
     const auto relative = std::filesystem::path(content.capture_date) / std::filesystem::path("Slot_" + std::to_string(content.slot)) / relative_path(file.path);
     auto checked = root;
     for (const auto& part : relative) {
       checked /= part;
-      if (std::filesystem::is_symlink(std::filesystem::symlink_status(checked))) throw std::runtime_error("Символическая ссылка в пути назначения");
+      if (std::filesystem::is_symlink(std::filesystem::symlink_status(checked))) throw std::runtime_error("Symbolic link in the destination path");
     }
     destination = root / relative;
     // Never overwrite or assume that an existing file is the same photograph.
@@ -327,24 +327,24 @@ void CameraBrowser::transfer(const std::vector<std::string>& args, const Content
     if (stopping_) break;
     if (cancel_sent && std::chrono::steady_clock::now() > cancel_deadline) {
       stopping_ = true;
-      event("fatal", args[2], "\"message\":" + json("Камера не подтвердила остановку передачи; требуется переподключение"));
+      event("fatal", args[2], "\"message\":" + json("Camera did not confirm transfer stop; reconnect required"));
       break;
     }
     result_cv_.wait_for(lock, std::chrono::milliseconds(100));
   }
   transferring_ = false;
-  if (stopping_ || canceled_ || cancel_sent) throw std::runtime_error("Передача отменена");
+  if (stopping_ || canceled_ || cancel_sent) throw std::runtime_error("Transfer canceled");
   if (result_ != sdk::CrNotify_RemoteTransfer_Result_OK) throw std::runtime_error(sdk_error(result_));
   lock.unlock();
   std::error_code ec;
   auto size = std::filesystem::file_size(std::filesystem::path(directory) / name, ec);
-  if (ec || ((!preview || full_jpeg || original) && file.size && size != file.size)) throw std::runtime_error("Размер полученного файла не совпадает с оригиналом");
+  if (ec || ((!preview || full_jpeg || original) && file.size && size != file.size)) throw std::runtime_error("Received file size differs from the original");
   std::string digest;
   if (!preview) digest = file_sha256((std::filesystem::path(directory) / name).string(), size,
       [this] { return stopping_ || canceled_; }, [this, &args](int percent) {
         event("progress", args[2], "\"phase\":\"hash\",\"percent\":" + std::to_string(percent));
       });
-  if (stopping_ || canceled_) throw std::runtime_error("Передача отменена");
+  if (stopping_ || canceled_) throw std::runtime_error("Transfer canceled");
   if (!output.publish(message)) throw std::runtime_error(message);
   event(preview ? "preview" : "copied", args[2], "\"path\":" + json(output.target()) + ",\"size\":" + json(std::to_string(size)) +
       (preview ? "" : ",\"sha256\":" + json(digest)));
@@ -359,9 +359,9 @@ void CameraBrowser::erase(const std::vector<std::string>& args, const Content& c
   std::unique_lock<std::mutex> serial(transfers_);
   const auto snapshot = read_slot(content.slot);
   auto current = std::find_if(snapshot.begin(), snapshot.end(), [&](const Content& c) { return c.id == content.id && c.signature == content.signature; });
-  if (current == snapshot.end()) throw std::runtime_error("Содержимое карты изменилось; обнови список перед удалением");
-  if (!current->deletable || current->protected_file) throw std::runtime_error("Камера не разрешает удаление этого кадра");
-  if (stopping_ || canceled_) throw std::runtime_error("Операция отменена");
+  if (current == snapshot.end()) throw std::runtime_error("Card contents changed; refresh the list before deleting");
+  if (!current->deletable || current->protected_file) throw std::runtime_error("Camera does not permit deleting this capture");
+  if (stopping_ || canceled_) throw std::runtime_error("Operation canceled");
   {
     std::lock_guard<std::mutex> lock(result_mutex_);
     deleting_ = true; terminal_ = false; delete_slot_ = content.slot; delete_content_ = content.id;
@@ -372,7 +372,7 @@ void CameraBrowser::erase(const std::vector<std::string>& args, const Content& c
   if (err == sdk::CrError_None) notified = result_cv_.wait_for(lock, std::chrono::seconds(30), [this] { return terminal_ || stopping_; });
   deleting_ = false;
   if (err != sdk::CrError_None) throw std::runtime_error(sdk_error(err));
-  if (!notified || stopping_ || result_ != sdk::CrWarningExtParam_DeleteContentResult_OK) throw std::runtime_error("Удаление не подтверждено камерой; обнови список");
+  if (!notified || stopping_ || result_ != sdk::CrWarningExtParam_DeleteContentResult_OK) throw std::runtime_error("Camera did not confirm deletion; refresh the list");
   lock.unlock();
   event("deleted", args[2]);
   catalog_.erase(key(content.slot, content.id));

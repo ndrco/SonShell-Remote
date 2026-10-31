@@ -13,7 +13,7 @@ CameraSession::CameraSession(QObject* parent) : QObject(parent) {
   for (auto* timer : {&retry_, &connection_timeout_, &terminate_timeout_, &kill_timeout_}) timer->setSingleShot(true);
   connect(&retry_, &QTimer::timeout, this, &CameraSession::launch);
   connect(&connection_timeout_, &QTimer::timeout, this, [this] {
-    emit log_received(QCoreApplication::translate("App", "Камера не ответила за 45 секунд. Перезапуск соединения."));
+    emit log_received(QCoreApplication::translate("App", "The camera did not respond in 45 seconds. Restarting the connection."));
     terminate_process();
   });
   connect(&terminate_timeout_, &QTimer::timeout, this, [this] {
@@ -27,7 +27,7 @@ CameraSession::CameraSession(QObject* parent) : QObject(parent) {
     if (error == QProcess::FailedToStart) {
       connection_timeout_.stop();
       desired_ = false;
-      set_state(State::Error, QCoreApplication::translate("App", "Не удалось запустить backend: ") + process_.errorString());
+      set_state(State::Error, QCoreApplication::translate("App", "Could not start backend: ") + process_.errorString());
     }
   });
 }
@@ -58,7 +58,7 @@ void CameraSession::start(const ConnectionOptions& options) {
   if (active()) return;
   options_ = options;
   if (!QFileInfo(options.binary).isFile() || !QFileInfo(options.binary).isExecutable() || !frames_.isValid()) {
-    set_state(State::Error, QCoreApplication::translate("App", "Backend не найден или временный каталог недоступен. Переустанови приложение либо укажи --sonshell."));
+    set_state(State::Error, QCoreApplication::translate("App", "Backend not found or temporary directory unavailable. Reinstall the application or use --sonshell."));
     return;
   }
   desired_ = true;
@@ -85,7 +85,7 @@ void CameraSession::launch() {
   environment.insert("SONSHELL_CAMERA_USER", options_.user);
   environment.insert("SONSHELL_CAMERA_PASSWORD", options_.password);
   process_.setProcessEnvironment(environment);
-  set_state(State::Connecting, QCoreApplication::translate("App", "Подключение к ") + options_.host + "…");
+  set_state(State::Connecting, QCoreApplication::translate("App", "Connecting to ") + options_.host + "…");
   process_.start();
   connection_timeout_.start(45000);
 }
@@ -105,7 +105,7 @@ void CameraSession::handle_line(const QByteArray& bytes) {
   line.remove(ansi);
   line.remove('\r');
   QString sanitized = line;
-  if (!options_.password.isEmpty()) sanitized.replace(options_.password, QCoreApplication::translate("App", "[скрыто]"));
+  if (!options_.password.isEmpty()) sanitized.replace(options_.password, QCoreApplication::translate("App", "[hidden]"));
   const bool file_event = line.startsWith("INFO  | [INFO] REMOTE/1 controls") || line.startsWith("INFO  | [INFO] REMOTE/1 card ") || line.startsWith("INFO  | [INFO] REMOTE/1 download-complete ") ||
       line.startsWith("INFO  | [INFO] REMOTE/1 transfer-progress ");
   if (!file_event && !sanitized.trimmed().isEmpty()) emit log_received(sanitized);
@@ -132,7 +132,7 @@ void CameraSession::handle_line(const QByteArray& bytes) {
     const auto type = event.value("type").toString();
     if (type == "fatal") {
       emit log_received(event.value("message").toString());
-      set_state(State::Connecting, QCoreApplication::translate("App", "Перезапуск соединения после ошибки передачи…"));
+      set_state(State::Connecting, QCoreApplication::translate("App", "Restarting connection after transfer error…"));
       terminate_process(); return;
     }
     if (type == "preview" || type == "copied") {
@@ -156,15 +156,15 @@ void CameraSession::handle_line(const QByteArray& bytes) {
       const auto relative = QDir(options_.folder).relativeFilePath(path);
       if (QFileInfo(path).isAbsolute() && relative != ".." && !relative.startsWith("../")) {
         QString filename = QFileInfo(path).fileName();
-        if (!options_.password.isEmpty()) filename.replace(options_.password, QCoreApplication::translate("App", "[скрыто]"));
+        if (!options_.password.isEmpty()) filename.replace(options_.password, QCoreApplication::translate("App", "[hidden]"));
         if (parts[0] == "download-complete" && (parts[1] == "new" || parts[1] == "sync")) {
-          emit log_received(QCoreApplication::translate("App", "Получен файл: ") + filename);
+          emit log_received(QCoreApplication::translate("App", "File received: ") + filename);
           emit download_completed(path, parts[1] == "new");
         }
         else if (parts[0] == "transfer-progress") {
           bool ok = false; const int percent = parts[1].toInt(&ok);
           if (ok && percent >= 0 && percent <= 100) {
-            emit log_received(QString(QCoreApplication::translate("App", "Передача: %1 · %2%")).arg(filename).arg(percent));
+            emit log_received(QString(QCoreApplication::translate("App", "Transfer: %1 · %2%")).arg(filename).arg(percent));
             emit transfer_progress(path, percent);
           }
         }
@@ -176,10 +176,10 @@ void CameraSession::handle_line(const QByteArray& bytes) {
   if (line == QString("INFO  | [INFO] REMOTE/1 connected")) {
     connection_timeout_.stop();
     attempts_ = 0;
-    set_state(State::Connected, QCoreApplication::translate("App", "Подключено · ") + options_.host);
+    set_state(State::Connected, QCoreApplication::translate("App", "Connected · ") + options_.host);
     emit connected();
   } else if (line == QString("INFO  | [INFO] REMOTE/1 disconnected")) {
-    set_state(State::Connecting, QCoreApplication::translate("App", "Соединение с камерой потеряно…"));
+    set_state(State::Connecting, QCoreApplication::translate("App", "Connection to the camera lost…"));
     emit liveview_changed(false);
     terminate_process();
   } else if (line == QString("INFO  | [INFO] REMOTE/1 liveview-started")) emit liveview_changed(true);
@@ -198,11 +198,11 @@ void CameraSession::process_finished() {
 void CameraSession::finish_or_retry() {
   if (desired_ && options_.auto_reconnect) {
     const int delay = std::min(30000, retry_base_ms_ * (1 << std::min(attempts_++, 4)));
-    set_state(State::RetryWaiting, QString(QCoreApplication::translate("App", "Нет связи · повтор через %1 с")).arg(delay / 1000.0, 0, 'f', 1));
+    set_state(State::RetryWaiting, QString(QCoreApplication::translate("App", "No connection · retry in %1 s")).arg(delay / 1000.0, 0, 'f', 1));
     retry_.start(delay);
   } else {
     desired_ = false;
-    set_state(State::Disconnected, QCoreApplication::translate("App", "Отключено"));
+    set_state(State::Disconnected, QCoreApplication::translate("App", "Disconnected"));
   }
 }
 void CameraSession::terminate_process() {
@@ -216,10 +216,10 @@ void CameraSession::stop() {
   desired_ = false;
   retry_.stop();
   if (process_.state() == QProcess::NotRunning) {
-    set_state(State::Disconnected, QCoreApplication::translate("App", "Отключено"));
+    set_state(State::Disconnected, QCoreApplication::translate("App", "Disconnected"));
     return;
   }
-  set_state(State::Stopping, QCoreApplication::translate("App", "Отключение…"));
+  set_state(State::Stopping, QCoreApplication::translate("App", "Disconnecting…"));
   terminate_process();
 }
 void CameraSession::set_auto_reconnect(bool enabled) {

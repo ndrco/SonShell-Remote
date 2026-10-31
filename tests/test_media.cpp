@@ -81,7 +81,7 @@ class MediaTests final : public QObject {
     }
     const auto result = MediaReader::read(path);
     QVERIFY2(result.error.isEmpty(), qPrintable(result.error)); QVERIFY(result.raw_preview);
-    QCOMPARE(result.image.size(), QSize(400, 600)); QVERIFY(result.source.contains("JPEG-превью"));
+    QCOMPARE(result.image.size(), QSize(400, 600)); QVERIFY(result.source.contains("JPEG preview"));
     QVERIFY(result.metadata.join('\n').contains("6000 × 4000"));
     const auto thumb = MediaReader::read(path, true); QVERIFY(!thumb.image.isNull()); QVERIFY(thumb.image.height() <= 192);
   }
@@ -202,7 +202,7 @@ class MediaTests final : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT(!review->active(), 3500);
     QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), QSizeF(640, 480));
     auto* card = window.findChild<CameraCard*>(); QVERIFY(card);
-    QVERIFY(!QFileInfo::exists(captures.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/снимок 1.jpg")));
+    QVERIFY(!QFileInfo::exists(captures.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/\u0441\u043d\u0438\u043c\u043e\u043a 1.jpg")));
     QSignalSpy copied(card, &CameraCard::copied);
     card->copy({}, "all", CameraCard::CopyMode::All);
     QTRY_COMPARE(copied.size(), 1); QTest::qWait(400); QVERIFY(!review->active());
@@ -240,7 +240,7 @@ class MediaTests final : public QObject {
     const auto expected = raw_only ? QSizeF(1200, 800) : QSizeF(6192, 4128);
     QCOMPARE(viewer->view()->scene()->itemsBoundingRect().size(), expected);
     QCOMPARE(window.findChild<QLineEdit*>("file_status_path")->text(), raw_only ? QString("DCIM/frame.ARW") : QString("DCIM/frame.JPG"));
-    QVERIFY(ready[0][2].toString().contains(raw_only ? QString::fromUtf8("JPEG на карте нет") : QString::fromUtf8("исходный размер")));
+    QVERIFY(ready[0][2].toString().contains(raw_only ? QString::fromUtf8("No JPEG on card") : QString::fromUtf8("original size")));
     QCOMPARE(copied.size(), 0);
     QVERIFY(QDir(captures.path()).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden).isEmpty());
     QVERIFY(QDir(session->card_cache_path()).entryList(QDir::Files).isEmpty());

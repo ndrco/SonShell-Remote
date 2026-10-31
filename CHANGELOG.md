@@ -1,306 +1,320 @@
-# Изменения
+[English](CHANGELOG.md) · [Russian](CHANGELOG_RU.md)
 
-## Не выпущено
+# Changes
 
-- Опубликованы исходники в публичном ndrco/SonShell-Remote, ветка main:
-  README с прямым
-  скриншотом интерфейса на демонстрационных данных, команда клонирования,
-  возможности и ограничения. Исправлено имя DEB в BUILD, добавлены сведения
-  об унаследованных исходниках G'MIC. Код приложения и версия 0.8.3 не менялись.
-  Проверены история Gitleaks, отображение README/PNG, публичное клонирование,
-  свежая GUI-сборка без SDK и CTest offscreen 7/7.
-- 2026-10-31: аудит всех пожеланий для 0.8.3, актуальная сводка оставшихся задач и
-  уточнён перечень оставшихся задач. Архивный аудит 0.6.3 помечен историческим;
-  закрытые позднее функции отделены от оставшихся задач и аппаратной приёмки.
-  Повторная сборка GUI/backend и CTest offscreen 9/9; код приложения не менялся.
+## Not released
+
+- Sources published in public ndrco/SonShell-Remote, main branch:
+  README with direct
+  screenshot of the interface on demo data, cloning command,
+  possibilities and limitations. Corrected DEB name in BUILD, added information
+  about legacy G'MIC sources. The application code and version 0.8.3 have not changed.
+  Verified Gitleaks history, README/PNG mapping, public cloning,
+  fresh GUI build without SDK and CTest offscreen 7/7.
+- 2026-10-31: audit of all requests for 0.8.3, current summary of remaining tasks and
+  The list of remaining tasks has been clarified. Archive audit 0.6.3 is marked historical;
+  functions closed later are separated from remaining tasks and hardware acceptance.
+  Rebuilding GUI/backend and CTest offscreen 9/9; The application code has not changed.
+
+## 0.8.4 — 2026-10-31
+
+- English is now the source and default application language. Russian remains
+  available through the complete `_RU` Qt catalog; saved language preferences
+  are preserved and invalid settings fall back to English.
+- English documentation is primary, with retained `_RU.md` Russian counterparts.
+  Both languages are included in installed help and user documentation.
+- README uses the screenshot supplied by the project owner. The former demo
+  caption was removed. Local development notes and their links were excluded.
+- GUI/backend rebuilt; CTest offscreen 9/9 and AddressSanitizer 5/5 passed.
+  Fresh-install and public release verification are recorded in TESTING.md.
 
 ## 0.8.3 — 2026-10-26
 
-- Кнопки «Предыдущий файл»/«Следующий файл» в просмотрщиках карты, галереи и отдельном окне,
-  включая полный экран: соседние видимые файлы с учётом поиска и фильтра.
-  Для Live View кнопки не показываются. Текущий ролик останавливается при
-  переходе; оригинал следующего видео загружается только по Play/«Оригинал».
-- Отдельные «Назад 5 с»/«Вперёд 5 с» перематывают текущий ролик от позиции
-  декодера, включая fullscreen. Оригиналы/локальные файлы: сохранение паузы
-  с показом выбранного кадра, границы файла, накопление быстрых нажатий,
-  текущее время/длительность. Длительность читается асинхронно через ffprobe.
-- Настоящая полоса прогресса внутри просмотрщика карты рядом с отменой: видна
-  в fullscreen и показывает те же проценты/очередь, что основной индикатор.
-  После завершения/отмены скрывается, при SDK-воспроизведении не показывается.
-- Переход во время загрузки оригинала отменяет прежнюю передачу и запрашивает
-  выбранное превью; поздний результат не запускает старый ролик. RU/EN обновлены.
+- “Previous file”/“Next file” buttons in the card, gallery and separate window viewers,
+  including full screen: adjacent visible files, taking into account search and filter.
+  For Live View, the buttons are not shown. The current clip stops when
+  transition; The original of the following video is loaded only by Play/Original.
+- Separate “Back 5 s” / “Forward 5 s” rewind the current video from the position
+  decoder, including fullscreen. Originals/Local Files: Save Pause
+  with display of the selected frame, file boundaries, accumulation of quick presses,
+  current time/duration. The duration is read asynchronously via ffprobe.
+- Real progress bar inside card viewer next to cancel: visible
+  in fullscreen and shows the same percentages/queue as the main indicator.
+  After completion/cancellation it is hidden and not shown during SDK playback.
+- Transferring while the original is loading cancels the previous transfer and prompts
+  selected preview; the later result does not start the old movie. RU/EN updated.
 - CMake GUI + SDK backend, CTest offscreen 9/9; AddressSanitizer 4/4.
-  DEB проверен чистой установкой на Ubuntu 24.04.5 amd64, запуском RU/EN,
-  FFmpeg/ffprobe и обновлением с 0.8.2. Аппаратная проверка этой версии не проводилась.
+  DEB tested with a clean install on Ubuntu 24.04.5 amd64, running RU/EN,
+  FFmpeg/ffprobe and update from 0.8.2. Hardware testing for this version has not been performed.
 
 ## 0.8.2 — 2026-10-25
 
-- About: иконка NDRco из профиля GitHub, автор/сопровождение и ссылка на
-  ndrco/SonShell-Remote, версия, ссылки на SonShell и Sony Camera Remote SDK.
-  Изображение встроено в приложение, About открывается без сети и не блокирует
-  цикл событий камеры. Окно и сведения доступны на русском и английском.
-- Адрес проекта и NDRco добавлены в README; источник и SHA256 иконки описаны
-  в gui/assets/README.md. Публикация на GitHub в этот этап не входит.
-- Сборка GUI с SDK и без него, CTest 9/9; About RU/EN, повторное открытие
-  и закрытие вместе с главным окном проверены под AddressSanitizer. DEB прошёл
-  чистую установку на Ubuntu 24.04.5 amd64 и обновление с 0.8.1.
+- About: NDRco icon from GitHub profile, author/maintainer and link to
+  ndrco/SonShell-Remote, version, links to SonShell and Sony Camera Remote SDK.
+  The image is built into the application, About opens without a network and does not block
+  camera event loop. The window and information are available in Russian and English.
+- Project address and NDRco added to README; source and SHA256 icons are described
+  in gui/assets/README.md. Publishing to GitHub is not included in this step.
+- GUI build with and without SDK, CTest 9/9; About RU/EN, reopening
+  and closing along with the main window are checked under AddressSanitizer. DEB passed
+  clean installation on Ubuntu 24.04.5 amd64 and update from 0.8.1.
 
 ## 0.8.1 — 2026-10-25
 
-- Play на карте загружает оригинал видео во временный кеш и запускает просмотр
-  после загрузки, с исходными разрешением/частотой. Размер виден заранее, передача
-  отменяется; повтор использует кеш или подтверждённую локальную копию.
-  Отмена/смена строки/вкладки не запускают поздний результат. При спуске ничего
-  нового не передаётся. Поток SDK остаётся опцией в Settings: на ILCE-6700
-  воспроизведён отказ без видеокадров при работающих сетевых соединениях.
-- Лёгкие прозрачные надписи с тенью букв: отметки вверху слева, подтверждения
-  внизу слева, без центральной плашки; работают и в полном экране.
-- Settings: подключение/пароль/автоконнект, каталог и параметры превью/студии.
-  Качество фото/видео карты сохраняется, журнал скрыт и открывается через меню.
-  В главном окне остаются Connect, состояние и съёмка; удержание кадра в Live View.
-- RU/EN справка и интерфейс; регрессии запуска/отмены видео, кеша и окна настроек.
-- CTest 9/9 и обновлённые GUI/video 2/2 после последней правки; ASan 4/4,
-  затем повтор обновлённых 2/2. ILCE-6700: исходное видео 1920×1080, Play,
-  пауза, кеш и полноэкранные отметки подтверждены аппаратно.
-- DEB: установка с зависимостями в чистой Ubuntu 24.04.5 amd64, RU/EN runtime,
-  SDK loader, обновление 0.8.0 → 0.8.1 и удаление.
+- Play on the card loads the original video into a temporary cache and starts viewing
+  after downloading, with the original resolution/frequency. The size is visible in advance, transfer
+  cancelled; replay uses a cache or verified local copy.
+  Cancel/change line/tab does not trigger late result. Nothing on shutter release
+  new is not transmitted. Stream SDK remains an option in Settings: on ILCE-6700
+  A failure was reproduced without video frames when network connections were working.
+- Light transparent inscriptions with letter shadow: marks at the top left, confirmations
+  bottom left, without central plate; They also work in full screen.
+- Settings: connection/password/autoconnect, directory and preview/studio settings.
+  The quality of the photo/video card is preserved, the magazine is hidden and can be opened through the menu.
+  Connect, status, and survey remain in the main window; Holding a frame in Live View.
+- RU/EN help and interface; regressions of video start/cancel, cache and settings window.
+- CTest 9/9 and updated GUI/video 2/2 after the last edit; ASan 4/4,
+  then repeat the updated 2/2. ILCE-6700: original video 1920×1080, Play,
+  pause, cache and full-screen marks are hardware confirmed.
+- DEB: installation with dependencies in clean Ubuntu 24.04.5 amd64, RU/EN runtime,
+  SDK loader, update 0.8.0 → 0.8.1 and removal.
 
 ## 0.8.0 — 2026-10-25
 
-- Кнопка подключения крупнее, с контрастным синим фоном и клавиатурным фокусом.
-  Флажок «Подключаться при запуске» сохраняется и по умолчанию включён:
-  используются только сохранённые имя/пароль и ранее принятое соглашение SDK.
-  При неполных настройках нет модального окна; ручное подключение/отключение,
-  снятие флажка и закрытие отменяют отложенный старт.
-- Сворачиваемые разделы «Запись фото» и «Запись видео»: формат RAW/JPEG/HEIF,
-  JPEG/HEIF, качество, размер, пропорции и сжатие RAW; формат, частота кадров,
-  битрейт/цвет видео и стабилизация фото/видео. Списки, текущее значение и
-  доступность получаются из SDK, значения повторно проверяются перед записью.
-- Поддержаны UInt8Array для частоты/стабилизации/сжатого формата. Подписи новых
-  значений генерируются из локального SDK при сборке, без копирования SDK в Git.
-  После setter поля ждут нового снимка зависимых свойств; устаревшие события
-  ввода не отправляют вторую команду. Новые свойства автоматически не меняются.
-- RU/EN интерфейс и справка, сценарии автоподключения/отмены, зависимостей
-  параметров, read-only, неподдерживаемых свойств и точного кодирования SDK.
-- На ILCE-6700 автоподключение без клика, 10 доступных новых свойств из 11,
-  запись текущего ImageSize без смены значения, перечитывание и ручное отключение
-  подтверждены аппаратно. Переходы между режимами/моделями требуют отдельной приёмки.
-- CTest 9/9, 101 сценарий Qt, ASan GUI/backend. Видеотест переведён на
-  непрерывный цикл событий: прежние паузы qWait давали ложный таймаут RGB-pipe;
-  20 повторов сохранили все исходные кадры и пиксели. Рабочий плеер не менялся.
-- DEB: установка с зависимостями с нуля на Ubuntu 24.04.5 amd64, RU/EN runtime,
-  SDK loader в изоляции, обновление 0.7.1 → 0.8.0 и удаление.
+- The connect button is larger, with a contrasting blue background and keyboard focus.
+  The “Connect at startup” checkbox is saved and enabled by default:
+  Only the saved username/password and previously accepted SDK agreement are used.
+  With incomplete settings, there is no modal window; manual connection/disconnection,
+  unchecking and closing cancels the delayed start.
+- Collapsible sections “Photo recording” and “Video recording”: RAW/JPEG/HEIF format,
+  JPEG/HEIF, quality, size, aspect ratio and RAW compression; format, frame rate,
+  video bitrate/color and photo/video stabilization. Lists, current value and
+  availability are obtained from the SDK, values are rechecked before being written.
+- Supported UInt8Array for frequency/stabilization/compressed format. Signatures of new
+  values are generated from the local SDK when building, without copying the SDK to Git.
+  After the setter, the fields wait for a new snapshot of the dependent properties; obsolete events
+  input does not send the second command. New properties are not automatically updated.
+- RU/EN interface and help, auto-connect/cancel scenarios, dependencies
+  parameters, read-only, unsupported properties and SDK precision coding.
+- On ILCE-6700, auto-connect without clicking, 10 new properties available out of 11,
+  recording the current ImageSize without changing the value, re-reading and manually disabling
+  confirmed by hardware. Transitions between modes/models require separate acceptance.
+- CTest 9/9, 101 Qt scripts, ASan GUI/backend. The video test has been translated to
+  continuous event loop: previous qWait pauses gave a false RGB-pipe timeout;
+  20 repetitions preserved all original frames and pixels. The working player has not changed.
+- DEB: installation with dependencies from scratch on Ubuntu 24.04.5 amd64, RU/EN runtime,
+  SDK loader in isolation, update 0.7.1 → 0.8.0 and removal.
 
 ## 0.7.1 — 2026-10-24
 
-- Во вкладке карты фото по умолчанию открывается из исходного JPEG, включая
-  RAW+JPEG. Быстрое сжатое превью остаётся отдельным выбором; качество студии
-  и Live View независимо. RAW при выборе строки и при спуске не скачивается.
-- Кнопка «Оригинал · … MiB» для фото/видео: фоновая передача с прогрессом,
-  отменой и проверкой размера. JPEG — исходные пиксели, RAW — лучший встроенный
-  JPEG с указанием размеров, MP4 — исходные размер и частота без перекодирования.
-- Один последний оригинал во временном кеше; повторное открытие использует кеш
-  или подтверждённую импортированную копию. Просмотр не меняет журнал импорта
-  и статус «Новый»; временные файлы удаляются при замене/отключении.
-- Качество, размер файла и отмена доступны в полном экране. Перелистывание
-  останавливает проигрыватель, поздний результат не подменяет выбранный кадр.
-  RU/EN интерфейс и справка обновлены.
-- На ILCE-6700 получены исходный JPEG 6192×4128 (6 139 791 байт) и видео
-  3840×2160 (67 383 474 байт), показаны кадры 4K; повторное открытие обоих
-  использовало кеш без передачи. Съёмка, удаление и настройки камеры не менялись.
-- CTest 9/9 (88 сценариев Qt), ASan GUI/SDK, backend headless/OpenCV.
-  DEB проверен установкой с зависимостями с нуля на Ubuntu 24.04.5 amd64,
-  обновлением 0.7.0 → 0.7.1 и удалением, RU/EN и SDK loader в изоляции.
+- In the card tab, the default photo opens from the original JPEG, including
+  RAW+JPEG. Quick compressed preview remains a separate option; studio quality
+  and Live View independently. RAW is not downloaded when selecting a line and when descending.
+- “Original · ... MiB” button for photo/video: background transfer with progress,
+  canceling and checking the size. JPEG - original pixels, RAW - best built-in
+  JPEG with size indication, MP4 - original size and frequency without recoding.
+- One last original in the temporary cache; reopening uses cache
+  or a certified imported copy. Viewing does not change the import log
+  and status “New”; Temporary files are deleted when replaced/disabled.
+- Quality, file size and undo available in full screen. Flipping
+  stops the player, the later result does not replace the selected frame.
+  RU/EN interface and help have been updated.
+- ILCE-6700 received original JPEG 6192x4128 (6,139,791 bytes) and video
+  3840x2160 (67,383,474 bytes), 4K footage shown; reopening both
+  used cache without transfer. Shooting, deleting and camera settings did not change.
+- CTest 9/9 (88 Qt scripts), ASan GUI/SDK, backend headless/OpenCV.
+  DEB tested by installing with dependencies from scratch on Ubuntu 24.04.5 amd64,
+  update 0.7.0 → 0.7.1 and removal, RU/EN and SDK loader in isolation.
 
 ## 0.7.0 — 2026-10-24
 
-- SHA256 содержимого до публикации оригинала, отменяемый расчёт в SDK worker,
-  сохранение эталона в журнале. Локальная проверка без камеры, с прогрессом и
-  отменой, обнаруживает изменение при прежних размере/mtime. Ошибочный эталон
-  не заменяется; старые записи без суммы остаются совместимыми и отмечаются
-  «без эталона». Проверяется локальная копия, хеш камеры SDK здесь не предоставляет.
-- Сохранение очереди и «Продолжить импорт» после отмены/обрыва/перезапуска:
-  новые epoch/content-id сопоставляются по стабильной идентичности, завершённые
-  файлы не повторяются. Неполный файл передаётся заново; спуск/удаление не повторяются.
-- Обновление статуса одной строки после копирования вместо пересоздания списка.
-- Студийный JPEG в исходном размере из записи JPEG/RAW+JPEG, только во временный
-  каталог. После декодирования он удаляется; RAW не загружается. RAW-only даёт
-  явно подписанное сжатое превью. Источник/размер видны, выбор качества сохраняется.
-  Изменения во время медленного превью объединяются в запрос последнего кадра;
-  дубли уведомлений не вызывают повторного показа того же кадра.
-- Полный путь исходного файла камеры в нижней строке во время студийного показа.
-- RU/EN интерфейс и справка, протокол и инструкция сборки с OpenSSL обновлены.
-- CTest 8/8 (80 Qt-сценариев), ASan GUI/SDK без ошибок доступа; headless/OpenCV,
-  DEB, чистая установка Ubuntu 24.04.5 amd64, обновление 0.6.3 и удаление проверены.
-- На ILCE-6700 проверены JPEG+RAW, остановка/переподключение/продолжение без
-  повтора JPEG, SHA256 двух копий и JPEG 6192×4128 существующего кадра. Проверка
-  физического спуска/серий остаётся отдельной от автоматических сценариев.
+- SHA256 of content before the original is published, overridden calculation in SDK worker,
+  saving the standard in the journal. Local check without camera, with progress and
+  cancellation, detects a change at the same size/mtime. Faulty standard
+  not replaced; old entries without a sum remain compatible and are marked
+  "without a standard." The local copy is checked; the SDK does not provide the camera hash here.
+- Saving the queue and “Continue importing” after cancellation/abort/restart:
+  new epoch/content-id are matched by stable identity, completed
+  files are not repeated. An incomplete file is transferred again; shutter release/removal is not repeated.
+- Update the status of one row after copying instead of recreating the list.
+- Studio JPEG in original size from JPEG/RAW+JPEG recording, only temporary
+  catalogue. After decoding it is removed; RAW won't load. RAW-only gives
+  obviously signed compressed preview. The source/size is visible and the quality selection is retained.
+  Changes during the slow preview are merged into the last frame request;
+  duplicate notifications do not cause the same frame to be shown again.
+- Full path of the camera source file in the bottom line during studio screening.
+- RU/EN interface and help, protocol and build instructions with OpenSSL have been updated.
+- CTest 8/8 (80 Qt scripts), ASan GUI/SDK without access errors; headless/OpenCV,
+  DEB, clean install of Ubuntu 24.04.5 amd64, 0.6.3 update and uninstall verified.
+- JPEG+RAW tested on ILCE-6700, stop/reconnect/continue without
+  repeat JPEG, SHA256 of two copies and JPEG 6192x4128 of the existing frame. Check
+  physical shutter release/series remains separate from automated tests.
 
-## Документация — аудит 2026-10-24
+## Documentation - audit 2026-10-24
 
-- Дорожная карта сверена с реализацией 0.6.3: отделены отсутствующие функции,
-  дополнительные расширения и аппаратная приёмка. Уточнены ограничения студийного
-  разрешения, импорта, платформ и дополнительных параметров камеры.
-- Исправлены устаревшие пометки об упаковке, SDK-видео и параметрах экспозиции;
-  автоматическая передача оригиналов не возвращается в backlog.
+- Roadmap verified with implementation 0.6.3: missing functions separated,
+  additional extensions and hardware acceptance. Studio restrictions have been clarified
+  resolution, import, platforms and advanced camera settings.
+- Fixed outdated notes about packaging, SDK video and exposure parameters;
+  automatic transfer of originals is not returned to the backlog.
 
 ## 0.6.3 — 2026-10-24
 
-- ISO, выдержка, диафрагма и EV: крутилки мышью/колесом, список значений и
-  ручной ввод Enter/«Задать». Поле ISO расширено и целиком вмещает AUTO.
-- Текущие значения и шаги приходят от SDK вместо фиксированных значений GUI;
-  учитываются режим/объектив, отрицательная EV и дробная выдержка. Перед записью
-  backend повторно проверяет доступность и список значений камеры. CLI сохранён.
-- Перетаскивание отправляет итоговое значение после отпускания, колесо объединяет
-  шаги за 250 мс; отключение/занятость отменяют отложенную команду. Автообновление
-  ждёт завершения ввода, Esc отменяет черновик. RU/EN подсказки и справка.
-- Пользователь подтвердил работу исправленного автофокуса 0.6.2.
-- CTest 8/8, ASan без ошибок доступа, SDK backend headless/OpenCV; DEB проверен
-  установкой с зависимостями с нуля на Ubuntu 24.04.5 amd64, обновлением и удалением.
-  Аппаратная приёмка новых крутилок остаётся открытой.
+- ISO, shutter speed, aperture and EV: scroll with mouse/wheel, list of values and
+  manual input Enter/"Set". The ISO field has been expanded to include AUTO entirely.
+- Current values and steps come from SDK instead of fixed GUI values;
+  mode/lens, negative EV and fractional shutter speed are taken into account. Before recording
+  The backend rechecks the camera's availability and list of values. CLI saved.
+- Drag sends total value after release, wheel merges
+  steps in 250 ms; shutdown/busy cancels the pending command. Auto update
+  waits for input to complete, Esc cancels the draft. RU/EN tips and help.
+- The user confirmed the operation of the corrected autofocus 0.6.2.
+- CTest 8/8, ASan without access errors, SDK backend headless/OpenCV; DEB verified
+  installation with dependencies from scratch on Ubuntu 24.04.5 amd64, updating and uninstalling.
+  Hardware acceptance of new dials remains open.
 
 ## 0.6.2 — 2026-10-23
 
-- Клик по точке Live View запускает AF после перемещения рамки: полунажатие S1
-  на секунду с отпусканием, без снимка. Кнопка «Автофокус» сохранена.
-- Режимы MF/PF и недоступный S1 отключают клик AF. Ошибка перемещения не
-  запускает AF; отказ запуска после перемещения показывается отдельно.
-- RU/EN интерфейс, подсказки и справка обновлены под «Автофокус по клику».
-- Проверки порядка SDK-вызовов, отпускания при отказе, отсутствия AF после
-  ошибки координат/записи, ручного режима и сообщений GUI.
+- Clicking on a Live View point triggers AF after moving the frame: half-press S1
+  for a second with release, without taking a picture. The Autofocus button is retained.
+- MF/PF modes and unavailable S1 disable click AF. No move error
+  starts AF; Startup failure after movement is shown separately.
+- RU/EN interface, tips and help have been updated to “Click-to-autofocus”.
+- Checking the order of SDK calls, releasing on failure, no AF after
+  errors in coordinates/recording, manual mode and GUI messages.
 
 ## 0.6.1 — 2026-10-23
 
-- Локальное видео: исходные разрешение и частота вместо 720p/12 кадров/с,
-  RGB без повторного JPEG-сжатия. Первый кадр читается в исходном размере;
-  уменьшение осталось только для миниатюр списка.
-  Темп определяется временем показа кадров, чтобы короткий клип не начинался рывком.
-- Полный путь выбранного файла в нижней строке: локальный абсолютный или
-  исходный путь SDK на карте. Выделение, копирование, прокрутка длинного пути.
-- Movie Playback: дочитывание очереди при нормальном окончании, ожидание
-  подготовки до 20 с, FFmpeg запускается только после поступления данных.
-  Пустой поток даёт отдельную переведённую ошибку с адресами и TCP-портами.
-  Фактическое разрешение получаемого видео отображается в панели просмотра.
-- Аппаратная диагностика обнаружила блокировку входящего TCP 55001 от камеры
-  брандмауэром UFW. С согласия пользователя добавлено адресное правило,
-  аппаратно проверены поток, pause/resume/seek/stop и восстановление Live View. В справке RU/EN и инструкции установки описано адресное
-  правило для 55001/55003/55005 и его откат; приложение не меняет правила системы.
-- Регрессионные проверки исходных пикселей/размера/частоты, пустого потока,
-  повреждённого файла, окончания очереди SDK и полных путей.
+- Local video: original resolution and frequency instead of 720p/12 fps,
+  RGB without re-JPEG compression. The first frame is read at its original size;
+  The reduction remains only for list thumbnails.
+  The pace is determined by the timing of the frames, so that the short clip does not start abruptly.
+- Full path of the selected file in the bottom line: local absolute or
+  source SDK path on the card. Select, copy, scroll long path.
+- Movie Playback: finishing the queue at normal completion, waiting
+  preparation takes up to 20 s, FFmpeg starts only after data arrives.
+  An empty stream gives a separate translated error with addresses and TCP ports.
+  The actual resolution of the resulting video is displayed in the preview pane.
+- Hardware diagnostics detected blocking of incoming TCP 55001 from the camera
+  UFW firewall. With the user's consent, an address rule has been added,
+  stream, pause/resume/seek/stop and Live View recovery are hardware checked. The RU/EN help and installation instructions describe the address
+  rule for 55001/55003/55005 and its rollback; the application does not change the rules of the system.
+- Regression checks for source pixels/size/frequency, empty stream,
+  damaged file, end of SDK queue and full paths.
 
 ## 0.6.0 — 2026-10-23
 
-- Fullscreen: постоянный оверлей имени/отметок, подтверждения Space/Delete и
-  объяснение недоступности удаления. При смене строки старое фото убирается.
-- MP4 включены в каталог камеры вместе с прокси/XML. Фильтры фото/видео, миниатюра,
-  те же отметки/удаление/копирование. Для видео используется SDK Thumbnail.
-- Потоковый просмотр SDK по кнопке, pause/stop/seek, без скачивания оригинала;
-  ограниченные буферы, подтверждение Stop, восстановление Live View. Предпросмотр
-  без звука, до 1280×720/12 fps; аппаратная проверка streaming остаётся открытой.
-- Локальная галерея MP4/MOV/M4V: первый кадр и метаданные в фоне, явное воспроизведение.
-- Новые копии в YYYY-MM-DD/Slot_N/исходная иерархия: локальная дата съёмки SDK,
-  затем UTC/Unknown-Date. Старые файлы и ledger остаются совместимыми.
-- Передачи больших файлов ограничены тайм-аутом без уведомлений, а не 10 минутами
-  общей длительности. FFmpeg — явная зависимость DEB; справка/переводы обновлены.
-- CTest 8/8: 56 случаев Qt и проверка переводов; ASan без ошибок доступа.
-  Проверены сборки headless/OpenCV, установка на свежую Ubuntu 24.04 amd64,
-  H.265-декодер, обновление с 0.5.0 и удаление. Аппаратная приёмка открыта.
-  Сценарии и результаты — docs/TESTING.md.
+- Fullscreen: permanent overlay of name/tags, Space/Delete confirmations and
+  explanation for unavailability of deletion. When changing a line, the old photo is removed.
+- MP4 included in camera directory along with proxy/XML. Photo/video filters, thumbnail,
+  the same marks/delete/copy. For video, the Thumbnail SDK is used.
+- Streaming SDK viewing by button, pause/stop/seek, without downloading the original;
+  limited buffers, Stop confirmation, Live View recovery. Preview
+  without sound, up to 1280×720/12 fps; The hardware streaming check remains open.
+- MP4/MOV/M4V local gallery: first frame and metadata in background, explicit playback.
+- New copies in YYYY-MM-DD/Slot_N/original hierarchy: local SDK shooting date,
+  then UTC/Unknown-Date. Old files and ledger remain compatible.
+- Large file transfers are limited to a silent timeout rather than 10 minutes
+  total duration. FFmpeg - explicit DEB dependency; Help/translations updated.
+- CTest 8/8: 56 Qt cases and translation checking; ASan without access errors.
+  Verified headless/OpenCV builds, installation on fresh Ubuntu 24.04 amd64,
+  H.265 decoder, updated from 0.5.0 and removed. Hardware acceptance testing is open.
+  Scenarios and results - docs/TESTING.md.
 
 ## 0.5.0 — 2026-10-21
 
-- Space переключает отметку копии, Delete — брака на карте, в том числе в полном
-  экране. Delete не запускает удаление; защищённые кадры исключены, автоповтор
-  отключён, ввод поиска сохранён.
-- Меню и справка F1 с руководством/таблицей клавиш без интернета, окно «О программе».
-- Русский/английский интерфейс, Qt TS/QM, сохранение языка для следующего запуска;
-  справка на обоих языках, проверка полноты каталога при CTest.
-- Параметры SDK: режим фокуса, область AF, WB, drive из поддерживаемых камерой
-  значений; повторная проверка перед записью, обновление после callback/изменения.
-- Выбор центра AF кликом в Live View с учётом zoom/pan и границ рамки SDK.
-  Студийное фото и операции карты отключают выбор точки; успех настройки не
-  выдаётся за подтверждённую резкость. CLI и отложенный импорт сохранены.
-- CTest 7/7: 46 случаев Qt и проверка 197 переводов. ASan GUI/backend без ошибок
-  доступа; сборки SDK headless и OpenCV пройдены.
-- DEB проверен с нуля в отдельном Ubuntu Base 24.04 amd64: оба языка, runtime SDK,
-  обновление 0.4.1 → 0.5.0 и удаление. Аппаратная приёмка AF и параметров открыта.
+- Space switches the copy mark, Delete – defect on the card, including complete
+  screen. Delete does not trigger deletion; protected frames excluded, auto-repeat
+  disabled, search input saved.
+- Menu and help F1 with manual/table of keys without the Internet, “About” window.
+- Russian/English interface, Qt TS/QM, saving the language for the next launch;
+  Help in both languages, checking the completeness of the catalog during CTest.
+- SDK parameters: focus mode, AF area, WB, drive from those supported by the camera
+  values; recheck before recording, update after callback/change.
+- Selecting the AF center by clicking in Live View, taking into account zoom/pan and the boundaries of the SDK frame.
+  Studio photo and card operations disable point selection; setup success not
+  issued as confirmed sharpness. CLI and lazy import are preserved.
+- CTest 7/7: 46 Qt cases and checking 197 translations. ASan GUI/backend without errors
+  access; SDK headless and OpenCV builds completed.
+- DEB tested from scratch in a separate Ubuntu Base 24.04 amd64: both languages, runtime SDK,
+  update 0.4.1 → 0.5.0 and removal. Hardware acceptance of AF and parameters is open.
 
 ## 0.4.1 — 2026-10-21
 
-- Исправлено отклонение путей томов Sony SDK при копировании; namespace и
-  обратные разделители нормализуются без разрешения traversal/symlinks.
-- Исправлен индикатор, остававшийся на 50% после завершения очереди с ошибками:
-  итог больше не выходит за диапазон QProgressBar. Ошибки попадают в журнал.
-- Второй слот запрашивается только при поддержке камерой, отсутствие слота
-  больше не считается неисправностью карты.
-- Отметки копии/брака: белый квадрат 22 px, тёмная рамка, синяя/красная галочка;
-  контраст сохраняется в тёмной теме, область клика соответствует отрисовке.
-- Перелистывание ←/→ и Page Up/Page Down для карты и локальной галереи,
-  включая отдельное окно и fullscreen, с учётом поиска/сортировки.
-- Быстрый переход по карте запоминает последний выбранный кадр, пока грузится
-  превью; не требует ожидания промежуточных изображений и сохраняет отметки.
-- Проверки путей SDK, traversal, одного/двух слотов, финального прогресса при
-  успехе и ошибке, клавиш/fullscreen, фильтра и независимого переключения отметок.
-- CTest: 35 случаев, ASan без ошибок доступа. Пакет проверен обновлением 0.4.0 →
-  0.4.1, изолированным запуском и удалением в Ubuntu 24.04 amd64.
+- Fixed deviation of Sony SDK volume paths when copying; namespace and
+  backseat delimiters are normalized without traversal/symlinks permission.
+- Fixed indicator remaining at 50% after queue completion with errors:
+  the total no longer falls outside the range of the QProgressBar. Errors are logged.
+- The second slot is requested only when supported by the camera, no slot
+  is no longer considered a card malfunction.
+- Copy/reject marks: white square 22 px, dark frame, blue/red check mark;
+  the contrast is preserved in the dark theme, the click area corresponds to the rendering.
+- Flip ←/→ and Page Up/Page Down for card and local gallery,
+  including a separate window and fullscreen, taking into account search/sorting.
+- Card Quick Jump remembers the last selected frame while loading
+  preview; does not require waiting for intermediate images and saves marks.
+- Checking SDK paths, traversal, one/two slots, final progress when
+  success and error, keys/fullscreen, filter and independent switching of marks.
+- CTest: 35 cases, ASan without access errors. The package has been verified by update 0.4.0 →
+  0.4.1, isolated launch and uninstallation on Ubuntu 24.04 amd64.
 
 ## 0.4.0 — 2026-10-21
 
-- Исправлен сценарий съёмки: GUI не скачивает оригиналы после спуска, старый Auto Sync
-  игнорируется. CLI сохранён; скрытые playback-загрузки в GUI отключены.
-- Вкладка «В камере»: каталог слотов, сжатое превью SDK, форматы/размеры/даты,
-  раздельные отметки копирования и брака; локальная галерея вынесена в «На компьютере».
-- Явное копирование всех, новых или отмеченных, RAW/JPEG, смена каталога,
-  последовательная очередь, прогресс и остановка. Журнал подтверждённых копий
-  сохраняется в каталоге; удалённые/обрезанные локальные файлы снова новые.
-- Удаление брака с подтверждением всего кадра RAW+JPEG, проверкой доступности,
-  защиты и идентичности; успех только по callback камеры.
-- Превью и оригиналы разделены; студийный режим использует сжатое превью без RAW.
-  Декодирование в фоне, кэш 64 MiB, устаревшие ответы отбрасываются.
-- Размер оригинала сверяется с SDK; коллизии имён не перезаписываются, публикация
-  renameat2(RENAME_NOREPLACE) атомарна.
-- Отмена ждёт terminal callback; отсутствие подтверждения вызывает переподключение.
-- Исправлен возврат полноэкранного просмотра в QSplitter и закрытие окна с активным превью.
-- Добавлены сценарии GUI с fake backend и backend с подменой SDK API без камеры.
-- 25 сценариев проходят; ASan без ошибок доступа. DEB 0.4 проверен установкой
-  с зависимостями в свежую Ubuntu Base 24.04 amd64, изолированным запуском и удалением.
+- Fixed shooting script: GUI does not download originals after release, old Auto Sync
+  ignored. CLI saved; Hidden playback loading in the GUI is disabled.
+- “On camera” tab: slot catalog, compressed SDK preview, formats/sizes/dates,
+  separate copying and defect marks; the local gallery is located in “On the computer”.
+- Explicit copying of all, new or marked, RAW/JPEG, directory change,
+  sequential queue, progress and stop. Verified copy log
+  saved in a directory; deleted/truncated local files are new again.
+- Defect removal with confirmation of the entire RAW+JPEG frame, availability check,
+  protection and identity; success only by callback camera.
+- Previews and originals are separated; studio mode uses compressed preview without RAW.
+  Background decoding, 64 MiB cache, outdated responses are discarded.
+- The size of the original is checked against the SDK; name collisions are not overwritten, publication
+  renameat2(RENAME_NOREPLACE) is atomic.
+- Cancellation awaits terminal callback; lack of confirmation causes reconnection.
+- Fixed returning full-screen viewing in QSplitter and closing the window with an active preview.
+- Added GUI scripts with fake backend and backend with SDK API substitution without camera.
+- 25 scenarios pass; ASan without access errors. DEB 0.4 verified by installation
+  with dependencies in the latest Ubuntu Base 24.04 amd64, isolated launch and removal.
 
 ## 0.3.0 — 2026-10-21
 
-- Галерея с миниатюрами, поиском, сортировкой и фильтрами JPEG/RAW/RAW+JPEG.
-- Пары RAW/JPEG объединяются по имени внутри одного каталога, JPEG имеет приоритет.
-- EXIF и встроенный JPEG RAW через отдельный ExifTool; оригиналы не изменяются.
-- Подпись источника и размера вынесена над масштабом, чтобы RAW-превью было
-  явно обозначено и в узкой области галереи.
-- Индексирование и декодирование в фоне, отмена устаревших запросов, кэш до 128 миниатюр.
-- Студийный просмотр 2–10 с после готовности нового снимка, удержание кадра,
-  перезапуск таймера при серии, возврат к Live View. Sync All не перехватывает экран.
-- Прогресс текущей передачи и кнопка остановки Sync.
-- Скрытый staging, атомарная публикация по SDK Result_OK, события прогресса и готовности.
-- Сериализация передач и ожидание terminal callback при отмене.
-- DEB устанавливает ExifTool; GUI использует Qt Concurrent для фоновых задач.
-  Формат настроек совместим с 0.2.
-- Исправлено освобождение окна при завершении QProcess: отключены callbacks
-  до разрушения полей MainWindow, teardown CameraSession не отправляет UI события.
-- Тесты EXIF/ориентации, RAW preview, галереи, атомарной публикации, устаревших
-  задач, таймера/удержания и полной цепочки новый снимок → студия → Live View.
+- Gallery with thumbnails, search, sorting and JPEG/RAW/RAW+JPEG filters.
+- RAW/JPEG pairs are combined by name within the same directory, JPEG has priority.
+- EXIF and built-in JPEG RAW via a separate ExifTool; the originals are not changed.
+- The source and size label is placed above the scale so that the RAW preview is
+  clearly marked and in a narrow gallery area.
+- Indexing and decoding in the background, canceling outdated queries, cache up to 128 thumbnails.
+- Studio viewing 2–10 s after the new photo is ready, holding the frame,
+  restart the timer during a series, return to Live View. Sync All does not capture the screen.
+- Progress of the current program and Sync stop button.
+- Hidden staging, atomic publishing via SDK Result_OK, progress and readiness events.
+- Serialization of transfers and waiting for terminal callback upon cancellation.
+- DEB installs ExifTool; The GUI uses Qt Concurrent for background tasks.
+  The settings format is compatible with 0.2.
+- Fixed releasing the window when QProcess ends: callbacks are disabled
+  before the MainWindow members are destroyed, teardown CameraSession does not dispatch UI events.
+- EXIF/orientation, RAW preview, gallery, atomic publishing, legacy tests
+  tasks, timer/hold and complete chain new photo → studio → Live View.
 
 ## 0.2.0 — 2026-10-19
 
-- Создан самостоятельный проект с историей SonShell до `107f9fa` и импортом GUI.
-- GUI разделён на MainWindow, CameraSession, SettingsStore, ImageViewer, PhotoLibrary.
-- Имя и пароль сохраняются по флажку, удаляются при его снятии; файл 0600,
-  каталог 0700. Пароль исключён из argv и журнала.
-- Встроенный Live View: JPEG из SDK без OpenCV, масштабирование и полный экран.
-- Отдельный просмотр оригинального JPEG: 100%, масштаб, панорамирование, F11/Esc.
-- Состояния камеры по событиям SDK, автоматические повторы и отмена без блокировки GUI.
-- Сохранены съёмка, AF, видео, экспозиция, Auto Sync, Sync All и выбор каталога.
-- Добавлены REMOTE/1, pipe-режим backend, опция --version и сохранение обычного CLI.
-- JPEG показывается после стабилизации файла и проверки конца изображения;
-  повторная запись того же пути также обновляет просмотр.
-- Добавлен DEB для Ubuntu 24.04 amd64 с SDK runtime, меню, иконкой, лицензиями,
-  автоматическими зависимостями и согласием на условия Sony при первом соединении.
-- План галереи, RAW/EXIF, студийной съёмки, AF мышью и расширения SDK зафиксирован в документации.
-- Добавлен приватный путь загрузки SDK библиотек только для дочернего backend,
-  включая зависимости monitor_protocol; системные пути загрузки не меняются.
-- Автоматические и установочные проверки описаны в docs/TESTING.md.
+- An independent project has been created with SonShell history up to `107f9fa` and GUI import.
+- GUI is divided into MainWindow, CameraSession, SettingsStore, ImageViewer, PhotoLibrary.
+- The name and password are saved by checkbox and deleted when it is removed; file 0600,
+  directory 0700. Password excluded from argv and log.
+- Built-in Live View: JPEG from SDK without OpenCV, scaling and full screen.
+- Separate viewing of the original JPEG: 100%, zoom, pan, F11/Esc.
+- Camera states based on SDK events, automatic repeats and cancellation without blocking the GUI.
+- Shooting, AF, video, exposure, Auto Sync, Sync All and directory selection are saved.
+- Added REMOTE/1, backend pipe mode, --version option and saving the regular CLI.
+- JPEG is shown after the file has been stabilized and the end of the image has been checked;
+  re-writing the same path also updates the view.
+- Added DEB for Ubuntu 24.04 amd64 with SDK runtime, menu, icon, licenses,
+  automatic dependencies and agreement to Sony's terms and conditions upon first connection.
+- The plan for gallery, RAW/EXIF, studio shooting, mouse AF and SDK expansion is recorded in the documentation.
+- Added a private path for downloading SDK libraries only for the child backend,
+  including dependencies monitor_protocol; system library search paths do not change.
+- Automatic and installation tests are described in docs/TESTING.md.

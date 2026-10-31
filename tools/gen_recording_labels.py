@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Построить подписи параметров записи из локального Sony SDK, без копии SDK в Git."""
+"""Generate recording labels from the local Sony SDK without copying it into Git."""
 import argparse
 from pathlib import Path
 import re

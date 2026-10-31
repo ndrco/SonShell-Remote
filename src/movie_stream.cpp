@@ -28,11 +28,11 @@ std::string local_ip(const std::string& camera) {
   sockaddr_in address{}; address.sin_family = AF_INET; address.sin_port = htons(9);
   if (route.fd < 0 || inet_pton(AF_INET, camera.c_str(), &address.sin_addr) != 1 ||
       ::connect(route.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0)
-    throw std::runtime_error("Не удалось определить сетевой адрес для видеопревью");
+    throw std::runtime_error("Could not determine the network address for video preview");
   socklen_t size = sizeof(address);
-  if (::getsockname(route.fd, reinterpret_cast<sockaddr*>(&address), &size)) throw std::runtime_error("Не удалось определить адрес компьютера");
+  if (::getsockname(route.fd, reinterpret_cast<sockaddr*>(&address), &size)) throw std::runtime_error("Could not determine the computer address");
   char result[INET_ADDRSTRLEN]{};
-  if (!inet_ntop(AF_INET, &address.sin_addr, result, sizeof(result))) throw std::runtime_error("Неверный адрес компьютера");
+  if (!inet_ntop(AF_INET, &address.sin_addr, result, sizeof(result))) throw std::runtime_error("Invalid computer address");
   return result;
 }
 }
@@ -68,9 +68,9 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
     unsigned slot, unsigned content, unsigned file, const std::string& path, const Event& event) {
   Socket socket{::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)};
   sockaddr_un address{}; address.sun_family = AF_UNIX;
-  if (path.size() >= sizeof(address.sun_path) || socket.fd < 0) throw std::runtime_error("Недоступен канал видеопревью");
+  if (path.size() >= sizeof(address.sun_path) || socket.fd < 0) throw std::runtime_error("Video preview channel unavailable");
   std::memcpy(address.sun_path, path.c_str(), path.size() + 1);
-  if (::connect(socket.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0) throw std::runtime_error("Не удалось подключить декодер видео");
+  if (::connect(socket.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0) throw std::runtime_error("Could not connect the video decoder");
   sdk::CrMoviePlaybackSetting setting;
   const auto computer = local_ip(host);
   check(setting.SetIpAddress(computer.c_str()), "SetIpAddress");
@@ -88,8 +88,8 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
     event("preparing"); check(sdk::ControlMoviePlayback(handle, sdk::CrMoviePlaybackControlType_Start, 0), "StartMoviePlayback"); started = true;
     {
       std::unique_lock<std::mutex> lock(mutex_);
-      if (!changed_.wait_for(lock, std::chrono::seconds(20), [this] { return ready_ || failure_ || cancel_; })) throw std::runtime_error("Камера не подготовила видеопоток: нет ответа SDK за 20 с");
-      if (failure_) throw std::runtime_error("Камера отказала в видеопревью: " + std::to_string(failure_));
+      if (!changed_.wait_for(lock, std::chrono::seconds(20), [this] { return ready_ || failure_ || cancel_; })) throw std::runtime_error("Camera did not prepare video playback: no SDK response within 20 seconds");
+      if (failure_) throw std::runtime_error("Camera rejected video preview: " + std::to_string(failure_));
     }
     bool play = true;
     { std::lock_guard<std::mutex> lock(mutex_); play = !cancel_; }
@@ -103,7 +103,7 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
         std::unique_lock<std::mutex> lock(mutex_);
         changed_.wait_for(lock, std::chrono::milliseconds(50), [this] { return cancel_ || ended_ || failure_ || !packets_.empty() || desired_ >= 0; });
         if (cancel_) break;
-        if (failure_) throw std::runtime_error("Сбой видеопотока: " + std::to_string(failure_));
+        if (failure_) throw std::runtime_error("Video stream failure: " + std::to_string(failure_));
         if (ended_ && packets_.empty()) break;
         command = desired_; seek = seek_; desired_ = -1;
         if (!packets_.empty()) { packet = std::move(packets_.front()); buffered_ -= packet.size(); packets_.pop_front(); }
@@ -121,19 +121,19 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
         if (count > 0) { offset += size_t(count); sent += size_t(count); }
         else if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
           pollfd waiting{socket.fd, POLLOUT, 0}; ::poll(&waiting, 1, 50);
-          if (std::chrono::steady_clock::now() > write_deadline) throw std::runtime_error("Декодер не принимает видеопоток");
+          if (std::chrono::steady_clock::now() > write_deadline) throw std::runtime_error("Decoder is not accepting the video stream");
         } else if (count < 0 && errno == EINTR) continue;
-        else throw std::runtime_error("Канал видеопревью закрыт");
+        else throw std::runtime_error("Video preview channel closed");
       }
       if (!packet.empty()) last_data = std::chrono::steady_clock::now();
       if (!paused && std::chrono::steady_clock::now() - last_data > std::chrono::seconds(12)) {
         if (!sent) throw NoData(host, computer);
-        throw std::runtime_error("Камера перестала передавать видеоданные");
+        throw std::runtime_error("Camera stopped sending video data");
       }
     }
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      if (failure_) throw std::runtime_error("Камера завершила видеопревью: " + std::to_string(failure_));
+      if (failure_) throw std::runtime_error("Camera ended video preview: " + std::to_string(failure_));
       if (!sent && !cancel_) throw NoData(host, computer);
     }
   } catch (...) { error = std::current_exception(); }
@@ -144,7 +144,7 @@ void MovieStream::run(sdk::CrDeviceHandle handle, const std::string& host,
     acknowledged = ended_ || (result == sdk::CrError_None && changed_.wait_for(lock, std::chrono::seconds(5), [this] { return stopped_ || ended_; }));
   }
   { std::lock_guard<std::mutex> lock(mutex_); active_ = false; cancel_ = false; packets_.clear(); buffered_ = 0; }
-  if (!acknowledged) { event("fatal"); throw std::runtime_error("Камера не подтвердила остановку видеопотока"); }
+  if (!acknowledged) { event("fatal"); throw std::runtime_error("Camera did not confirm video stream stop"); }
   if (error) std::rethrow_exception(error);
   event("stopped");
 }

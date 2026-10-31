@@ -92,7 +92,7 @@ class CardQualityTests final : public QObject {
     list->setCurrentItem(row(widget, 2)); QTRY_VERIFY(!card.busy()); QVERIFY(!commands().contains("original"));
     QSignalSpy ready(&card, &CameraCard::original_ready); widget.findChild<QPushButton*>("card_original")->click(); QTRY_COMPARE(ready.size(), 1);
     const auto result = qvariant_cast<MediaResult>(ready[0][1]); QVERIFY(result.raw_preview); QCOMPARE(result.image.size(), QSize(600, 400));
-    QVERIFY(result.source.contains(QString::fromUtf8("встроенное"))); QVERIFY(result.path.endsWith(".arw")); QVERIFY(!card.has_imports());
+    QVERIFY(result.source.contains(QString::fromUtf8("embedded"))); QVERIFY(result.path.endsWith(".arw")); QVERIFY(!card.has_imports());
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void video_original_plays_native_frames_and_cache_avoids_retransfer() {
@@ -152,7 +152,7 @@ class CardQualityTests final : public QObject {
     viewer->leave_fullscreen(); QTest::qWait(20); QVERIFY(progress->isVisible()); QCOMPARE(progress->value(), 45);
     viewer->toggle_fullscreen(); QTest::qWait(20); QVERIFY(progress->isVisible()); QCOMPARE(progress->value(), 45);
     stop->click(); QTRY_VERIFY(!card.busy()); QCOMPARE(ready.size(), 0); QVERIFY(!stop->isEnabled()); QVERIFY(progress->isHidden());
-    QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("отменена")));
+    QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("canceled")));
     QVERIFY(!card.has_imports()); QVERIFY(QDir(session.card_cache_path()).entryList({"*.mp4"}, QDir::Files).isEmpty());
     viewer->leave_fullscreen(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }

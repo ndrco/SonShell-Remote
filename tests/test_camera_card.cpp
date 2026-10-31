@@ -27,9 +27,9 @@ class CameraCardTests final : public QObject {
   QTemporaryDir temporary_;
   QString jpeg_, raw_, fixture_, record_;
   QJsonObject item(int slot, int id, const QString& source, bool protected_file = false) {
-    const auto path = QString("DCIM/100MSDCF/кадр %1.JPG").arg(id);
+    const auto path = QString("DCIM/100MSDCF/\u043a\u0430\u0434\u0440 %1.JPG").arg(id);
     QJsonArray files{QJsonObject{{"id", 1}, {"format", 0x3801}, {"size", QString::number(QFileInfo(source).size())}, {"path", path}, {"source", source}}};
-    if (id == 1) files.append(QJsonObject{{"id", 2}, {"format", 0xb101}, {"size", QString::number(QFileInfo(raw_).size())}, {"path", QString("DCIM/100MSDCF/кадр %1.ARW").arg(id)}, {"source", raw_}});
+    if (id == 1) files.append(QJsonObject{{"id", 2}, {"format", 0xb101}, {"size", QString::number(QFileInfo(raw_).size())}, {"path", QString("DCIM/100MSDCF/\u043a\u0430\u0434\u0440 %1.ARW").arg(id)}, {"source", raw_}});
     return {{"slot", slot}, {"id", id}, {"stamp", QString("2026-10-21T12:00:0%1").arg(id)}, {"identity", QString("test-body-%1-%2").arg(slot).arg(id)}, {"protected", protected_file}, {"deletable", true}, {"files", files}};
   }
   void connect_card(CameraSession& session, CameraCard& card, const QString& folder) {
@@ -93,16 +93,16 @@ class CameraCardTests final : public QObject {
     QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
     QSignalSpy copied(&card, &CameraCard::copied);
     card.copy({"1:1"}, "jpeg", CameraCard::CopyMode::Selected); QTRY_COMPARE(copied.size(), 1); QTRY_VERIFY(!card.busy());
-    QVERIFY(QFileInfo::exists(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/кадр 1.JPG")));
+    QVERIFY(QFileInfo::exists(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/\u043a\u0430\u0434\u0440 1.JPG")));
     const auto item = card.items().at(2); QCOMPARE(item.key(), QString("1:1"));
     QVERIFY(!card.is_new(item, "jpeg")); QVERIFY(card.is_new(item, "all"));
     card.copy({}, "all", CameraCard::CopyMode::New); QTRY_COMPARE(copied.size(), 4); QTRY_VERIFY(!card.busy());
     card.copy({}, "all", CameraCard::CopyMode::New); QTest::qWait(100); QCOMPARE(copied.size(), 4);
     // Removing a completed local file makes just that file new again.
-    QVERIFY(QFile::remove(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/кадр 1.ARW")));
+    QVERIFY(QFile::remove(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/\u043a\u0430\u0434\u0440 1.ARW")));
     card.copy({}, "raw", CameraCard::CopyMode::New); QTRY_COMPARE(copied.size(), 5); QTRY_VERIFY(!card.busy());
     card.copy({}, "all", CameraCard::CopyMode::All); QTRY_COMPARE(copied.size(), 9); QTRY_VERIFY(!card.busy());
-    QVERIFY(QFileInfo::exists(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/кадр 1_1.JPG")));
+    QVERIFY(QFileInfo::exists(folder.filePath("2026-10-21/Slot_1/DCIM/100MSDCF/\u043a\u0430\u0434\u0440 1_1.JPG")));
     // A new controller reloads the ledger; no duplicate transfers after restart.
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
     CameraSession second_session; CameraCard second(&second_session); connect_card(second_session, second, folder.path());
@@ -137,14 +137,14 @@ class CameraCardTests final : public QObject {
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
     QVERIFY(widget.findChild<QPushButton*>("card_verify")->isEnabled());
     QTest::mouseClick(widget.findChild<QPushButton*>("card_verify"), Qt::LeftButton); QTRY_VERIFY(!card.busy());
-    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("изменены 1")));
-    card.verify_copies(); QTRY_VERIFY(!card.busy()); QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("изменены 1"))); // Never replace a failed baseline.
+    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("changed 1")));
+    card.verify_copies(); QTRY_VERIFY(!card.busy()); QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("changed 1"))); // Never replace a failed baseline.
     session.start({FAKE_BACKEND_PATH, "127.0.0.1", "a6700", {}, {}, folder.path(), false});
     QTRY_COMPARE(session.state(), CameraSession::State::Connected); card.refresh(); QTRY_VERIFY(!card.busy());
     QVERIFY(card.is_new(card.items().last(), "raw"));
     card.copy({"1:1"}, "raw", CameraCard::CopyMode::Selected); QTRY_COMPARE(copied.size(), 2); QTRY_VERIFY(!card.busy());
     QVERIFY(copied[1][0].toString() != path); QVERIFY(file.open(QIODevice::ReadOnly)); QVERIFY(file.seek(10)); QCOMPARE(file.read(1), QByteArray("X")); file.close();
-    card.verify_copies(); QTRY_VERIFY(!card.busy()); QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("исправны 1")));
+    card.verify_copies(); QTRY_VERIFY(!card.busy()); QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("valid 1")));
     session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }
   void resume_survives_disconnect_restart_and_changed_content_ids() {
@@ -195,12 +195,12 @@ class CameraCardTests final : public QObject {
     };
     QVERIFY(write_ledger({})); CameraSession session; CameraCard card(&session); card.set_directory(folder.path());
     QSignalSpy status(&card, &CameraCard::status_changed); card.verify_copies(); QTRY_VERIFY(!card.busy());
-    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("без эталона 1")));
+    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("no baseline 1")));
     QFile ledger(folder.filePath(".sonshell-imports.json")); QVERIFY(ledger.open(QIODevice::ReadOnly));
     QVERIFY(!QJsonDocument::fromJson(ledger.readAll()).object().value("key").toObject().contains("sha256")); ledger.close();
     QVERIFY(write_ledger(QString(64, 'a'))); card.set_directory(folder.path());
     card.verify_copies(); QVERIFY(card.busy()); card.cancel(); QTRY_VERIFY(!card.busy());
-    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("остановлена")));
+    QVERIFY(status.last()[0].toString().contains(QString::fromUtf8("stopped")));
     QVERIFY(ledger.open(QIODevice::ReadOnly)); QVERIFY(!QJsonDocument::fromJson(ledger.readAll()).object().value("key").toObject().contains("valid"));
     QVERIFY(!commands().contains("card cancel")); // Local work must not send a camera command.
   }
@@ -243,10 +243,10 @@ class CameraCardTests final : public QObject {
     viewer->findChild<QPushButton*>("viewer_next")->click(); QTRY_VERIFY(!card.busy());
     QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
     viewer->leave_fullscreen(); widget.activateWindow(); QTest::qWait(30);
-    widget.findChild<QLineEdit*>()->setText("кадр 1");
+    widget.findChild<QLineEdit*>()->setText("\u043a\u0430\u0434\u0440 1");
     viewer->view()->setFocus(); QTRY_VERIFY(viewer->view()->hasFocus()); QTest::keyClick(viewer->view(), Qt::Key_Left);
     QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("1:1"));
-    widget.findChild<QLineEdit*>()->setText("кадр 3");
+    widget.findChild<QLineEdit*>()->setText("\u043a\u0430\u0434\u0440 3");
     QTest::keyClick(viewer->view(), Qt::Key_Right); QTRY_VERIFY(!card.busy());
     QCOMPARE(list->currentItem()->data(0, Qt::UserRole).toString(), QString("2:3"));
     widget.close(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
@@ -264,8 +264,8 @@ class CameraCardTests final : public QObject {
     viewer->toggle_fullscreen(); QTest::qWait(30);
     QTest::keyClick(viewer->view(), Qt::Key_Space); QCOMPARE(row->checkState(0), Qt::Checked);
     auto* notice = viewer->findChild<QLabel*>("action_overlay"); auto* marks = viewer->findChild<QLabel*>("selection_overlay");
-    QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("Выбрано для копирования")));
-    QVERIFY(marks->isVisible()); QVERIFY(marks->text().contains(QString::fromUtf8("КОПИЯ: выбрано")));
+    QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("Marked for copy")));
+    QVERIFY(marks->isVisible()); QVERIFY(marks->text().contains(QString::fromUtf8("COPY: marked")));
     const auto viewport = viewer->view()->viewport()->rect();
     QVERIFY(marks->geometry().top() < viewport.height() / 4);
     QVERIFY(notice->geometry().top() > viewport.height() * 3 / 4);
@@ -273,17 +273,17 @@ class CameraCardTests final : public QObject {
     QVERIFY(notice->styleSheet().contains("background: transparent"));
     QVERIFY(marks->width() <= 560);
     QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(row->checkState(1), Qt::Unchecked);
-    QVERIFY(notice->text().contains(QString::fromUtf8("Отметка брака снята")));
+    QVERIFY(notice->text().contains(QString::fromUtf8("Reject mark cleared")));
     // Protected photos remain unmarked; Delete never sends a deletion command.
     list->setCurrentItem(list->topLevelItem(0)); QTRY_VERIFY(!card.busy());
     QTest::keyClick(viewer->view(), Qt::Key_Delete); QCOMPARE(list->currentItem()->checkState(1), Qt::Unchecked);
-    QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("защищён")));
+    QVERIFY(notice->isVisible()); QVERIFY(notice->text().contains(QString::fromUtf8("protected")));
     QVERIFY(!commands().contains("card delete"));
     viewer->leave_fullscreen(); widget.activateWindow(); QTest::qWait(30);
-    auto* search = widget.findChild<QLineEdit*>(); search->setText("кадр"); search->setCursorPosition(0); search->setFocus();
+    auto* search = widget.findChild<QLineEdit*>(); search->setText("\u043a\u0430\u0434\u0440"); search->setCursorPosition(0); search->setFocus();
     QTest::keyClick(search, Qt::Key_Space); QVERIFY(search->text().startsWith(' '));
     QTest::keyClick(search, Qt::Key_Backspace); QTest::keyClick(search, Qt::Key_Delete);
-    QCOMPARE(search->text(), QString::fromUtf8("адр"));
+    QCOMPARE(search->text(), QString::fromUtf8("\u0430\u0434\u0440"));
     QVERIFY(!commands().contains("card delete"));
     widget.close(); session.stop(); QTRY_COMPARE(session.state(), CameraSession::State::Disconnected);
   }

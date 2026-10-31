@@ -16,9 +16,9 @@ int main(int argc, char* argv[]) {
   LanguageSupport language;
   if (!language.install(SettingsStore().load().language)) return 1;
   QCommandLineParser parser;
-  parser.setApplicationDescription(QCoreApplication::translate("App", "Управление камерами Sony · SonShell Remote"));
+  parser.setApplicationDescription(QCoreApplication::translate("App", "Sony camera control · SonShell Remote"));
   parser.addHelpOption(); parser.addVersionOption();
-  parser.addOption({"sonshell", QCoreApplication::translate("App", "Путь к backend SonShell"), "path"});
+  parser.addOption({"sonshell", QCoreApplication::translate("App", "SonShell backend path"), "path"});
   parser.process(app);
   const QDir directory(QCoreApplication::applicationDirPath());
   QString binary = parser.value("sonshell");

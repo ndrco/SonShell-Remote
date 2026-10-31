@@ -41,7 +41,7 @@ card = json.loads(Path(fixture).read_text()) if fixture else []
 captured = os.environ.get('REMOTE_TEST_CAPTURE')
 if captured and not fixture:
     card = [dict(slot=1, id=1, stamp='2026-10-21T12:00:00', identity='test-camera:one', protected=False, deletable=True,
-                 files=[dict(id=1, format=0x3801, size=str(Path(captured).stat().st_size), path='DCIM/100MSDCF/снимок 1.jpg', source=captured)])]
+                 files=[dict(id=1, format=0x3801, size=str(Path(captured).stat().st_size), path='DCIM/100MSDCF/\u0441\u043d\u0438\u043c\u043e\u043a 1.jpg', source=captured)])]
 epoch = ''
 pending = None
 movie = None
@@ -129,7 +129,7 @@ for line in sys.stdin:
             event('movie-stopped', movie['request'])
             movie = None
         if pending:
-            event('error', pending, message='Передача отменена')
+            event('error', pending, message='Transfer canceled')
             pending = None
     elif len(parts) >= 3 and parts[1] in ('movie-play', 'movie-pause', 'movie-seek'):
         if movie and parts[2] == movie['request']:
@@ -139,18 +139,18 @@ for line in sys.stdin:
         kind, request, revision, slot, content = parts[1:6]
         item = next((item for item in card if item['slot'] == int(slot) and item['id'] == int(content)), None)
         if revision != epoch or not item:
-            event('error', request, message='Каталог устарел')
+            event('error', request, message='Catalog is out of date')
             continue
         if kind == 'delete':
             if os.environ.get('REMOTE_TEST_DELETE_FAIL') or item['protected'] or not item['deletable']:
-                event('error', request, message='Камера не разрешает удаление')
+                event('error', request, message='Camera does not permit deletion')
             else:
                 card.remove(item)
                 event('deleted', request)
             continue
         file = next((f for f in item['files'] if f['id'] == int(parts[6])), None)
         if not file:
-            event('error', request, message='Нет файла')
+            event('error', request, message='File not found')
             continue
         if kind == 'movie':
             print('INFO  | [INFO] REMOTE/1 liveview-stopped', flush=True)
@@ -189,7 +189,7 @@ for line in sys.stdin:
             event('preview', request, path=str(target))
         elif kind == 'copy':
             if os.environ.get('REMOTE_TEST_COPY_FAIL'):
-                event('error', request, message='Небезопасный путь на карте')
+                event('error', request, message='Unsafe camera card path')
                 continue
             event('progress', request, percent=50)
             if os.environ.get('REMOTE_TEST_SLOW_COPY') or (os.environ.get('REMOTE_TEST_HOLD_RAW') and file['format'] == 0xb101):

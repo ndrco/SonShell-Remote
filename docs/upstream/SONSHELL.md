@@ -227,7 +227,7 @@ SonShell recognises every entry in Sony’s `CrCameraDeviceModelList` (SDK v2.00
 ---
 
 ## License
-See [LICENSE](./LICENSE) for licensing details.
+See [LICENSE](../../LICENSE) for licensing details.
 
 ---
 

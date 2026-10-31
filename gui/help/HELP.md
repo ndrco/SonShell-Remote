@@ -224,3 +224,9 @@ These controls work on the camera card, in the gallery, separate window and
 full screen. Seeking is disabled while duration is being read. Optional SDK
 streaming estimates position from decoded timestamps and requests camera seeks
 to whole seconds.
+
+## Default language (0.8.4)
+
+English is the default for a new installation. Settings → Language offers Russian
+for the next launch. Existing saved language preferences are retained; missing or
+invalid values fall back to English.

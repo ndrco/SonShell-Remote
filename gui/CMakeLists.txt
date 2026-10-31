@@ -28,10 +28,10 @@ install(TARGETS sonshell-remote RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # lrelease is a build dependency only; the installed app embeds its catalog/help.
 find_program(QT_LRELEASE_EXECUTABLE NAMES lrelease-qt6 lrelease
   HINTS /usr/lib/qt6/bin REQUIRED)
-set(EN_QM "${CMAKE_CURRENT_BINARY_DIR}/sonshell_en.qm")
-add_custom_command(OUTPUT "${EN_QM}"
-  COMMAND "${QT_LRELEASE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/i18n/sonshell_en.ts" -qm "${EN_QM}"
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/i18n/sonshell_en.ts" VERBATIM)
+set(RU_QM "${CMAKE_CURRENT_BINARY_DIR}/sonshell_RU.qm")
+add_custom_command(OUTPUT "${RU_QM}"
+  COMMAND "${QT_LRELEASE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/i18n/sonshell_RU.ts" -qm "${RU_QM}"
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/i18n/sonshell_RU.ts" VERBATIM)
 configure_file(remote_resources.qrc.in "${CMAKE_CURRENT_BINARY_DIR}/remote_resources.qrc" @ONLY)
 qt_add_resources(REMOTE_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/remote_resources.qrc")
-target_sources(sonshell_gui_core PRIVATE ${REMOTE_RESOURCES} "${EN_QM}")
+target_sources(sonshell_gui_core PRIVATE ${REMOTE_RESOURCES} "${RU_QM}")

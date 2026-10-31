@@ -9,7 +9,7 @@
 
 AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent) {
   setObjectName("about_dialog");
-  setWindowTitle(QCoreApplication::translate("App", "О программе"));
+  setWindowTitle(QCoreApplication::translate("App", "About"));
   setWindowIcon(QIcon(":/branding/ndrco.png"));
   setMinimumWidth(580);
   auto* layout = new QVBoxLayout(this); layout->setContentsMargins(24, 24, 24, 20); layout->setSpacing(20);
@@ -23,18 +23,14 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent) {
   auto* name = new QLabel("SonShell Remote", this);
   auto font = name->font(); font.setPointSizeF(font.pointSizeF() + 5); font.setBold(true); name->setFont(font);
   introduction->addWidget(name);
-  auto* version = new QLabel(QCoreApplication::translate("App", "Версия %1").arg(QCoreApplication::applicationVersion()), this);
+  auto* version = new QLabel(QCoreApplication::translate("App", "Version %1").arg(QCoreApplication::applicationVersion()), this);
   version->setObjectName("about_version"); version->setTextFormat(Qt::PlainText); introduction->addWidget(version);
-  auto* description = new QLabel(QCoreApplication::translate("App", "Графическое управление камерами Sony: съёмка, Live View, отбор и передача фото и видео."), this);
+  auto* description = new QLabel(QCoreApplication::translate("App", "Sony camera control: capture, Live View, culling and transfer of photos and videos."), this);
   description->setWordWrap(true); introduction->addWidget(description); header->addLayout(introduction, 1); layout->addLayout(header);
   auto* links = new QLabel(this); links->setObjectName("about_links"); links->setTextFormat(Qt::RichText);
   links->setWordWrap(true); links->setOpenExternalLinks(true); links->setTextInteractionFlags(Qt::TextBrowserInteraction);
   links->setText(QCoreApplication::translate("App",
-      "<p>Разработка и сопровождение: <a href=\"https://github.com/ndrco\">NDRco</a></p>"
-      "<p>Код и развитие проекта:<br><a href=\"https://github.com/ndrco/SonShell-Remote\">github.com/ndrco/SonShell-Remote</a></p>"
-      "<p>На основе <a href=\"https://github.com/goudvuur/sonshell\">SonShell</a> и "
-      "<a href=\"https://support.d-imaging.sony.co.jp/app/sdk/en/\">Sony Camera Remote SDK</a>.</p>"
-      "<p>Независимый проект для камер Sony. Код приложения: Apache-2.0; условия Sony SDK действуют отдельно.</p>"));
+      "<p>Developed and maintained by <a href=\"https://github.com/ndrco\">NDRco</a></p><p>Source code and project development:<br><a href=\"https://github.com/ndrco/SonShell-Remote\">github.com/ndrco/SonShell-Remote</a></p><p>Based on <a href=\"https://github.com/goudvuur/sonshell\">SonShell</a> and <a href=\"https://support.d-imaging.sony.co.jp/app/sdk/en/\">Sony Camera Remote SDK</a>.</p><p>Independent project for Sony cameras. Application code: Apache-2.0; Sony SDK terms apply separately.</p>"));
   layout->addWidget(links);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close); layout->addWidget(buttons);

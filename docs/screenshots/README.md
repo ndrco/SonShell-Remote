@@ -1,15 +1,5 @@
-# Скриншот приложения
+[English](README.md) · [Russian](README_RU.md)
 
-`sonshell-remote.png` — прямой захват окна настоящего MainWindow версии 0.8.3,
-1640×1080, Qt Fusion, русский интерфейс. Получен 2026-10-31 для README GitHub.
-Растрового редактирования скриншота не было.
+# Application screenshot
 
-Использован SDK-free backend из tests/fake_backend.py, приватные временные
-настройки и пять демонстрационных записей JPEG/RAW+JPEG. Подключения к камере,
-пользовательских фотографий, паролей и реальных путей импорта нет.
-Сеанс прямо обозначен как демонстрационный в окне и подписи README.
-
-Изображение горного озера построено из собственных векторных примитивов QPainter
-во временном JPEG. Это тестовая иллюстрация, не фотография с камеры; внешних
-графических материалов в сцене нет. Скриншот распространяется на условиях
-Apache-2.0 вместе с проектом.
+`sonshell-remote.png` is the screenshot provided by the project owner for the repository on 2026-10-31. It shows Live View and camera controls in the English interface. The original 1781×1338 PNG is stored unchanged.

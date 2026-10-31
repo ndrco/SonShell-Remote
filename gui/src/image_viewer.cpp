@@ -127,21 +127,21 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
     connect(button, &QPushButton::clicked, this, action);
     bar->addWidget(button);
   };
-  previous_ = new QPushButton(QCoreApplication::translate("App", "Предыдущий файл"), this); previous_->setObjectName("viewer_previous");
-  next_ = new QPushButton(QCoreApplication::translate("App", "Следующий файл"), this); next_->setObjectName("viewer_next");
-  previous_->setToolTip(QCoreApplication::translate("App", "Предыдущий файл"));
-  next_->setToolTip(QCoreApplication::translate("App", "Следующий файл"));
+  previous_ = new QPushButton(QCoreApplication::translate("App", "Previous file"), this); previous_->setObjectName("viewer_previous");
+  next_ = new QPushButton(QCoreApplication::translate("App", "Next file"), this); next_->setObjectName("viewer_next");
+  previous_->setToolTip(QCoreApplication::translate("App", "Previous file"));
+  next_->setToolTip(QCoreApplication::translate("App", "Next file"));
   previous_->hide(); next_->hide(); caption_row->addWidget(previous_); caption_row->addWidget(next_);
   connect(previous_, &QPushButton::clicked, this, [this] { emit navigate_requested(-1); });
   connect(next_, &QPushButton::clicked, this, [this] { emit navigate_requested(1); });
   view_ = new ImageView(this);
-  add(QCoreApplication::translate("App", "Вписать"), [this] { view_->fit_image(); });
+  add(QCoreApplication::translate("App", "Fit"), [this] { view_->fit_image(); });
   add("100%", [this] { view_->actual_size(); });
   add("−", [this] { view_->zoom(1.0 / 1.25); });
   add("+", [this] { view_->zoom(1.25); });
   zoom_label_ = new QLabel(this);
   bar->addWidget(zoom_label_);
-  add(QCoreApplication::translate("App", "Полный экран · F11"), [this] { toggle_fullscreen(); });
+  add(QCoreApplication::translate("App", "Full screen · F11"), [this] { toggle_fullscreen(); });
   layout->addLayout(bar);
   layout->addWidget(view_, 1);
   video_ = new VideoPreview(this);
@@ -151,17 +151,17 @@ ImageViewer::ImageViewer(QWidget* parent) : QWidget(parent) {
   auto* video_box = new QVBoxLayout(video_bar_); video_box->setContentsMargins(0, 0, 0, 0);
   auto* video_layout = new QHBoxLayout; video_box->addLayout(video_layout);
   auto* seek_layout = new QHBoxLayout; video_box->addLayout(seek_layout);
-  auto* play = new QPushButton(QCoreApplication::translate("App", "Воспроизвести"), video_bar_); play->setObjectName("movie_play");
-  auto* pause = new QPushButton(QCoreApplication::translate("App", "Пауза"), video_bar_); pause->setObjectName("movie_pause");
-  auto* stop = new QPushButton(QCoreApplication::translate("App", "Стоп"), video_bar_); stop->setObjectName("movie_stop");
-  auto* backward = new QPushButton(QCoreApplication::translate("App", "Назад 5 с"), video_bar_); backward->setObjectName("movie_backward");
-  auto* forward = new QPushButton(QCoreApplication::translate("App", "Вперёд 5 с"), video_bar_); forward->setObjectName("movie_forward");
-  auto* seek = new QSpinBox(video_bar_); seek->setObjectName("movie_seek_seconds"); seek->setRange(0, 86400); seek->setSuffix(QCoreApplication::translate("App", " с"));
-  auto* jump = new QPushButton(QCoreApplication::translate("App", "Перейти"), video_bar_); jump->setObjectName("movie_jump");
+  auto* play = new QPushButton(QCoreApplication::translate("App", "Play"), video_bar_); play->setObjectName("movie_play");
+  auto* pause = new QPushButton(QCoreApplication::translate("App", "Pause"), video_bar_); pause->setObjectName("movie_pause");
+  auto* stop = new QPushButton(QCoreApplication::translate("App", "Stop"), video_bar_); stop->setObjectName("movie_stop");
+  auto* backward = new QPushButton(QCoreApplication::translate("App", "Back 5 s"), video_bar_); backward->setObjectName("movie_backward");
+  auto* forward = new QPushButton(QCoreApplication::translate("App", "Forward 5 s"), video_bar_); forward->setObjectName("movie_forward");
+  auto* seek = new QSpinBox(video_bar_); seek->setObjectName("movie_seek_seconds"); seek->setRange(0, 86400); seek->setSuffix(QCoreApplication::translate("App", " s"));
+  auto* jump = new QPushButton(QCoreApplication::translate("App", "Seek"), video_bar_); jump->setObjectName("movie_jump");
   video_position_ = new QLabel("00:00", video_bar_); video_position_->setObjectName("movie_position");
-  video_info_ = new QLabel(QCoreApplication::translate("App", "Видео · без звука"), video_bar_); video_info_->setObjectName("movie_info");
+  video_info_ = new QLabel(QCoreApplication::translate("App", "Video · silent preview"), video_bar_); video_info_->setObjectName("movie_info");
   connect(video_, &VideoPreview::frame_ready, video_info_, [this](const QImage& image) {
-    video_info_->setText(QString(QCoreApplication::translate("App", "Видео · %1 × %2 · без звука")).arg(image.width()).arg(image.height()));
+    video_info_->setText(QString(QCoreApplication::translate("App", "Video · %1 × %2 · no audio")).arg(image.width()).arg(image.height()));
   });
   for (auto* widget : QList<QWidget*>{play, pause, stop, backward, forward}) video_layout->addWidget(widget);
   video_layout->addStretch();
@@ -228,11 +228,11 @@ void ImageViewer::seek_video(qint64 milliseconds) {
 }
 void ImageViewer::set_local_video(const QString& path) {
   stop_video(); remote_video_ = false; video_path_ = path; video_->set_local_file(path); video_bar_->setVisible(!path.isEmpty());
-  video_info_->setText(QCoreApplication::translate("App", "Видео · без звука"));
+  video_info_->setText(QCoreApplication::translate("App", "Video · silent preview"));
 }
 void ImageViewer::set_remote_video(bool enabled) {
   stop_video(); remote_video_ = enabled; video_path_.clear(); video_->set_local_file({}); video_bar_->setVisible(enabled);
-  video_info_->setText(QCoreApplication::translate("App", "Видео · без звука"));
+  video_info_->setText(QCoreApplication::translate("App", "Video · silent preview"));
 }
 bool ImageViewer::prepare_stream(const QString& socket_path) { return video_->listen(socket_path); }
 void ImageViewer::set_video_controls_enabled(bool enabled) { video_bar_->setEnabled(enabled); }

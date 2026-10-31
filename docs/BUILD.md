@@ -1,15 +1,17 @@
-# Сборка
+[English](BUILD.md) · [Russian](BUILD_RU.md)
 
-Получить исходники:
+# Build
+
+Get sources:
 
 ```bash
 git clone https://github.com/ndrco/SonShell-Remote.git
 cd SonShell-Remote
 ```
 
-## GUI и тесты без SDK
+## GUI and tests without SDK
 
-На Ubuntu 24.04:
+On Ubuntu 24.04:
 
 ```bash
 sudo apt install build-essential cmake qt6-base-dev qt6-l10n-tools qt6-translations-l10n qt6-image-formats-plugins libimage-exiftool-perl ffmpeg python3
@@ -18,13 +20,13 @@ cmake --build build-gui --parallel 4
 ctest --test-dir build-gui --output-on-failure
 ```
 
-GUI без backend можно использовать для разработки; для камеры нужен backend,
-собранный из этого проекта с поддержкой протокола REMOTE/1.
+GUI without backend can be used for development; the camera needs a backend,
+compiled from this project with support for the REMOTE/1 protocol.
 
-## Полная сборка
+## Full build
 
-Получить Sony Camera Remote SDK отдельно, принять условия Sony, распаковать.
-SONY_SDK_DIR указывает на каталог с `app/` и `external/` (в SDK 2.02 это RemoteCli).
+Get Sony Camera Remote SDK separately, accept Sony's terms and conditions, unpack.
+SONY_SDK_DIR points to the directory with `app/` and `external/` (in SDK 2.02 this is RemoteCli).
 
 ```bash
 sudo apt install libedit-dev libncurses-dev libxml2-dev libssl-dev
@@ -36,28 +38,28 @@ ctest --test-dir build --output-on-failure
 ./build/gui/sonshell-remote
 ```
 
-Headless исключает только отдельный OpenCV viewer. Встроенный GUI Live View
-получает JPEG из SDK. Для старого CLI viewer: HEADLESS=OFF, дополнительно GTK3
-и OpenCV из SDK. Оригинальные CLI команды — docs/upstream/SONSHELL.md.
+Headless only excludes a separate OpenCV viewer. Built-in GUI Live View
+gets JPEG from SDK. For the legacy CLI viewer: SONSHELL_HEADLESS=OFF, additionally GTK3
+and OpenCV from SDK. Original CLI commands - docs/upstream/SONSHELL.md.
 
-## Установочный пакет
+## Installation package
 
-На целевой Ubuntu 24.04 amd64:
+On target Ubuntu 24.04 amd64:
 
 ```bash
 sudo apt install dpkg-dev desktop-file-utils
 SONY_SDK_DIR=/absolute/path/RemoteCli ./scripts/package-deb.sh
 ```
 
-Результат: `build-package/sonshell-remote_0.8.3-1ubuntu24.04_amd64.deb`.
-Скрипт скачивает HTML лицензии Sony в build-каталог (можно передать локальный
-SONY_SDK_LICENSE_FILE), собирает проект, выполняет тесты и CPack DEB.
-Зависимости вычисляет dpkg-shlibdeps, runtime SDK помещается в приватный
-`/usr/lib/sonshell-remote`, заголовки SDK в пакет не входят. Qt не копируется,
-устанавливается из репозитория Ubuntu. Пакет не требует SDK на целевой машине.
+Result: `build-package/sonshell-remote_0.8.4-1ubuntu24.04_amd64.deb`.
+The script downloads the Sony license HTML to the build directory (you can supply a local
+SONY_SDK_LICENSE_FILE), builds the project, runs tests and CPack DEB.
+Dependencies are calculated by dpkg-shlibdeps, the SDK runtime is installed under the private
+`/usr/lib/sonshell-remote`, SDK headers are not included in the package. Qt is not copied
+installed from the Ubuntu repository. The package does not require an SDK on the target machine.
 
-Не коммитить deb/SDK/локальные license HTML; распространять runtime только
-как часть приложения с условиями и OSS notices — см. THIRD_PARTY.md.
+Do not commit deb/SDK/local license HTML; distribute runtime only
+as part of the application with conditions and OSS notices - see THIRD_PARTY.md.
 
-`lrelease` используется только при сборке. Для нестандартного расположения задай
+`lrelease` is used only during build. For a non-standard location, specify
 `-DQT_LRELEASE_EXECUTABLE=/absolute/path/lrelease`.

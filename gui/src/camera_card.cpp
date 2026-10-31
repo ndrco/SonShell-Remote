@@ -33,7 +33,7 @@ bool CardItem::is_video() const {
 QString CardItem::format() const {
   QStringList result;
   for (const auto& file : files) {
-    const QString format = file.format == raw_format ? "RAW" : file.format == jpeg_format ? "JPEG" : file.format == 0xb110 ? "HEIF" : file.format == 0xb982 ? "MP4" : file.format == 0xba82 ? "XML" : QCoreApplication::translate("App", "Доп. файл");
+    const QString format = file.format == raw_format ? "RAW" : file.format == jpeg_format ? "JPEG" : file.format == 0xb110 ? "HEIF" : file.format == 0xb982 ? "MP4" : file.format == 0xba82 ? "XML" : QCoreApplication::translate("App", "Related file");
     if (!result.contains(format)) result.append(format);
   }
   return result.join("+");
@@ -58,12 +58,12 @@ CameraCard::CameraCard(CameraSession* session, QObject* parent) : QObject(parent
   });
   connect(&verification_, &QFutureWatcher<ImportVerification>::finished, this, [this] {
     if (active_.kind != "verify") return;
-    if (verification_.isCanceled()) { finish(QCoreApplication::translate("App", "Проверка копий остановлена. Файлы не изменялись.")); return; }
+    if (verification_.isCanceled()) { finish(QCoreApplication::translate("App", "Copy verification stopped. Files were not modified.")); return; }
     const auto result = verification_.result(); ledger_ = result.ledger;
     const bool saved = save_json(ledger_path(), ledger_);
     emit catalog_changed();
-    finish(saved ? QString(QCoreApplication::translate("App", "SHA256: исправны %1; изменены %2; отсутствуют %3; без эталона %4.")).arg(result.good).arg(result.changed).arg(result.missing).arg(result.legacy) :
-        QCoreApplication::translate("App", "Проверка завершена, но журнал импорта не сохранён."));
+    finish(saved ? QString(QCoreApplication::translate("App", "SHA256: valid %1; changed %2; missing %3; no baseline %4.")).arg(result.good).arg(result.changed).arg(result.missing).arg(result.legacy) :
+        QCoreApplication::translate("App", "Verification finished, but the import log could not be saved."));
   });
 }
 CameraCard::~CameraCard() {
@@ -88,7 +88,7 @@ void CameraCard::set_connected(bool connected) {
   if (original_cancel_) original_cancel_->store(true);
   original_cancel_.reset();
   clear_original();
-  emit status_changed(connected ? QCoreApplication::translate("App", "Открой вкладку и обнови список карты. Оригиналы при съёмке не копируются.") : QCoreApplication::translate("App", "Камера отключена"));
+  emit status_changed(connected ? QCoreApplication::translate("App", "Open the tab and refresh the card list. Shooting does not copy originals.") : QCoreApplication::translate("App", "Camera disconnected"));
 }
 QString CameraCard::ledger_path() const { return QDir(directory_).filePath(".sonshell-imports.json"); }
 QString CameraCard::pending_path() const { return QDir(directory_).filePath(".sonshell-copy-queue.json"); }
@@ -139,8 +139,8 @@ void CameraCard::refresh() {
   if (!connected_ || busy()) return;
   active_ = {"list", request_id(), {}, {}, false, false, {}}; list_request_ = active_.request;
   canceled_ = false; total_ = completed_ = failed_ = 0; list_warnings_.clear(); items_.clear(); emit catalog_changed(); emit busy_changed(true);
-  emit status_changed(QCoreApplication::translate("App", "Читаю список файлов карты без загрузки оригиналов…"));
-  if (!session_->send_command("card list " + active_.request)) finish(QCoreApplication::translate("App", "Не удалось запросить список камеры"));
+  emit status_changed(QCoreApplication::translate("App", "Reading the card file list without downloading originals…"));
+  if (!session_->send_command("card list " + active_.request)) finish(QCoreApplication::translate("App", "Could not request the camera list"));
 }
 void CameraCard::preview(const QString& key, bool thumbnail, bool full_jpeg) {
   if (!connected_ || busy()) return;
@@ -155,7 +155,7 @@ void CameraCard::original(const QString& key) {
   if (!connected_ || busy() || !item) return;
   const auto file = item->preview_file();
   if (!file.size) {
-    const auto message = QCoreApplication::translate("App", "Файл недоступен");
+    const auto message = QCoreApplication::translate("App", "File unavailable");
     emit original_failed(key, message); emit status_changed(message); return;
   }
   const auto identity = ledger_key(*item, file);
@@ -183,14 +183,14 @@ void CameraCard::read_original(const QString& path, bool temporary) {
   original_cancel_ = std::make_shared<std::atomic<bool>>(canceled_);
   const auto token = original_cancel_;
   emit progress_changed(0, 0, 95);
-  emit status_changed(QCoreApplication::translate("App", "Открываю оригинал в исходном размере…"));
+  emit status_changed(QCoreApplication::translate("App", "Opening original at native resolution…"));
   auto* watcher = new QFutureWatcher<MediaResult>(this);
   connect(watcher, &QFutureWatcher<MediaResult>::finished, this, [this, watcher, path, temporary, task] {
     const auto result = watcher->result(); watcher->deleteLater();
     if (!connected_ || active_.request != task.request || canceled_ || result.image.isNull()) {
       if (temporary) QFile::remove(path);
       if (active_.request == task.request) {
-        const auto message = canceled_ ? QCoreApplication::translate("App", "Просмотр оригинала отменён") : result.error;
+        const auto message = canceled_ ? QCoreApplication::translate("App", "Original preview canceled") : result.error;
         emit original_failed(task.key, message); finish(message);
       }
       return;
@@ -201,13 +201,13 @@ void CameraCard::read_original(const QString& path, bool temporary) {
     original_key_ = item ? ledger_key(*item, task.file) : QString();
     emit original_ready(task.key, original_result_);
     if (!old_path.isEmpty() && old_path != path) QFile::remove(old_path);
-    original_cancel_.reset(); finish(QString(QCoreApplication::translate("App", "Оригинал открыт · %1 × %2")).arg(result.image.width()).arg(result.image.height()));
+    original_cancel_.reset(); finish(QString(QCoreApplication::translate("App", "Original opened · %1 × %2")).arg(result.image.width()).arg(result.image.height()));
   });
   watcher->setFuture(QtConcurrent::run([path, task, token] {
     if (task.file.format == jpeg_format || task.file.format == 0xb110) {
       QImageReader reader(path); const auto size = reader.size();
       if (!size.isValid() || qint64(size.width()) * size.height() > 120000000 || QFileInfo(path).size() > 128 * 1024 * 1024) {
-        MediaResult result; result.error = QCoreApplication::translate("App", "Изображение недоступно или превышает лимит 120 Мп / 128 MiB"); return result;
+        MediaResult result; result.error = QCoreApplication::translate("App", "Image unavailable or exceeds the 120 MP / 128 MiB limit"); return result;
       }
     }
     return MediaReader::read(path, false, token);
@@ -241,10 +241,10 @@ void CameraCard::copy(const QStringList& keys, const QString& format, CopyMode m
     }
   }
   total_ = queue_.size();
-  if (!total_) { saved_queue_ = previous; emit status_changed(QCoreApplication::translate("App", "Нет новых файлов для копирования в выбранном формате и каталоге")); return; }
+  if (!total_) { saved_queue_ = previous; emit status_changed(QCoreApplication::translate("App", "No new files to copy for the selected format and directory")); return; }
   if (!QDir().mkpath(directory_) || !save_pending()) {
     saved_queue_ = previous; queue_.clear(); total_ = 0;
-    emit status_changed(QCoreApplication::translate("App", "Не удалось сохранить очередь импорта. Копирование не начато.")); return;
+    emit status_changed(QCoreApplication::translate("App", "Could not save the import queue. Copying was not started.")); return;
   }
   dispatch();
 }
@@ -265,20 +265,20 @@ void CameraCard::resume_copy() {
     if (!imported(*item, found->file)) { queue_.enqueue(*found); remaining.append(entry); }
   }
   saved_queue_ = remaining;
-  if (!save_pending()) { queue_.clear(); emit status_changed(QCoreApplication::translate("App", "Не удалось сохранить очередь импорта. Копирование не начато.")); return; }
+  if (!save_pending()) { queue_.clear(); emit status_changed(QCoreApplication::translate("App", "Could not save the import queue. Copying was not started.")); return; }
   canceled_ = false; completed_ = failed_ = 0; total_ = queue_.size(); emit catalog_changed();
   if (!total_) {
-    emit status_changed(missing ? QCoreApplication::translate("App", "Кадры сохранённой очереди отсутствуют или изменились. Проверь камеру и карту.") :
-        QCoreApplication::translate("App", "Все файлы сохранённой очереди уже скопированы.")); return;
+    emit status_changed(missing ? QCoreApplication::translate("App", "Saved queue items are missing or have changed. Check the camera and card.") :
+        QCoreApplication::translate("App", "All files in the saved queue have already been copied.")); return;
   }
-  if (missing) emit session_->log_received(QString(QCoreApplication::translate("App", "Не найдены файлы сохранённой очереди: %1")).arg(missing));
+  if (missing) emit session_->log_received(QString(QCoreApplication::translate("App", "Saved queue files not found: %1")).arg(missing));
   dispatch();
 }
 void CameraCard::verify_copies() {
   if (busy() || ledger_.isEmpty() || directory_.isEmpty()) return;
   active_ = {"verify", request_id(), {}, {}, false, false, {}}; total_ = completed_ = failed_ = 0; canceled_ = false;
   emit busy_changed(true); emit progress_changed(0, 0, 0);
-  emit status_changed(QCoreApplication::translate("App", "Проверяю SHA256 локальных копий. Файлы не изменяются…"));
+  emit status_changed(QCoreApplication::translate("App", "Checking local copy SHA256 checksums. Files are not modified…"));
   verification_.setFuture(QtConcurrent::run(verify_imports, directory_, ledger_));
 }
 void CameraCard::remove(const QStringList& keys) {
@@ -294,21 +294,21 @@ void CameraCard::cancel() {
   canceled_ = true; queue_.clear();
   if (original_cancel_) original_cancel_->store(true);
   else session_->send_command("card cancel");
-  emit status_changed(QCoreApplication::translate("App", "Останавливаю операцию; ожидаю ответ камеры…"));
+  emit status_changed(QCoreApplication::translate("App", "Stopping operation; waiting for the camera…"));
 }
 void CameraCard::dispatch() {
   if (!connected_ || queue_.isEmpty()) { emit busy_changed(false); return; }
   active_ = queue_.dequeue();
   const auto* item = find(active_.key);
-  if (!item) { finish(QCoreApplication::translate("App", "Кадр больше не доступен")); return; }
+  if (!item) { finish(QCoreApplication::translate("App", "Photo is no longer available")); return; }
   QString command = QString("card %1 %2 %3 %4 %5").arg(active_.kind == "original" ? "preview" : active_.kind, active_.request, epoch_).arg(item->slot).arg(item->id);
   if (active_.kind != "delete") command += ' ' + QString::number(active_.file.id) + ' ' +
       (active_.kind == "movie" ? QString::fromLatin1(active_.socket.toUtf8().toHex()) : active_.kind == "copy" ? QString::fromLatin1(directory_.toUtf8().toHex()) : active_.kind == "original" ? "original" : active_.full_jpeg ? "jpeg" : active_.thumbnail ? "thumb" : "screen");
   if (playing_video()) emit movie_viewing(true);
   emit busy_changed(true);
-  emit status_changed((active_.kind == "copy" ? QCoreApplication::translate("App", "Копирование: ") : active_.kind == "delete" ? QCoreApplication::translate("App", "Удаление: ") : QCoreApplication::translate("App", "Превью: ")) + item->name());
+  emit status_changed((active_.kind == "copy" ? QCoreApplication::translate("App", "Copying: ") : active_.kind == "delete" ? QCoreApplication::translate("App", "Deleting: ") : QCoreApplication::translate("App", "Preview: ")) + item->name());
   emit progress_changed(completed_, total_, 0);
-  if (!session_->send_command(command)) finish(QCoreApplication::translate("App", "Команда не отправлена"));
+  if (!session_->send_command(command)) finish(QCoreApplication::translate("App", "Command not sent"));
 }
 void CameraCard::finish(const QString& message) {
   original_cancel_.reset();
@@ -319,28 +319,28 @@ void CameraCard::finish(const QString& message) {
   if (!message.isEmpty()) emit status_changed(message);
   if (!queue_.isEmpty() && !canceled_) { QTimer::singleShot(0, this, &CameraCard::dispatch); return; }
   emit progress_changed(completed_, total_, total_ ? 0 : 100);
-  if (batch) emit status_changed(canceled_ ? QCoreApplication::translate("App", "Операция остановлена. Завершённые копии сохранены.") :
-      QString(QCoreApplication::translate("App", "Обработано файлов/кадров: %1; ошибок: %2%3")).arg(completed_).arg(failed_).arg(message.isEmpty() ? "" : " · " + message));
+  if (batch) emit status_changed(canceled_ ? QCoreApplication::translate("App", "Operation stopped. Completed copies are preserved.") :
+      QString(QCoreApplication::translate("App", "Files/photos processed: %1; errors: %2%3")).arg(completed_).arg(failed_).arg(message.isEmpty() ? "" : " · " + message));
   emit busy_changed(false);
   if (studio_pending_ && studio_ && connected_ && !busy() && !studio_timer_.isActive()) studio_timer_.start();
 }
 QString CameraCard::record(const CardItem& item, const CardFile& file, const QString& path, const QString& digest) {
   const QFileInfo info(path);
-  if (!info.isFile() || (file.size && quint64(info.size()) != file.size)) return QCoreApplication::translate("App", "Полученная копия не прошла проверку размера");
+  if (!info.isFile() || (file.size && quint64(info.size()) != file.size)) return QCoreApplication::translate("App", "The received copy failed the size check");
   static const QRegularExpression pattern("^[0-9a-f]{64}$");
-  if (!pattern.match(digest).hasMatch()) return QCoreApplication::translate("App", "Копия получена без контрольной суммы SHA256. Обнови backend.");
+  if (!pattern.match(digest).hasMatch()) return QCoreApplication::translate("App", "Copy received without a SHA256 checksum. Update the backend.");
   const auto key = ledger_key(item, file);
   const auto previous = ledger_;
   ledger_.insert(key, QJsonObject{{"path", info.absoluteFilePath()}, {"size", QString::number(info.size())}, {"sha256", digest},
       {"mtime", QString::number(info.lastModified().toMSecsSinceEpoch())}, {"valid", true}});
   if (!save_json(ledger_path(), ledger_)) {
     ledger_ = previous;
-    return QCoreApplication::translate("App", "Файл скопирован, но журнал импорта не сохранён. При повторном импорте возможна дополнительная копия.");
+    return QCoreApplication::translate("App", "File copied, but the import ledger could not be saved. Importing again may create an additional copy.");
   }
   QJsonArray remaining;
   for (const auto& value : saved_queue_) if (value.toObject().value("key").toString() != key) remaining.append(value);
   saved_queue_ = remaining;
-  if (!save_pending()) return QCoreApplication::translate("App", "Копия сохранена, но очередь импорта не обновлена.");
+  if (!save_pending()) return QCoreApplication::translate("App", "Copy saved, but the import queue could not be updated.");
   return {};
 }
 void CameraCard::receive(const QJsonObject& event) {
@@ -348,7 +348,7 @@ void CameraCard::receive(const QJsonObject& event) {
   const auto type = event.value("type").toString();
   if (type == "changed") {
     dirty_ = true;
-    emit status_changed(QCoreApplication::translate("App", "Содержимое карты изменилось. Обнови список после съёмки."));
+    emit status_changed(QCoreApplication::translate("App", "Card contents changed. Refresh the list after shooting."));
     // Studio quality is chosen independently from card browsing quality.
     if (studio_) {
       studio_pending_ = true;
@@ -371,11 +371,11 @@ void CameraCard::receive(const QJsonObject& event) {
   } else if (type == "end" && active_.kind == "list") {
     dirty_ = event.value("stale").toBool();
     std::sort(items_.begin(), items_.end(), [](const CardItem& a, const CardItem& b) { return a.stamp > b.stamp; });
-    emit catalog_changed(); finish(QString(QCoreApplication::translate("App", "Кадров на карте: %1%2")).arg(items_.size()).arg(dirty_ ? QCoreApplication::translate("App", " · список изменился, обнови его") : "") + (list_warnings_.isEmpty() ? "" : " · " + list_warnings_.join("; ")));
+    emit catalog_changed(); finish(QString(QCoreApplication::translate("App", "Photos on card: %1%2")).arg(items_.size()).arg(dirty_ ? QCoreApplication::translate("App", " · list changed, refresh it") : "") + (list_warnings_.isEmpty() ? "" : " · " + list_warnings_.join("; ")));
     if (resume_after_list_) {
       resume_after_list_ = false;
       if (!dirty_) resume_copy();
-      else emit status_changed(QCoreApplication::translate("App", "Карта менялась во время чтения. Обнови список перед продолжением импорта."));
+      else emit status_changed(QCoreApplication::translate("App", "The card changed while reading. Refresh the list before resuming import."));
     }
     else if (studio_list_ && studio_) {
       studio_list_ = false;
@@ -384,26 +384,26 @@ void CameraCard::receive(const QJsonObject& event) {
       else if (image != items_.end() && image->identity != last_studio_identity_) { preview(image->key(), false, studio_full_jpeg_); active_.studio = true; }
     }
   } else if (type == "slot-error" && active_.kind == "list") {
-    list_warnings_.append(QString(QCoreApplication::translate("App", "Слот %1: %2")).arg(event.value("slot").toInt()).arg(event.value("message").toString()));
+    list_warnings_.append(QString(QCoreApplication::translate("App", "Slot %1: %2")).arg(event.value("slot").toInt()).arg(event.value("message").toString()));
     emit status_changed(list_warnings_.last());
-    emit session_->log_received(QString(QCoreApplication::translate("App", "Карта: слот %1 · %2")).arg(event.value("slot").toInt()).arg(event.value("message").toString()));
+    emit session_->log_received(QString(QCoreApplication::translate("App", "Card: slot %1 · %2")).arg(event.value("slot").toInt()).arg(event.value("message").toString()));
   } else if (type == "movie-state" && playing_video()) {
     emit movie_state(event.value("state").toString());
   } else if (type == "movie-stopped" && playing_video()) {
-    finish(QCoreApplication::translate("App", "Видеопросмотр остановлен"));
+    finish(QCoreApplication::translate("App", "Video preview stopped"));
   } else if (type == "progress") {
     int percent = std::clamp(event.value("percent").toInt(), 0, 100);
     if (active_.kind == "copy") {
       const bool hashing = event.value("phase").toString() == "hash";
       percent = hashing ? 90 + percent * 9 / 100 : percent * 90 / 100;
-      if (hashing) emit status_changed(QCoreApplication::translate("App", "Вычисляю SHA256 перед сохранением…"));
+      if (hashing) emit status_changed(QCoreApplication::translate("App", "Computing SHA256 before saving…"));
     } else if (active_.kind == "original") percent = percent * 90 / 100;
     emit progress_changed(completed_, total_, percent);
   }
   else if (type == "preview" && active_.kind == "original") {
     const auto path = event.value("path").toString();
     if (canceled_ || quint64(QFileInfo(path).size()) != active_.file.size) {
-      QFile::remove(path); const auto message = QCoreApplication::translate("App", "Оригинал отменён или получен не полностью");
+      QFile::remove(path); const auto message = QCoreApplication::translate("App", "Original canceled or incomplete");
       emit original_failed(active_.key, message); finish(message); return;
     }
     read_original(path, true);
@@ -419,13 +419,13 @@ void CameraCard::receive(const QJsonObject& event) {
         if (task.studio) {
           const auto* item = find(task.key);
           if (item) last_studio_identity_ = item->identity;
-          auto source = task.full_jpeg ? QCoreApplication::translate("App", "JPEG с карты · исходный размер") :
-              task.fallback ? QCoreApplication::translate("App", "JPEG на карте нет · сжатое превью") : QCoreApplication::translate("App", "Сжатое превью камеры");
+          auto source = task.full_jpeg ? QCoreApplication::translate("App", "JPEG from card · original size") :
+              task.fallback ? QCoreApplication::translate("App", "No JPEG on card · compressed preview") : QCoreApplication::translate("App", "Compressed camera preview");
           emit studio_ready(image, task.file.path, source + QString(" · %1 × %2").arg(image.width()).arg(image.height()));
         }
       }
-      finish(image.isNull() ? task.full_jpeg ? QCoreApplication::translate("App", "Не удалось прочитать JPEG с карты.") :
-          QCoreApplication::translate("App", "Камера вернула нечитаемое превью. Оригинал не загружался.") : "");
+      finish(image.isNull() ? task.full_jpeg ? QCoreApplication::translate("App", "Could not read the JPEG from the card.") :
+          QCoreApplication::translate("App", "The camera returned an unreadable preview. The original was not downloaded.") : "");
     });
     watcher->setFuture(QtConcurrent::run([path, task] {
       if (QFileInfo(path).size() > (task.full_jpeg ? 128 : 32) * 1024 * 1024) return QImage();
@@ -437,8 +437,8 @@ void CameraCard::receive(const QJsonObject& event) {
     const auto* item = find(active_.key); const auto path = event.value("path").toString();
     const auto canonical = QFileInfo(path).canonicalFilePath();
     const auto relative = QDir(directory_).relativeFilePath(canonical);
-    if (canonical.isEmpty() || relative == ".." || relative.startsWith("../") || QFileInfo(path).isSymLink()) { finish(QCoreApplication::translate("App", "Неверный путь полученного файла")); return; }
-    const auto message = item ? record(*item, active_.file, path, event.value("sha256").toString()) : QString(QCoreApplication::translate("App", "Копия получена, но каталог изменился"));
+    if (canonical.isEmpty() || relative == ".." || relative.startsWith("../") || QFileInfo(path).isSymLink()) { finish(QCoreApplication::translate("App", "Invalid received file path")); return; }
+    const auto message = item ? record(*item, active_.file, path, event.value("sha256").toString()) : QString(QCoreApplication::translate("App", "Copy received, but the catalog changed"));
     emit copied(path); emit item_status_changed(active_.key); finish(message);
   } else if (type == "deleted" && active_.kind == "delete") {
     const auto key = active_.key;
@@ -446,12 +446,12 @@ void CameraCard::receive(const QJsonObject& event) {
     emit catalog_changed(); finish();
   } else if (type == "error") {
     const auto message = event.value("code") == "movie-no-data" ?
-        QString(QCoreApplication::translate("App", "SDK не передал видеокадры. Открой оригинал для просмотра. Если поток не работает ни с одним роликом, проверь входящие TCP 55001, 55003, 55005 от %1 к %2. Справка: F1 → Видео.")).arg(event.value("camera_host").toString(), event.value("computer_ip").toString()) : event.value("message").toString();
+        QString(QCoreApplication::translate("App", "The SDK delivered no video frames. Open the original to watch it. If streaming fails for every clip, check incoming TCP 55001, 55003, 55005 from %1 to %2. Help: F1 → Video.")).arg(event.value("camera_host").toString(), event.value("computer_ip").toString()) : event.value("message").toString();
     if (playing_video()) emit movie_failed(message);
     if (active_.kind == "original") emit original_failed(active_.key, message);
     if (active_.kind == "delete") queue_.clear(); // Reconfirm remaining deletions after any failure.
     studio_list_ = false;
-    emit session_->log_received(QCoreApplication::translate("App", "Карта: ") + message);
+    emit session_->log_received(QCoreApplication::translate("App", "Card: ") + message);
     finish(message);
   }
 }

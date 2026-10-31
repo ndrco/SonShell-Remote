@@ -66,7 +66,7 @@ class VideoTests final : public QObject {
   }
   void local_video_poster_and_distinct_gallery_entry() {
     const auto result = MediaReader::read(mp4_); QVERIFY(result.video); QVERIFY2(!result.image.isNull(), qPrintable(result.error));
-    QVERIFY(result.image.width() <= 1280); QVERIFY(result.source.contains(QString::fromUtf8("первый кадр")));
+    QVERIFY(result.image.width() <= 1280); QVERIFY(result.source.contains(QString::fromUtf8("first frame")));
     QTemporaryDir root; QVERIFY(QFile::copy(mp4_, root.filePath("C0001.MP4"))); QVERIFY(QFile::copy(jpeg_, root.filePath("C0001.JPG")));
     PhotoLibrary library; library.set_auto_preview(false); QSignalSpy items(&library, &PhotoLibrary::items_changed); library.set_directory(root.path());
     QTRY_VERIFY(items.size() > 1); QTRY_COMPARE(qvariant_cast<MediaItems>(items.last()[0]).size(), 2);
@@ -105,8 +105,8 @@ class VideoTests final : public QObject {
       ++count; native = native && image.size() == QSize(1920, 1080);
     });
     QElapsedTimer elapsed; elapsed.start();
-    // Непрерывный цикл, как в приложении: QTRY/qWait делает паузы между
-    // readyRead и может искусственно затормозить 142 MiB RGB через pipe.
+    // Use a continuous event loop: QTRY/qWait pauses between
+    // readyRead calls and may artificially slow 142 MiB RGB through the pipe.
     QEventLoop playback;
     QTimer deadline; deadline.setSingleShot(true);
     connect(&player, &VideoPreview::finished, &playback, &QEventLoop::quit);
@@ -279,7 +279,7 @@ class VideoTests final : public QObject {
     QCOMPARE(seeks.size(), 1); QCOMPARE(seeks.first()[0].toInt(), target); QTRY_VERIFY(commands().contains("card movie-seek"));
     viewer->findChild<QPushButton*>("movie_backward")->click(); QCOMPARE(seeks.size(), 2);
     viewer->view()->setFocus(); QTest::keyClick(viewer->view(), Qt::Key_Space);
-    QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("Отметка копирования снята")));
+    QVERIFY(viewer->findChild<QLabel*>("action_overlay")->text().contains(QString::fromUtf8("Copy mark cleared")));
     if (qEnvironmentVariableIsSet("REMOTE_TEST_SCREENSHOTS")) viewer->grab().save(qEnvironmentVariable("REMOTE_TEST_SCREENSHOTS") + "/video-overlay.png");
     QTest::keyClick(viewer->view(), Qt::Key_Space);
     QVERIFY(!commands().contains("card copy"));

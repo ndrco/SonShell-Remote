@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QSettings>
 #include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <sys/stat.h>
@@ -63,6 +64,18 @@ class RemoteTests : public QObject {
     QVERIFY(file.open(QIODevice::ReadOnly));
     const auto data = file.readAll();
     QVERIFY(!data.contains("test-secret")); QVERIFY(!data.contains("test-user"));
+  }
+  void english_default_preserves_an_existing_russian_preference() {
+    QTemporaryDir config;
+    SettingsStore store(config.filePath("settings.ini"));
+    QCOMPARE(AppSettings{}.language, QString("en"));
+    QCOMPARE(store.load().language, QString("en"));
+    // Existing installations must keep their explicit language during an upgrade.
+    QSettings old(store.path(), QSettings::IniFormat);
+    old.setValue("language", "ru"); old.sync();
+    auto saved = store.load(); QCOMPARE(saved.language, QString("ru"));
+    saved.auto_connect = false; QVERIFY(store.save(saved));
+    QCOMPARE(store.load().language, QString("ru"));
   }
   void viewer_zoom_and_restore() {
     QWidget host; auto* layout = new QVBoxLayout(&host);
@@ -155,7 +168,7 @@ class RemoteTests : public QObject {
     auto* connect_button = window.findChild<QPushButton*>("connect"); QVERIFY(connect_button);
     QTest::mouseClick(connect_button, Qt::LeftButton);
     auto* state = window.findChild<QLabel*>("connection_state"); QVERIFY(state);
-    QTRY_VERIFY(state->text().startsWith("Подключено"));
+    QTRY_VERIFY(state->text().startsWith("Connected"));
     auto* live = window.findChild<ImageViewer*>("live_view"); QVERIFY(live); QVERIFY(!live->isWindow());
     QTRY_VERIFY(!live->view()->scene()->itemsBoundingRect().isEmpty());
     QTest::qWait(80);
@@ -163,7 +176,7 @@ class RemoteTests : public QObject {
     QFile file(record); QVERIFY(file.open(QIODevice::ReadOnly)); const auto data = file.readAll();
     QVERIFY(data.contains("sync off")); QVERIFY(!data.contains("sync on")); QVERIFY(data.contains("monitor start"));
     QTest::mouseClick(connect_button, Qt::LeftButton);
-    QTRY_COMPARE(state->text(), QString("Отключено"));
+    QTRY_COMPARE(state->text(), QString("Disconnected"));
     window.close();
   }
   void settings_move_service_fields_preserve_values_and_keep_session_alive() {

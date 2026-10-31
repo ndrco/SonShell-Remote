@@ -1,67 +1,74 @@
-# Установка на чистую Ubuntu
+[English](INSTALL.md) · [Russian](INSTALL_RU.md)
 
-Цель выпуска 0.8.3 — Ubuntu 24.04 LTS Desktop, amd64 (Intel/AMD 64-bit), X11/Wayland.
-Для пользователя нужен один пакет `.deb`, интернет для зависимостей Ubuntu и
-совместимая камера Sony. Компилятор, исходники и отдельная установка SDK не нужны.
+# Installation on a clean Ubuntu system
+
+Release 0.8.4 targets **Ubuntu 24.04 LTS Desktop, amd64** (Intel/AMD 64-bit).
+You need the DEB, an internet connection for Ubuntu dependencies and a compatible
+Sony camera. A compiler, source checkout or separate SDK installation is not required.
+
+Download the package from [GitHub Releases](https://github.com/ndrco/SonShell-Remote/releases/latest):
 
 ```bash
 sudo apt update
-sudo apt install ./sonshell-remote_0.8.3-1ubuntu24.04_amd64.deb
+sudo apt install ./sonshell-remote_0.8.4-1ubuntu24.04_amd64.deb
 ```
 
-Открыть **SonShell Remote** из меню приложений или выполнить `sonshell-remote`.
-Пакет содержит GUI, backend и runtime Sony SDK; Qt и системные библиотеки apt
-устанавливает автоматически. Приложение работает от обычного пользователя.
+Start **SonShell Remote** from the application menu or run `sonshell-remote`.
+The package contains the GUI, backend and private Sony runtime libraries. apt
+installs Qt, ExifTool, FFmpeg and other system dependencies. Run the application
+as a normal user. English is the default; Settings → Language offers Russian.
+An existing saved language preference is preserved during an upgrade.
 
-## Первое подключение
+## First connection
 
-1. Камера и компьютер в одной сети. В камере включить PC Remote и Access
-   Authentication для Wi-Fi/LAN, узнать IPv4 и учётные данные.
-2. Ввести IPv4, модель (по умолчанию `a6700`), имя и пароль. Выбрать каталог.
-3. При первом подключении ознакомиться с условиями Sony SDK и принять их.
-4. При желании включить сохранение имени и пароля, затем «Подключить».
+1. Connect the camera and computer to the same network. Enable PC Remote and
+   Access Authentication for Wi-Fi/LAN on the camera; obtain its IPv4 and credentials.
+2. Open Settings → Connection and enter the IPv4, model (for example `a6700`),
+   username and password. Choose the photo directory in Settings → Directory and files.
+3. Read and accept the Sony SDK terms before the first connection.
+4. Enable credential storage if desired, then click Connect.
 
-Поддерживаемые SDK модели и интерфейсы:
-[официальная страница Sony](https://support.d-imaging.sony.co.jp/app/sdk/en/).
-Текущая версия GUI использует IPv4/Wi-Fi/LAN; USB/discovery в плане развития.
-Настройки firewall/камеры зависят от сети; GUI показывает журнал ошибок SDK.
+See Sony's [supported models and interfaces](https://support.d-imaging.sony.co.jp/app/sdk/en/).
+The GUI currently uses IPv4/Wi-Fi/LAN. USB discovery is not exposed in the GUI.
+The connection log helps diagnose camera and network errors.
 
-## Сеть для воспроизведения с карты
+## Network for SDK video playback
 
-SDK Movie Playback принимает отдельные входящие TCP-соединения на 55001 (видео),
-55003 (аудио), 55005 (метаданные). Работа SSH-управления и Live View не доказывает
-доступность этих портов. Если видеоданных нет, сообщение указывает IP камеры и
-выбранный по маршруту IP компьютера. Проверь также изоляцию клиентов на роутере.
+Optional SDK Movie Playback accepts separate inbound TCP connections on 55001
+(video), 55003 (audio) and 55005 (metadata). A working control connection or Live
+View does not prove these ports are reachable. Error messages show the camera
+address and the computer address selected by the route. Check router client
+isolation as well. Main video playback uses a downloaded original instead.
 
-Пример адресного правила UFW для камеры `10.0.1.5` и компьютера `10.0.1.84`:
+Example UFW rule for camera `10.0.1.5` and computer `10.0.1.84`:
 
 ```bash
 sudo ufw allow proto tcp from 10.0.1.5 to 10.0.1.84 port 55001,55003,55005 comment 'SonShell Remote video'
 ```
 
-Подставь свои адреса. Правило требует администратора, разрешает только эту
-камеру и эти порты; при смене DHCP-адресов его нужно обновить. Приложение и DEB
-не меняют firewall. Откат именно этого правила:
+Use your actual addresses. This administrator command allows only that camera
+and those ports; update it if DHCP addresses change. The application and package
+do not change firewall rules. To undo this exact rule:
 
 ```bash
 sudo ufw delete allow proto tcp from 10.0.1.5 to 10.0.1.84 port 55001,55003,55005
 ```
 
-## Удаление и откат
+## Remove or downgrade
 
 ```bash
 sudo apt remove sonshell-remote
 ```
 
-Снимки и пользовательские настройки сохраняются. Для полного удаления настроек
-удалить только `~/.config/SonShellRemote/settings.ini` (это удалит сохранённый пароль).
-Откат версии: `sudo apt install --allow-downgrades ./sonshell-remote_<версия>_amd64.deb`.
-Глобальные настройки сервисов установщик не изменяет.
+Photos and settings remain. To remove application settings, delete
+`~/.config/SonShellRemote/settings.ini`; this also deletes stored credentials.
+To downgrade, install the earlier package with
+`sudo apt install --allow-downgrades ./sonshell-remote_<version>_amd64.deb`.
+The installer does not alter global service settings.
 
-## Другие Ubuntu и архитектуры
+## Other Ubuntu versions and architectures
 
-Данный бинарный пакет собран для Ubuntu 24.04 amd64. Для Ubuntu 22.04, 26.04 и ARM
-нужны отдельная сборка под соответствующую систему/SDK и проверка чистой установки.
-Нельзя считать бинарники взаимозаменяемыми: версии glibc, Qt и названия deb-зависимостей
-различаются. Расширение матрицы — обязательный следующий этап выпуска.
-Фактическая степень проверки текущего пакета — в TESTING.md.
+This binary is built for Ubuntu 24.04 amd64. Ubuntu 22.04, 26.04 and ARM need
+separate builds using a compatible SDK and clean-install testing. glibc, Qt and
+DEB dependency names differ, so the binary packages are not interchangeable.
+Recorded verification results are in [TESTING.md](TESTING.md).

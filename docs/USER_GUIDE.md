@@ -1,275 +1,277 @@
-# Работа с приложением
+[English](USER_GUIDE.md) · [Russian](USER_GUIDE_RU.md)
 
-## Подключение и настройки
+# Working with the application
 
-Открой «Настройки → Подключение» (Ctrl+,), чтобы задать адрес и доступ.
-«Каталог и файлы» задаёт место импорта, «Предпросмотр» — качество фото/видео
-с карты и студийный показ. В главном окне остаются Connect, состояние и управление
-камерой. «Журнал соединения» в меню показывает скрытый журнал. Изменения
-сохраняются автоматически; окно настроек не прерывает соединение.
+## Connection and settings
 
-Имя и пароль сохраняются по флажку в приватном файле (0600), без шифрования.
-Снятие флажка немедленно удаляет сохранённые поля; без него они остаются только
-в памяти текущего окна для переподключения. Настройки находятся в
-`~/.config/SonShellRemote/settings.ini`; настройки исходного прототипа не меняются.
+Open “Settings → Connection” (Ctrl+,) to set the address and access.
+“Directory and files” sets the import location, “Preview” — photo/video quality
+from the card and studio showing. Connect, status and control remain in the main window
+camera. "Connection Log" in the menu shows a hidden log. Changes
+are saved automatically; the settings window does not interrupt the connection.
 
-Статус определяется событиями SDK. При обрыве управление отключается, повторы
-через 3/6/12/24/30 с. «Отключить» отменяет их. При неверном пароле остановить
-повторы, исправить поля и подключиться снова. Первое подключение требует
-знакомства с условиями Sony SDK.
+The username and password are saved by checkbox in a private file (0600), without encryption.
+Unchecking the checkbox immediately deletes saved fields; without him they are left only
+in the memory of the current window to reconnect. The settings are in
+`~/.config/SonShellRemote/settings.ini`; the settings of the original prototype are not changed.
 
-С 0.8 «Подключаться при запуске» включено по умолчанию. Если имя/пароль
-сохранены и условия SDK уже приняты, окно подключается само после открытия.
-При неполных/неверных настройках остаётся пояснение без модального окна.
-Подключись вручную и сохрани доступ, чтобы следующий запуск подключился сам.
-Снятие флажка отключает это поведение; ручное подключение/отключение и закрытие
-отменяют отложенный старт. «Переподключаться автоматически» отдельно управляет
-повторами после обрыва. Ручное отключение прекращает их в текущем сеансе.
+The status is determined by SDK events. If there is a break, the control is turned off, repeats
+in 3/6/12/24/30 s. "Disable" cancels them. Stop if the password is incorrect
+repeats, correct the fields and connect again. The first connection requires
+familiarization with the terms and conditions of the Sony SDK.
 
-Кнопка подключения выделена синим, увеличена и имеет видимую рамку при
-клавиатурном фокусе. Название меняется на «Отключить» при активном сеансе.
+As of 0.8, “Connect on startup” is enabled by default. If username/password
+saved and the SDK conditions have already been accepted, the window connects itself after opening.
+In case of incomplete/incorrect settings, an explanation remains without a modal window.
+Connect manually and save access so that the next launch will connect itself.
+Unchecking this option disables this behavior; manual connection/disconnection and closing
+cancel the delayed start. "Reconnect automatically" separately controls
+repeats after the break. Manual disabling stops them in the current session.
 
-## Съёмка и работа с картой камеры
+The connect button is highlighted in blue, enlarged, and has a visible frame when
+keyboard focus. The name changes to "Disconnect" when the session is active.
 
-Слева в «Параметры камеры · SDK» разверни «Запись фото» или «Запись видео».
-Для фото доступны формат RAW/JPEG/HEIF, JPEG/HEIF, качество, размер, пропорции,
-сжатие RAW и стабилизация; для видео — формат, частота, битрейт/цвет и стабилизация.
-Это настройки записи новых файлов камерой. Доступные значения и блокировку
-даёт SDK с учётом модели/режима. При read-only текущее значение остаётся видимым;
-неподдерживаемое поле показывает «Недоступно».
+## Shooting and working with the camera card
 
-Сначала выбирай JPEG/HEIF, затем формат фото из обновлённого списка. Для видео
-сначала выбери формат, затем частоту и битрейт. После каждого изменения поля
-ждут перечитывания зависимостей; прежний список не используется для следующей
-записи. Приложение не переключает другие свойства и не восстанавливает их
-автоматически при подключении. Если сама камера меняет зависимые значения,
-интерфейс показывает получившееся состояние. Названия значений SDK могут быть
-на английском; полная подпись доступна во всплывающей подсказке.
+On the left in “Camera Settings · SDK”, expand “Photo Recording” or “Video Recording”.
+RAW/JPEG/HEIF, JPEG/HEIF formats are available for photos, quality, size, proportions,
+RAW compression and stabilization; for video - format, frequency, bitrate/color and stabilization.
+These are the settings for recording new files with the camera. Available values and locking
+gives SDK taking into account the model/mode. With read-only, the current value remains visible;
+an unsupported field shows "Not Available".
 
-Оригиналы при спуске не скачиваются. Настройка Auto Sync из 0.2/0.3 больше не
-включает передачу, даже после переподключения. CLI сохраняет прежние команды,
-но GUI копирует оригиналы только по явному запросу во вкладке «В камере».
+First select JPEG/HEIF, then the photo format from the updated list. For video
+First select the format, then the frequency and bitrate. After each field change
+waiting for dependencies to be re-read; the previous list is not used for the next one
+records. The application does not toggle other properties or restore them
+automatically when connected. If the camera itself changes dependent values,
+the interface shows the resulting state. SDK value names can be
+in English; the full signature is available in the tooltip.
 
-1. Сними серию, открой «В камере» и нажми «Обновить карту». Список содержит кадры
-   из поддерживаемых слотов; недоступная карта показана внизу и в журнале.
-   Отсутствующий в конструкции камеры второй слот ошибкой не считается.
-2. Выбери строку. По умолчанию открывается исходный JPEG, в том числе у RAW+JPEG;
-   RAW не передаётся. «Фото: быстрое превью» возвращает сжатое изображение SDK.
-   Посещённые кадры получают миниатюру в списке. ←/→ и Page Up/Page Down
-   перелистывают видимые кадры, включая полный экран; поиск ограничивает порядок.
-   Быстрые нажатия выбирают последний запрошенный кадр; загрузка прежнего
-   оригинала отменяется. 100% относится к реальным пикселям показанного источника,
-   размеры указаны в подписи. Для RAW-only остаётся сжатое превью SDK, пока
-   явно не нажата «Оригинал · … MiB». Тогда скачивается RAW и извлекается лучший
-   встроенный JPEG: это не проявление сенсорных данных. Двойной клик/F11
-   раскрывает просмотр, Esc возвращает.
-3. Space переключает отметку «Копия», Delete — «Брак». Работает в списке и
-   просмотрщике карты, включая полный экран; повторное нажатие снимает отметку.
-   В поле поиска клавиши редактируют текст. Delete ничего сразу не удаляет.
-   Для копирования также используй первый столбец. «Отметить все» и «Отметить новые»
-   учитывают текстовый фильтр. «Снять отметки» очищает первый столбец.
-4. Выбери RAW+JPEG/HEIF, только RAW или только JPEG. «Копировать отмеченные»
-   обрабатывает отметки; «Копировать все» и «Копировать новые» — весь каталог карты,
-   независимо от текстового фильтра. «Копировать все» заново передаёт все файлы;
-   существующие копии сохраняются, новые получают суффиксы. «Копировать новые»
-   и «Копировать отмеченные» пропускают подтверждённые копии. У RAW+JPEG могут
-   быть новыми только файлы одного формата.
-5. Каталог назначения выбирается сверху; его можно менять при подключённой
-   камере, когда нет операции. Приложение сохраняет иерархию камеры под `YYYY-MM-DD/Slot_1/`
-   и `YYYY-MM-DD/Slot_2/`, поэтому совпадающие имена разных слотов не конфликтуют.
+The originals are not downloaded upon shutter release. The Auto Sync setting from 0.2/0.3 is no longer
+switches on transfer even after reconnection. The CLI retains the same commands
+but the GUI copies originals only when explicitly requested in the “In Camera” tab.
 
-«Новые» определяются журналом `.sonshell-imports.json` именно в выбранном каталоге.
-Запись создаётся только после успешного ответа SDK, проверки размера и атомарной
-публикации. Проверяется наличие/размер локального файла; удалённый или обрезанный
-файл снова становится новым. Смена каталога или потеря журнала не означает, что
-файлы уже скопированы. Существующий посторонний файл не перезаписывается: копия
-получит суффикс `_1`, `_2` и т. д. Быстрый статус не перечитывает содержимое;
-изменение файла с сохранением размера обнаруживается кнопкой проверки SHA256.
+1. Shoot a series, open “On camera” and click “Refresh card”. The list contains frames
+   from supported slots; the inaccessible card is shown below and in the journal.
+   A second slot missing from the camera design is not considered an error.
+2. Select a line. By default, the original JPEG is opened, including RAW+JPEG;
+   RAW is not transmitted. "Photo: Quick Preview" returns a compressed SDK image.
+   Visited frames receive a thumbnail in the list. ←/→ and Page Up/Page Down
+   scroll through visible frames, including full screen; search limits the order.
+   Quick presses select the last frame requested; loading the previous one
+   original is cancelled. 100% refers to the real pixels of the source shown,
+   Dimensions are indicated in the signature. For RAW-only, a compressed SDK preview remains until
+   "Original · ... MiB" is clearly not pressed. Then RAW is downloaded and the best one is extracted
+   embedded JPEG: This is not a manifestation of sensory data. Double click/F11
+   expands view, Esc returns.
+3. Space switches the “Copy” mark, Delete – “Defect”. Works in the list and
+   card viewer, including full screen; pressing again removes the mark.
+   In the search field, the keys edit text. Delete does not immediately delete anything.
+   For copying also use the first column. “Mark all” and “Mark new”
+   take into account the text filter. "Uncheck" clears the first column.
+4. Select RAW+JPEG/HEIF, RAW only or JPEG only. "Copy marked"
+   processes marks; “Copy all” and “Copy new” - the entire card catalog,
+   regardless of the text filter. “Copy all” transfers all files again;
+   existing copies are preserved, new ones receive suffixes. "Copy new"
+   and “Copy marked” skip confirmed copies. RAW+JPEG can
+   Only files of the same format should be new.
+5. The destination directory is selected from the top; it can be changed while connected
+   camera when there is no operation. The application saves the camera hierarchy under `YYYY-MM-DD/Slot_1/`
+   and `YYYY-MM-DD/Slot_2/`, so matching names of different slots do not conflict.
 
-«Оригинал · … MiB» открывает выбранное фото или видео во временном кеше.
-Загрузка и декодирование идут в фоне; прогресс и «Остановить» доступны также
-в полном экране. Большому видео нужна полная загрузка перед воспроизведением;
-на временном диске должно хватать места для файла и запаса 64 MiB. В кеше
-сохраняется один последний оригинал, повторное открытие использует его без сети;
-если есть подтверждённая импортированная копия, открывается она. При замене
-кеша/отключении временный оригинал удаляется. Импортированные файлы сохраняются.
-Просмотр не создаёт запись импорта и не снимает признак «Новый»: для постоянного
-сохранения по датам используй кнопки копирования. При спуске затвора эта
-настройка качества не запускает загрузку.
+“New” are determined by the journal `.sonshell-imports.json` in the selected directory.
+The entry is created only after a successful SDK response, size check and atomic
+publications. The presence/size of the local file is checked; deleted or cropped
+the file becomes new again. Changing directory or losing a log does not mean that
+the files have already been copied. Existing foreign file is not overwritten: copy
+will receive the suffix `_1`, `_2`, etc. Quick status does not re-read the content;
+file changes while maintaining size are detected by the SHA256 check button.
 
-Отметки имеют белый фон и тёмную рамку: копия выделяется синим, брак — красным.
-Для брака есть отдельный второй столбец. Кнопка «Удалить брак…» показывает число
-кадров/файлов и раскрываемый точный список. Удаление необратимо и касается всего
-кадра, включая RAW+JPEG и связанные файлы; локальные копии сохраняются. По умолчанию
-выбрана отмена. Защищённые кадры и неподдерживаемое камерой удаление недоступны.
-При ошибке оставшиеся удаления прекращаются; обнови список и подтверди их заново.
-Кадр исчезает из списка только после подтверждения результата камерой.
+“Original · ... MiB” opens the selected photo or video in a temporary cache.
+Loading and decoding occur in the background; progress and "Stop" are also available
+in full screen. Large videos need to be fully downloaded before playing;
+The temporary disk should have enough space for the file and a reserve of 64 MiB. In cache
+one last original is saved, reopening uses it without a network;
+if there is a confirmed imported copy, it opens. When replacing
+cache/disabling the temporary original is deleted. Imported files are saved.
+Viewing does not create an import record and does not clear the “New” flag: for permanent
+save by date, use the copy buttons. When the shutter is released this
+the quality setting does not start the download.
 
-Обновление списка сбрасывает отметки отбора. Обновление карты после съёмки выполняется вручную: уведомление камеры само по
-себе не запускает передачу. После переподключения отметки сбрасываются, каталог
-нужно перечитать; незавершённая очередь автоматически не возобновляется.
+Marks have a white background and a dark frame: the copy is highlighted in blue, the defect is highlighted in red.
+There is a separate second column for rejected captures. The “Delete rejects…” button shows the number
+frames/files and expandable exact list. Deletion is irreversible and affects everything
+frame, including RAW+JPEG and related files; local copies are saved. Default
+Cancel is selected. Protected frames and deletion not supported by the camera are not available.
+If there is an error, the remaining deletions are aborted; update the list and confirm them again.
+The frame disappears from the list only after the result is confirmed by the camera.
 
-## На компьютере: галерея и EXIF
+Updating the list resets the selection marks. The card is updated manually after shooting: the camera notifies you automatically
+does not start transfer for itself. After reconnection, the marks are reset, the directory
+need to re-read; an incomplete queue is not automatically resumed.
 
-Вкладка «На компьютере · EXIF» показывает выбранный каталог и подкаталоги;
-скрытые каталоги и symlinks не индексируются. Новые локальные файлы появляются
-после двух наблюдений неизменного размера/времени, обычно через 1–2 с.
-Незавершённые JPEG не отображаются.
+## On computer: gallery and EXIF
 
-Поддерживаются JPEG, PNG, ARW, SR2, SRF и DNG. RAW и JPEG с одинаковым именем
-без расширения в одном каталоге объединены. Предпочтение отдаётся JPEG. Есть
-поиск по имени/пути, сортировка по дате/имени и фильтры JPEG/RAW/RAW+JPEG.
+The “On your computer · EXIF” tab shows the selected directory and subdirectories;
+hidden directories and symlinks are not indexed. New local files appear
+after two observations of constant size/time, usually after 1–2 s.
+Incomplete JPEGs are not displayed.
 
-Клик выбирает снимок, справа — изображение и доступные EXIF: камера, объектив,
-выдержка, диафрагма, ISO, фокусное, дата, ориентация, цветовой профиль и размер.
-Отсутствующие теги не выдумываются. Двойной клик или кнопка отдельного окна
-открывают снимок с масштабом 100%. ←/→ и Page Up/Page Down перелистывают снимки
-в порядке текущих фильтра и сортировки, в том числе в отдельном окне и на полном экране.
+JPEG, PNG, ARW, SR2, SRF and DNG are supported. RAW and JPEG with the same name
+without extension in one directory are combined. JPEG is preferred. Yes
+search by name/path, sort by date/name and JPEG/RAW/RAW+JPEG filters.
 
-Для RAW извлекается доступный встроенный JPEG через ExifTool. Подпись содержит
-его размеры; 100% относится к этому JPEG, а не к сенсорным данным RAW. Если
-превью отсутствует, показано объяснение. Оригинал RAW не изменяется.
+Click to select the photo, on the right - the image and available EXIF: camera, lens,
+shutter speed, aperture, ISO, focal length, date, orientation, color profile and size.
+Missing tags are not made up. Double click or separate window button
+open the photo at 100% zoom. ←/→ and Page Up/Page Down scroll through pictures
+in the order of the current filter and sorting, including in a separate window and in full screen.
 
-## Live View и студийный режим
+For RAW, available embedded JPEG is extracted via ExifTool. The signature contains
+its dimensions; 100% refers to this JPEG and not RAW touch data. If
+There is no preview, an explanation is shown. The RAW original is not changed.
 
-Live View встроен в первую вкладку. «Вписать», «100%», +/− и колесо изменяют
-масштаб; левая кнопка перемещает изображение. Полный экран — кнопка или F11
-с фокусом в просмотрщике, возврат — Esc.
+## Live View and Studio Mode
 
-В «Настройки → Предпросмотр» можно включить «Превью после спуска (без RAW)» и
-выбрать 2–10 с. По уведомлению SDK приложение читает каталог и запрашивает сжатое
-превью последнего кадра, затем возвращает Live View. Этот режим требует поддержки
-превью и уведомлений моделью/прошивкой; разрешение определяет камера. Получение
-полного разрешения RAW потребовало бы передачи оригинала и потому не выполняется.
+Live View is built into the first tab. “Fit”, “100%”, +/− and the wheel changes
+scale; the left button moves the image. Full screen - button or F11
+with focus in the viewer, return - Esc.
 
-«Удерживать кадр» приостанавливает возврат, снятие флажка запускает интервал заново.
-Live View продолжает приниматься в фоне. Отключение режима или камеры отменяет
-просмотр. Ручное копирование и открытие локальных файлов студийный показ не включают.
-Во время операции с картой новые студийные превью не запрашиваются.
+In “Settings → Preview” you can enable “Preview after capture (no RAW)” and
+select 2–10 s. When notified by the SDK, the application reads the directory and requests the compressed
+previews the last frame, then returns Live View. This mode requires support
+previews and notifications of model/firmware; The resolution is determined by the camera. Receipt
+Full RAW resolution would require transfer of the original and is therefore not performed.
 
-С 0.7.0 список качества предлагает «JPEG с карты · исходный размер». На камере
-нужен JPEG или RAW+JPEG: после спуска передаётся только JPEG, декодируется в фоне
-и удаляется из временного каталога после показа. RAW не передаётся, каталог
-импорта/галерея не пополняются. Размер — исходный размер сохранённого JPEG камеры,
-а не увеличенное сжатое превью. Источник и размеры видны в подписи; интервал
-2–10 с отсчитывается после получения кадра, задержка зависит от размера/сети.
-При RAW-only останется сжатое превью с подписью «JPEG на карте нет».
-Программа не меняет формат записи камеры. Выбор качества сохраняется.
+“Hold Frame” pauses the return, unchecking the checkbox starts the interval again.
+Live View continues to be received in the background. Disabling a mode or camera cancels
+viewing. Manual copying and opening of local files is not included in the studio screening.
+New studio previews are not requested during a card transaction.
 
-## Прогресс и остановка копирования
+Since 0.7.0, the quality list offers "JPEG from card · original size". On camera
+need JPEG or RAW+JPEG: after imprinting, only JPEG is transmitted, decoded in the background
+and is deleted from the temporary directory after display. RAW is not transmitted, directory
+import/gallery is not replenished. Size - the original size of the saved JPEG camera,
+rather than an enlarged compressed preview. The source and dimensions are visible in the caption; interval
+2-10 sec is counted after frame is received, delay depends on size/network.
+With RAW-only, a compressed preview will remain with the caption “JPEG is not on the card.”
+The program does not change the camera's recording format. The quality selection is retained.
 
-С 0.7.0 перед публикацией вычисляется SHA256: передача занимает 0–90% прогресса,
-расчёт суммы 90–99%, завершение — 100%. Отмена действует и на расчёт суммы;
-незавершённый файл не появляется под итоговым именем.
+## Progress and stop copying
 
-«Проверить локальные копии · SHA256» сверяет содержимое с суммой при импорте,
-в фоне, без камеры и без изменения файлов. Результат показывает исправные,
-изменённые, отсутствующие копии и «без эталона» для старого импорта. Это проверка
-изменений на компьютере после передачи, не сверка с недоступной суммой камеры.
-Повреждённые файлы не удаляются, эталон не заменяется; «Копировать новые» позволит
-получить их заново с другим именем. Быстрый статус использует размер/mtime,
-явная проверка перечитывает всё содержимое, даже при прежних размере и времени.
+Since 0.7.0, SHA256 is calculated before publishing: transfer takes 0–90% of progress,
+calculation of the amount 90–99%, completion - 100%. Cancellation also affects the calculation of the amount;
+the unfinished file does not appear under the final name.
 
-Очередь сохраняется в выбранном каталоге. После обрыва/перезапуска подключись
-к прежней камере и нажми «Продолжить импорт»: список обновится при необходимости,
-подтверждённые копии пропустятся. Изменившиеся/отсутствующие кадры останутся
-в сохранённой очереди без передачи. Неполный файл начинается заново целиком.
-Отмена сохраняет оставшийся план, новая команда «Копировать…» заменяет его.
-Спуск и удаление автоматически не повторяются. Авария между публикацией и
-записью журнала может оставить дополнительную полную копию при продолжении.
+“Check local copies · SHA256” checks the contents against the amount when importing,
+in the background, without a camera and without changing files. The result shows correct,
+altered, missing copies and “no reference” for old imports. This is a test
+changes on the computer after the transfer, not reconciling with the inaccessible amount of the camera.
+Damaged files are not deleted, the standard is not replaced; “Copy new” will allow
+get them again with a different name. Fast status uses size/mtime,
+explicit checking rereads all content, even at the same size and time.
 
-Прогресс показывает очередь и текущий файл. Завершённая очередь достигает 100%,
-а строка результата отдельно сообщает число ошибок. Неактивная «Остановить» при
-сообщении о завершении означает конец операции, в том числе при отказе в копировании. «Остановить» очищает оставшуюся
-очередь и ждёт завершения/подтверждения отмены активной передачи. Завершённые
-копии сохраняются. Если SDK не подтверждает отмену за 5 с, соединение
-перезапускается, чтобы поздний callback не был принят за другой файл.
-Удаление, уже принятое камерой, отменить этой кнопкой нельзя.
+The queue is saved in the selected directory. After a break/restart, connect
+to the previous camera and click “Continue import”: the list will be updated if necessary,
+verified copies will be ignored. Changed/missing frames will remain
+in a saved queue without transfer. An incomplete file starts over again as a whole.
+Cancel saves the remaining plan, the new "Copy..." command replaces it.
+Shutter release and removal are not automatically repeated. Accident between publication and
+The log entry may leave an additional full copy if you continue.
 
-SDK пишет в `.sonshell-incoming/` на той же файловой системе. После Result_OK
-оригинал проверяется по размеру и публикуется атомарно, без перезаписи. Ошибка
-и отмена не оставляют частичный файл под финальным именем. После аварийного
-завершения могут остаться скрытые части; галерея их не показывает. Побайтового
-возобновления нет: после обрыва используй «Продолжить импорт» или «Копировать новые».
+Progress shows the queue and the current file. The completed queue reaches 100%,
+and the result line separately reports the number of errors. Inactive "Stop" when
+a completion message means the end of the operation, including when copying is denied. "Stop" clears the remaining
+queue and waits for completion/confirmation of cancellation of the active transfer. Completed
+copies are saved. If the SDK does not confirm cancellation within 5 seconds, the connection
+is restarted so that a late callback is not mistaken for another file.
+A deletion already accepted by the camera cannot be canceled with this button.
 
-Не прикладывай файл настроек и fingerprints к публичным сообщениям об ошибке.
-Справка встроена в программу: меню «Справка», F1 (включая полный экран).
-«Настройки → Язык» выбирает русский или английский со следующего запуска.
-Это сохраняет текущее подключение и отбор. Подробнее — LOCALIZATION.md.
+SDK writes to `.sonshell-incoming/` on the same file system. After Result_OK
+the original is checked for size and published atomically, without rewriting. Error
+and cancel do not leave a partial file under the final name. After an emergency
+completion there may be hidden parts left; the gallery does not show them. Byte-range
+resumption is unavailable: after a break, use “Continue import” or “Copy new”.
 
-## Параметры SDK и точка AF
+Do not attach settings file or fingerprints to public bug reports.
+Help is built into the program: Help menu, F1 (including full screen).
+“Settings → Language” selects Russian or English from the next launch.
+This saves the current connection and selection. More details - LOCALIZATION.md.
 
-В «Экспозиции» ISO, выдержка, диафрагма и коррекция EV имеют крутилки. Поверни
-мышью или используй колесо: шаги соответствуют доступным значениям камеры.
-При перетаскивании значение отправляется после отпускания, при прокрутке —
-через 250 мс после последнего шага. ISO AUTO находится в начале шкалы ISO.
-Можно выбрать значение из списка или ввести вручную и нажать Enter/«Задать»;
-для дробных чисел подходят точка и запятая, для выдержки — `1/125` или секунды
-с суффиксом `s`. Поддерживаются `AUTO`, `f/4`, `-0,3 EV`. Значение должно
-присутствовать в списке камеры; неподдерживаемый ввод не отправляется.
-Esc отменяет ввод. «Прочитать параметры» отменяет черновик и читает камеру.
-Поля показывают текущие значения, обновляются после callback SDK и применения;
-автообновление откладывается во время редактирования. Недоступный в текущем
-режиме/объективе параметр, отключение и операции карты блокируют управление.
-Для изменения режима экспозиции используй переключатель камеры.
+## SDK options and AF point
 
-Блок «Параметры камеры · SDK» читает режим фокуса, область AF, баланс белого и
-режим протяжки. Варианты предоставляет камера; недоступные или только читаемые
-параметры отключены. После изменения приложение перечитывает значение, отказ
-камеры остаётся видимым. «Прочитать параметры» обновляет их вручную.
+In “Exposure” ISO, shutter speed, aperture and EV correction have rotary controls. Drag a dial with the
+mouse or use the wheel: the steps correspond to the available camera values.
+When dragging, the value is sent upon release; when scrolling, the value is sent
+250 ms after the last step. ISO AUTO is at the beginning of the ISO scale.
+You can select a value from the list or enter it manually and press Enter/Set;
+For fractional numbers, a dot and a comma are suitable, for shutter speed - `1/125` or seconds
+with the suffix `s`. `AUTO`, `f/4`, `-0,3 EV` are supported. The value should
+be present in the camera list; unsupported input is not sent.
+Esc cancels the entry. “Read Options” cancels the draft and reads the camera.
+The fields show the current values, updated after the callback SDK and application;
+auto-update is delayed during editing. Not available in current
+mode/lens setting, disabling and card operations block control.
+To change the exposure mode, use the camera switch.
 
-Для точки AF включи Live View, выбери подвижную область фокуса (например Spot)
-и «Автофокус по клику». Клик задаёт центр рамки и запускает AF, перетаскивание перемещает
-изображение. Поля игнорируются; границы проверяются по данным рамки SDK, поэтому
-у края кадра возможен отказ. Во время студийного показа фото или операции карты
-AF мышью отключён. После установки точки приложение делает полунажатие S1
-на секунду и отпускает его, без снимка; кнопка «Автофокус» тоже остаётся доступной.
-В MF или при недоступном S1 клик AF отключён. Ошибка запуска после успешного
-перемещения точки видима отдельно. Принятие команды не подтверждает резкость.
-Программа не меняет режим экспозиции или переключатель фокуса ради AF.
+The Camera Options SDK block reads focus mode, AF area, white balance and
+pulling mode. The camera provides options; inaccessible or read only
+options are disabled. After the change, the application rereads the value, failure
+camera remains visible. "Read Settings" updates them manually.
 
-Поведение AF, ориентацию и доступность свойств нужно проверить на физической
-камере. Проявление RAW, остальные параметры SDK и оптимизации планируются позднее.
+For the AF point, turn on Live View, select a moving focus area (for example Spot)
+and Click-to-Autofocus. Clicking sets the frame center and triggers AF, dragging moves
+image. Fields are ignored; boundaries are checked against the SDK frame data, so
+Failure is possible at the edge of the frame. During studio photo display or card operation
+Mouse AF is disabled. After setting the point, the application makes a half-press S1
+for a second and lets him go, without taking a picture; The Autofocus button also remains available.
+In MF or when S1 is not available, the AF click is disabled. Launch error after successful
+moving the point is visible separately. Accepting a command does not confirm sharpness.
+The program does not change the exposure mode or focus switch for AF.
 
-## Видео на карте и локально (0.6)
+AF behavior, orientation and property availability need to be tested on the physical
+camera. RAW development, other SDK parameters and optimizations are planned later.
 
-MP4 больше не скрываются фильтром фотографий. «Фото и видео», «Только фото» и
-«Только видео» выбирают записи; видеозапись включает возвращённые SDK прокси,
-XML и другие сопутствующие файлы. «Только RAW»/«Только JPEG» выбирают форматы
-фото. Просмотр строки видео запрашивает только миниатюру. «Воспроизвести» загружает
-оригинал во временный кеш и само начинает просмотр после загрузки. Размер виден
-на кнопке «Оригинал», доступны прогресс и отмена. Повторный просмотр использует
-кеш или подтверждённую импортированную копию, без новой передачи. При спуске
-оригиналы не загружаются. Есть пауза, «Стоп», переход к секунде и полный экран;
-предпросмотр без звука, в исходном разрешении и частоте. Файл и звук не меняются.
-Поток SDK без загрузки MP4 выбирается в «Настройки → Предпросмотр → Видео на карте».
-Его разрешение задаёт камера; поддержка зависит от камеры/прошивки/сети.
+## Video on the card and locally (0.6)
 
-Space/Delete действуют в видео и полном экране. Прозрачный оверлей вверху слева показывает
-обе отметки и имя; лёгкая надпись внизу слева подтверждает действие или причину
-отказа. Тень букв сохраняет читаемость на светлом фоне; центр кадра свободен.
-«Удалить брак…» удаляет ролик целиком со всеми файлами записи после подтверждения.
-Для копирования и удаления нужно остановить поток. Смена строки/вкладки прекращает
-просмотр. Live View на время movie останавливается, затем возвращается, если был включён.
+MP4s are no longer hidden by the photo filter. “Photo and Video”, “Photo Only” and
+“Video only” select recordings; video recording includes returned SDK proxies,
+XML and other related files. "RAW Only"/"JPEG Only" select formats
+photo. Viewing a video string only asks for a thumbnail. "Play" loads
+the original is stored in a temporary cache and starts viewing itself after downloading. Size visible
+on the “Original” button, progress and cancellation are available. Replay uses
+cache or confirmed imported copy, without new transfer. When descending
+originals are not loaded. There is a pause, “Stop”, jump to second and full screen;
+preview without sound, in original resolution and frequency. The file and sound do not change.
+SDK stream without MP4 download is selected in “Settings → Preview → Video on card”.
+Its resolution is set by the camera; Support depends on camera/firmware/network.
 
-Локальная галерея включает MP4/MOV/M4V. Первый кадр и метаданные читаются в фоне,
-просмотр включается явно кнопкой; пауза, остановка, переход к секунде и fullscreen
-доступны в общем просмотрщике. Фото и видео одного имени не объединяются.
-Локальное воспроизведение и первый кадр сохраняют исходное разрешение; плеер
-не ограничивает частоту кадров и не пережимает изображение в JPEG (0.6.1).
-Полный путь выбранного файла показан внизу главного окна, доступен для
-выделения/копирования и во всплывающей подсказке; длинный путь можно прокрутить.
+Space/Delete works in video and full screen. The transparent overlay at the top left shows
+both marks and name; a light inscription at the bottom left confirms the action or reason
+refusal. The shadow of the letters maintains readability on a light background; the center of the frame is free.
+“Delete rejects…” deletes the entire video with all recording files after confirmation.
+To copy and delete, you need to stop the thread. Changing line/tab stops
+viewing. Live View stops for a while, then returns if it was enabled.
 
-Если SDK управляет роликом, но видеоданных нет, проверь входящие TCP 55001,
-55003, 55005 **от камеры к компьютеру**, отдельно от управляющего SSH-соединения.
-Ошибка показывает адреса; правила UFW и откат описаны в [INSTALL.md](INSTALL.md).
+Local gallery includes MP4/MOV/M4V. The first frame and metadata are read in the background,
+viewing is activated explicitly by a button; pause, stop, go to second and fullscreen
+available in the general viewer. Photos and videos of the same name are not combined.
+Local playback and the first frame retain the original resolution; player
+does not limit the frame rate and does not compress the image in JPEG (0.6.1).
+The full path of the selected file is shown at the bottom of the main window, available for
+selection/copy and in the tooltip; a long way can be scrolled.
 
-## Подкаталоги дат съёмки (0.6)
+If the SDK controls the video, but there is no video data, check the incoming TCP 55001,
+55003, 55005 **from camera to computer**, separate from the SSH control connection.
+The error shows addresses; UFW rules and rollback are described in [INSTALL.md](INSTALL.md).
 
-Для новых копий структура такая:
+## Subdirectories of shooting dates (0.6)
+
+For new copies the structure is as follows:
 
 ```
-Выбранный_каталог/
+Selected_directory/
   2026-10-23/
     Slot_1/
       DCIM/100MSDCF/DSC0001.ARW
@@ -278,39 +280,45 @@ Space/Delete действуют в видео и полном экране. Пр
       PRIVATE/M4ROOT/CLIP/C0001M01.XML
 ```
 
-Используется creationDatetimeLocaltime камеры. Если она некорректна, берётся
-валидная дата UTC; без обеих дат — Unknown-Date. Текущая дата компьютера не
-используется. Иерархия на карте и слоты сохраняются внутри даты. Существующий файл
-не перезаписывается. Старые копии из структуры Slot_N остаются на месте и продолжают
-учитываться журналом; обновление не приводит к их повторному скачиванию через «Новые».
-Долгая передача большого ролика с callback SDK больше не ограничена общей
-длительностью 10 минут; отсутствие уведомлений 3 минуты вызывает отмену.
+The camera's creationDatetimeLocaltime is used. If it is incorrect, it is taken
+valid UTC date; without both dates - Unknown-Date. The current date of the computer is not
+used. The hierarchy on the card and slots are stored inside the date. Existing file
+is not overwritten. Old copies from the Slot_N structure remain in place and continue
+be taken into account by the journal; the update does not lead to their re-downloading via “New”.
+Long transfer of a large video with the callback SDK is no longer limited by the general
+lasting 10 minutes; No notifications for 3 minutes causes cancellation.
 
-Подключение, автоконнект, каталог и параметры студийного просмотра находятся
-в меню «Настройки» и сохраняются автоматически. «Журнал соединения» в этом меню
-показывает скрытый журнал; кнопка удержания появляется в Live View на время кадра.
-Поток SDK остаётся выбором «Настройки → Предпросмотр → Видео на карте».
-Некоторые сочетания камеры и ролика передают только звук при успешных сетевых
-подключениях; Start/Play не доказывают наличие видеокадров. Просмотр оригинала
-обходит этот путь SDK и сохраняет исходные разрешение и частоту кадров.
+Connection, auto-connect, directory and studio viewing parameters are located
+in the Settings menu and are saved automatically. "Connection log" in this menu
+shows hidden log; The hold button appears in Live View for the duration of the frame.
+The SDK stream remains the choice of “Settings → Preview → Video on card”.
+Some camera and video combinations transmit only sound during successful network
+connections; Start/Play does not prove the presence of video frames. View original
+bypasses this SDK path and preserves the original resolution and frame rate.
 
-## Навигация просмотрщика и загрузка (0.8.3)
+## Viewer navigation and loading (0.8.3)
 
-«Предыдущий файл» и «Следующий файл» выбирают соседние видимые файлы карты, галереи и отдельного
-окна, в том числе в fullscreen. Учитываются поиск/фильтр; на краях переход
-останавливается. Текущий ролик прекращает воспроизведение; следующий запускается
-по Play. Переход к другому файлу во время загрузки оригинала отменяет её.
+"Previous File" and "Next File" select adjacent visible files of the card, gallery and individual
+windows, including fullscreen. Search/filter taken into account; transition at the edges
+stops. The current video stops playing; next one starts
+by Play. Moving to another file while the original is loading cancels it.
 
-В просмотрщике карты возле «Остановить» видна полоса загрузки, в том числе
-на полном экране. Проценты и счётчик очереди совпадают с основным индикатором;
-после завершения/отмены полоса скрывается. Это индикатор загрузки/операции;
-видео управляется отдельной панелью.
+In the card viewer, a loading bar is visible next to “Stop”, including
+on full screen. The percentages and queue counter coincide with the main indicator;
+after completion/cancellation, the bar disappears. This is the loading/operation indicator;
+video is controlled by a separate panel.
 
-«Назад 5 с» / «Вперёд 5 с» перематывают текущий ролик от позиции
-воспроизведения. У оригиналов и локальных видео учитываются начало и конец
-файла; перемотка на паузе показывает выбранный кадр и сохраняет паузу.
-Повторные нажатия складываются. Текущее время и длительность видны рядом
-с полем точного перехода в секундах. Панель доступна в галерее, на карте,
-в отдельном окне и fullscreen. Пока читается длительность, перемотка неактивна.
-В необязательном потоке SDK позиция оценивается по декодированным временным
-меткам, а переход запрашивается у камеры с точностью до секунды.
+“Back 5 s” / “Forward 5 s” rewinds the current video from the position
+playback For originals and local videos, the beginning and end are taken into account
+file; rewind on pause shows the selected frame and saves the pause.
+Repeated presses add up. Current time and duration are visible side by side
+with the exact transition field in seconds. The panel is available in the gallery, on the card,
+in a separate window and fullscreen. While the duration is being read, rewinding is inactive.
+In the optional SDK stream, the position is estimated based on the decoded timing
+marks, and the transition is requested from the camera with an accuracy of up to a second.
+
+## Default language (0.8.4)
+
+English is the default for a new installation. Settings → Language offers Russian
+for the next launch. Existing saved language preferences are retained; missing or
+invalid values fall back to English.

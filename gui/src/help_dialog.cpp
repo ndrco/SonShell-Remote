@@ -6,7 +6,7 @@
 #include <QCoreApplication>
 
 HelpDialog::HelpDialog(const QString& language, QWidget* parent) : QDialog(parent) {
-  setObjectName("help_dialog"); setWindowTitle(QCoreApplication::translate("App", "Справка · SonShell Remote")); resize(840, 680);
+  setObjectName("help_dialog"); setWindowTitle(QCoreApplication::translate("App", "Help · SonShell Remote")); resize(840, 680);
   auto* layout = new QVBoxLayout(this);
   auto* browser = new QTextBrowser(this); browser->setObjectName("help_content"); browser->setOpenExternalLinks(true);
   QFile file(":/help/" + (language == "en" ? QString("en") : QString("ru")) + ".md");

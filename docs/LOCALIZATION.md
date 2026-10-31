@@ -1,29 +1,34 @@
-# Языки интерфейса
+[English](LOCALIZATION.md) · [Russian](LOCALIZATION_RU.md)
 
-Доступны русский (исходный) и английский. Меню «Настройки → Язык» сохраняет выбор
-для следующего запуска. Текущий сеанс и отбор не прерываются. При неизвестном
-значении настройки используется русский. Выбор языка не меняет глобальные locale
-или службы системы. Настройку можно вернуть через это же меню и перезапустить.
+# Interface languages
 
-Строки GUI проходят через `QCoreApplication::translate("App", ...)`. Каталог
-`gui/i18n/sonshell_en.ts` — стандартный XML Qt Linguist. CMake компилирует его
-lrelease из пакета qt6-l10n-tools и встраивает QM в ресурсы приложения. На машине
-пользователя инструменты перевода не нужны. Системные кнопки Qt на русском берутся
-из qt6-translations-l10n, обязательной зависимости DEB. Диагностика backend/SDK
-и имена режимов камеры могут сохранять язык источника; перевод не меняет протокол.
+English is the source and default language. Settings → Language saves English or
+Russian for the next launch without interrupting the current session. Existing
+saved preferences are retained; missing or invalid settings fall back to English.
+Changing the application language does not change system locale or services.
 
-Обновить каталог после изменения строк:
+GUI messages use `QCoreApplication::translate("App", ...)` with English source
+strings. `gui/i18n/sonshell_RU.ts` is the Qt Linguist Russian catalog. CMake runs
+lrelease from qt6-l10n-tools and embeds `sonshell_RU.qm` in application resources.
+The target computer needs no translation tools. Russian Qt system buttons use
+qt6-translations-l10n, an explicit DEB dependency. Backend/SDK diagnostics and
+camera mode names may remain English; protocol commands and JSON keys are stable.
+
+After changing messages:
 
 ```bash
-/usr/lib/qt6/bin/lupdate gui/main.cpp gui/src -no-obsolete -ts gui/i18n/sonshell_en.ts
+/usr/lib/qt6/bin/lupdate gui/main.cpp gui/src -no-obsolete -ts gui/i18n/sonshell_RU.ts
 python3 tools/check_translations.py
 ```
 
-Сохраняй подстановки `%1`, `%2` и пробелы вокруг динамических частей; проверка
-CTest обнаруживает пропуски, незавершённые переводы и несовпадение подстановок.
-Не переводить команды протокола, ключи JSON, имена параметров и форматы файлов.
-Справка хранится отдельно в `gui/help/ru.md` и `en.md` и доступна без интернета.
+Preserve `%1`, `%2`, `%p%` and spaces around dynamic text. CTest checks catalog
+coverage, unfinished translations and placeholder counts. Do not translate
+protocol commands, JSON keys, parameter identifiers or file formats.
 
-Для нового языка нужны TS, Markdown справки, их включение в CMake/RCC, allow-list
-SettingsStore/LanguageSupport, пункт меню и проверка запуска. Не добавлять
-неполный язык в меню до перевода и проверки экранов.
+Offline help is stored in `gui/help/HELP.md` and `gui/help/HELP_RU.md`. Resource
+aliases `:/help/en.md` and `:/help/ru.md` remain stable. Documentation uses English
+filenames and `_RU.md` Russian counterparts, with links between languages.
+
+Adding another language requires a catalog and help text, CMake/RCC resources,
+SettingsStore/LanguageSupport allow-list entries, a menu entry and runtime tests.
+Complete the translation and verify the screens before exposing it in the menu.

@@ -1,31 +1,34 @@
-# Происхождение и сторонние компоненты
+[English](THIRD_PARTY.md) · [Russian](THIRD_PARTY_RU.md)
 
-- SonShell: https://github.com/goudvuur/sonshell, Apache-2.0, история до 107f9fa.
-  Лицензия сохранена в LICENSE, оригинальные инструкции — docs/upstream/.
-- GUI-прототип импортирован из локальной рабочей папки пользователя 2026-10-19.
-- Qt 6 поставляется системными пакетами Ubuntu на условиях соответствующих пакетов.
-- Sony Camera Remote SDK 2.02.00: proprietary runtime, отдельно от исходников.
-  Официальные условия: https://support.d-imaging.sony.co.jp/app/sdk/licenseagreement/en.html
-  Раздел GRANT OF LICENSE предусматривает распространение бинарной библиотеки
-  внутри приложения. SDK целиком и его заголовки не распространяются с исходниками.
-- Пакет включает HTML условий Sony и OSS notices из README.md SDK, содержащие
-  условия libssh2/OpenSSL/libusb. Они не покрываются Apache-2.0 проекта.
-- Приложение независимо от Sony; поддержка проекта не предоставляется Sony.
-  Перед использованием SDK пользователь знакомится с условиями Sony, включая
-  ограничения использования и положения о гарантии устройств.
+# Provenance and third-party components
 
-- Унаследованный архив исходников G'MIC 3.6.3 в ext/ сохранён из SonShell.
-  Его условия CeCILL/CeCILL-C находятся в COPYING внутри архива и действуют
-  отдельно от Apache-2.0. Это исходники дополнительного инструмента CLI,
-  не Sony SDK и не бинарные библиотеки; GUI не требует G'MIC.
+- **SonShell:** https://github.com/goudvuur/sonshell, Apache-2.0. History is
+  preserved through `107f9fa`, the license in LICENSE, and upstream documentation
+  under docs/upstream/. The GUI prototype was imported on 2026-10-19.
+- **Qt 6:** supplied by Ubuntu system packages under their respective licenses.
+- **Sony Camera Remote SDK 2.02.00:** proprietary runtime with separate
+  [Sony terms](https://support.d-imaging.sony.co.jp/app/sdk/licenseagreement/en.html).
+  The binary library may be incorporated and distributed as part of the camera
+  application under those terms; the SDK itself and its headers are not included
+  in the source repository. The DEB installs the official license HTML and SDK
+  OSS notices under `/usr/share/doc/sonshell-remote/`. End users must accept the
+  SDK terms before the first connection, including applicable device-warranty
+  provisions and use restrictions. This is an independent application maintained
+  by NDRco; Sony does not develop or support it.
+- **SDK open-source components:** sdk-oss-notices.md is copied from the SDK's
+  README.md. It contains libssh2, OpenSSL and libusb notices; their licenses are
+  separate from the application's Apache-2.0 license.
+- **G'MIC 3.6.3:** the inherited source archive in ext/ comes from SonShell.
+  Its CeCILL/CeCILL-C terms are in COPYING inside the archive. It is an optional
+  CLI tool, not Sony SDK or a binary library; the GUI does not require it.
+- **ExifTool (Phil Harvey):** https://github.com/exiftool/exiftool, supplied by
+  libimage-exiftool-perl. Called as a separate, read-only process. License and
+  author details are in `/usr/share/doc/libimage-exiftool-perl/copyright`.
+- **FFmpeg:** https://ffmpeg.org/, supplied by the ffmpeg package. A separate
+  process decodes posters and video previews. Installed build/codecs and their
+  licenses are listed in `/usr/share/doc/ffmpeg/copyright`. FFmpeg libraries and
+  ExifTool sources are not copied into or linked with the GUI.
 
-Перед публичным выпуском проверить актуальные условия Sony и полноту OSS notices.
-
-- ExifTool (Phil Harvey): https://github.com/exiftool/exiftool, системный пакет
-  libimage-exiftool-perl. Вызывается отдельным процессом только для чтения;
-  лицензии/авторы находятся в /usr/share/doc/libimage-exiftool-perl/copyright.
-  Исходники ExifTool не копируются и не связываются с GUI.
-- FFmpeg: https://ffmpeg.org/, системный пакет ffmpeg. Используется отдельным
-  процессом для первого кадра и предпросмотра видео; кодеки/лицензии конкретной
-  сборки указаны в /usr/share/doc/ffmpeg/copyright. Библиотеки FFmpeg не копируются
-  и не линкуются с GUI; зависимости устанавливает apt.
+The public release retains the SDK's bundled license and notices. Sony's online
+terms were checked on 2026-10-31; the authoritative terms remain those provided
+by Sony. Third-party components are not relicensed under Apache-2.0.

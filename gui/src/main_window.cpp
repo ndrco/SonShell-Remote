@@ -78,7 +78,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     state_->setText(message);
     const bool connected = state == CameraSession::State::Connected;
     for (auto* action : camera_actions_) action->setEnabled(connected);
-    connect_button_->setText(session_.active() ? QCoreApplication::translate("App", "Отключить") : QCoreApplication::translate("App", "Подключить"));
+    connect_button_->setText(session_.active() ? QCoreApplication::translate("App", "Disconnect") : QCoreApplication::translate("App", "Connect"));
     connect_button_->setEnabled(state != CameraSession::State::Stopping);
     card_.set_connected(connected);
     browse_->setEnabled(!card_.busy()); folder_->setEnabled(!card_.busy());
@@ -101,7 +101,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     sdk_controls_->set_live(running && !review_.active());
     if (!running) review_.cancel();
     last_frame_ = {};
-    live_view_->set_caption(running ? QCoreApplication::translate("App", "Live View · ожидаем кадр…") : QCoreApplication::translate("App", "Live View · остановлен"));
+    live_view_->set_caption(running ? QCoreApplication::translate("App", "Live View · waiting for a frame…") : QCoreApplication::translate("App", "Live View · stopped"));
   });
   connect(&photos_, &PhotoLibrary::items_changed, this, [this](const MediaItems& items) {
     gallery_->set_items(items);
@@ -127,7 +127,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
   });
   connect(&review_, &StudioReview::photo_presented, this, [this](const MediaResult& result) {
     studio_path_ = result.path;
-    live_view_->set_image(result.image, QCoreApplication::translate("App", "Снимок · ") + QFileInfo(result.path).fileName() + " · " + result.source);
+    live_view_->set_image(result.image, QCoreApplication::translate("App", "Photo · ") + QFileInfo(result.path).fileName() + " · " + result.source);
     tabs_->setCurrentIndex(0);
     sdk_controls_->set_live(false);
     hold_->setEnabled(true); hold_->show();
@@ -138,7 +138,7 @@ MainWindow::MainWindow(QString binary, QWidget* parent)
     { QSignalBlocker guard(hold_); hold_->setChecked(false); }
     hold_->setEnabled(false); hold_->hide();
     sdk_controls_->set_live(liveview_running_);
-    live_view_->set_image(last_live_image_, last_live_image_.isNull() ? QCoreApplication::translate("App", "Live View · ожидаем кадр…") : "Live View");
+    live_view_->set_image(last_live_image_, last_live_image_.isNull() ? QCoreApplication::translate("App", "Live View · waiting for a frame…") : "Live View");
   });
   set_photo_directory();
   frames_timer_.setInterval(70);
@@ -164,7 +164,7 @@ void MainWindow::create_ui() {
   create_settings();
   auto* connection_box = new QWidget(root);
   auto* connection = new QHBoxLayout(connection_box); connection->setContentsMargins(0, 0, 0, 0);
-  connect_button_ = button(QCoreApplication::translate("App", "Подключить"), connection_box, [this] {
+  connect_button_ = button(QCoreApplication::translate("App", "Connect"), connection_box, [this] {
     startup_connect_.stop();
     if (session_.active()) session_.stop(); else connect_camera();
   });
@@ -177,27 +177,27 @@ void MainWindow::create_ui() {
       "QPushButton#connect:pressed { background: #064c9e; }"
       "QPushButton#connect:focus { border-color: #fbbf24; }"
       "QPushButton#connect:disabled { background: #576579; border-color: #576579; color: #e5e7eb; }");
-  state_ = new QLabel(QCoreApplication::translate("App", "Отключено"), connection_box); state_->setObjectName("connection_state");
+  state_ = new QLabel(QCoreApplication::translate("App", "Disconnected"), connection_box); state_->setObjectName("connection_state");
   state_->setWordWrap(true);
   connection->addWidget(state_, 1);
-  connection->addWidget(button(QCoreApplication::translate("App", "Настройки…"), connection_box, [this] { show_settings(0); }));
+  connection->addWidget(button(QCoreApplication::translate("App", "Settings…"), connection_box, [this] { show_settings(0); }));
   connection->addWidget(connect_button_);
   layout->addWidget(connection_box);
   auto* split = new QSplitter(Qt::Horizontal, root);
   auto* scroll = new QScrollArea(split); scroll->setWidgetResizable(true); scroll->setMinimumWidth(360);
   auto* controls = new QWidget(scroll); auto* controls_layout = new QVBoxLayout(controls);
-  auto* capture = new QGroupBox(QCoreApplication::translate("App", "Съёмка"), controls); auto* capture_layout = new QGridLayout(capture);
-  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "СФОТОГРАФИРОВАТЬ"), "shoot", capture), 0, 0, 1, 2);
-  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Автофокус"), "focus", capture), 1, 0);
-  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Статус камеры"), "status", capture), 1, 1);
-  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Начать видео"), "record start", capture), 2, 0);
-  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Остановить видео"), "record stop", capture), 2, 1);
+  auto* capture = new QGroupBox(QCoreApplication::translate("App", "Capture"), controls); auto* capture_layout = new QGridLayout(capture);
+  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "TAKE PHOTO"), "shoot", capture), 0, 0, 1, 2);
+  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Autofocus"), "focus", capture), 1, 0);
+  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Camera status"), "status", capture), 1, 1);
+  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Start video"), "record start", capture), 2, 0);
+  capture_layout->addWidget(command_button(QCoreApplication::translate("App", "Stop video"), "record stop", capture), 2, 1);
   controls_layout->addWidget(capture);
   sdk_controls_ = new CameraControlsWidget(&session_, &card_, controls);
   controls_layout->addWidget(sdk_controls_);
   auto* transfer = new QGroupBox("Live View", controls); auto* transfer_layout = new QVBoxLayout(transfer);
-  transfer_layout->addWidget(command_button(QCoreApplication::translate("App", "Live View · включить"), "monitor start", transfer));
-  transfer_layout->addWidget(command_button(QCoreApplication::translate("App", "Live View · выключить"), "monitor stop", transfer));
+  transfer_layout->addWidget(command_button(QCoreApplication::translate("App", "Live View · start"), "monitor start", transfer));
+  transfer_layout->addWidget(command_button(QCoreApplication::translate("App", "Live View · stop"), "monitor stop", transfer));
   controls_layout->addWidget(transfer);
   controls_layout->addStretch(); scroll->setWidget(controls);
   auto* right = new QWidget(split); auto* right_layout = new QVBoxLayout(right);
@@ -206,21 +206,21 @@ void MainWindow::create_ui() {
   auto* tabs = tabs_;
   auto* live_host = new QWidget(tabs); auto* live_layout = new QVBoxLayout(live_host);
   live_view_ = new ImageViewer(live_host); live_view_->setObjectName("live_view");
-  live_view_->set_caption(QCoreApplication::translate("App", "Live View · подключи камеру")); live_layout->addWidget(hold_); live_layout->addWidget(live_view_, 1);
+  live_view_->set_caption(QCoreApplication::translate("App", "Live View · connect a camera")); live_layout->addWidget(hold_); live_layout->addWidget(live_view_, 1);
   connect(sdk_controls_, &CameraControlsWidget::point_selection_changed, live_view_->view(), &ImageView::set_point_selection);
   connect(live_view_->view(), &ImageView::point_selected, sdk_controls_, &CameraControlsWidget::select_point);
   gallery_ = new GalleryWidget(tabs); photo_view_ = gallery_->viewer();
   card_widget_ = new CameraCardWidget(&card_, tabs);
   auto* preview_form = settings_dialog_->findChild<QFormLayout*>("preview_settings_form");
   connect(card_widget_->preview_quality_selector(), &QComboBox::currentIndexChanged, this, [this] { if (!loading_) save_settings(); });
-  preview_form->addRow(QCoreApplication::translate("App", "Фото на карте"), card_widget_->preview_quality_selector());
-  preview_form->addRow(QCoreApplication::translate("App", "Видео на карте"), card_widget_->video_quality_selector());
+  preview_form->addRow(QCoreApplication::translate("App", "Photos on camera"), card_widget_->preview_quality_selector());
+  preview_form->addRow(QCoreApplication::translate("App", "Video on camera"), card_widget_->video_quality_selector());
   connect(card_widget_->video_quality_selector(), &QComboBox::currentIndexChanged, this, [this] { if (!loading_) save_settings(); });
-  tabs->addTab(live_host, "Live View"); tabs->addTab(card_widget_, QCoreApplication::translate("App", "В камере")); tabs->addTab(gallery_, QCoreApplication::translate("App", "На компьютере · EXIF"));
+  tabs->addTab(live_host, "Live View"); tabs->addTab(card_widget_, QCoreApplication::translate("App", "On camera")); tabs->addTab(gallery_, QCoreApplication::translate("App", "On computer · EXIF"));
   connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) { if (index == 1) card_widget_->activated(); else card_widget_->deactivated(); });
   right_layout->addWidget(tabs, 4);
   log_ = new QPlainTextEdit(right); log_->setReadOnly(true); log_->setMaximumBlockCount(1500);
-  log_->setPlaceholderText(QCoreApplication::translate("App", "Журнал соединения и передачи файлов")); log_->setMaximumHeight(180);
+  log_->setPlaceholderText(QCoreApplication::translate("App", "Connection and file transfer log")); log_->setMaximumHeight(180);
   right_layout->addWidget(log_, 1); log_->hide();
   split->addWidget(scroll); split->addWidget(right); split->setStretchFactor(1, 1); split->setSizes({360, 900});
   layout->addWidget(split, 1); setCentralWidget(root);
@@ -230,7 +230,7 @@ void MainWindow::create_ui() {
   });
   connect(remember_, &QCheckBox::toggled, this, [this](bool remember) {
     if (loading_) return;
-    if (!remember && !settings_.forget_credentials()) statusBar()->showMessage(QCoreApplication::translate("App", "Не удалось удалить сохранённые данные"));
+    if (!remember && !settings_.forget_credentials()) statusBar()->showMessage(QCoreApplication::translate("App", "Could not remove saved credentials"));
     save_settings();
   });
   connect(auto_liveview_, &QCheckBox::toggled, this, [this] { if (!loading_) save_settings(); });
@@ -253,53 +253,53 @@ void MainWindow::create_ui() {
 }
 void MainWindow::create_settings() {
   settings_dialog_ = new QDialog(this); settings_dialog_->setObjectName("settings_dialog");
-  settings_dialog_->setWindowTitle(QCoreApplication::translate("App", "Настройки")); settings_dialog_->resize(700, 430);
+  settings_dialog_->setWindowTitle(QCoreApplication::translate("App", "Settings")); settings_dialog_->resize(700, 430);
   auto* layout = new QVBoxLayout(settings_dialog_);
   auto* pages = new QTabWidget(settings_dialog_); pages->setObjectName("settings_tabs"); layout->addWidget(pages);
   auto* connection = new QWidget(pages); auto* form = new QFormLayout(connection);
   host_ = new QLineEdit(connection); host_->setObjectName("host");
   model_ = new QLineEdit(connection); model_->setObjectName("model");
-  model_->setToolTip(QCoreApplication::translate("App", "Модель в формате SonShell, например a6700. Возможности зависят от SDK."));
+  model_->setToolTip(QCoreApplication::translate("App", "SonShell model name, e.g. a6700. Features depend on the SDK."));
   user_ = new QLineEdit(connection); user_->setObjectName("username");
   password_ = new QLineEdit(connection); password_->setObjectName("password"); password_->setEchoMode(QLineEdit::Password);
-  form->addRow(QCoreApplication::translate("App", "IP камеры"), host_);
-  form->addRow(QCoreApplication::translate("App", "Модель"), model_);
-  form->addRow(QCoreApplication::translate("App", "Имя"), user_);
-  form->addRow(QCoreApplication::translate("App", "Пароль"), password_);
-  remember_ = new QCheckBox(QCoreApplication::translate("App", "Сохранить имя и пароль"), connection); remember_->setObjectName("remember");
-  remember_->setToolTip(QCoreApplication::translate("App", "Хранить на этом компьютере в файле с правами 0600, без шифрования. Снятие флажка удаляет сохранённые поля."));
-  auto_liveview_ = new QCheckBox(QCoreApplication::translate("App", "Live View при подключении"), connection);
-  auto_connect_ = new QCheckBox(QCoreApplication::translate("App", "Подключаться при запуске"), connection); auto_connect_->setObjectName("auto_connect");
-  auto_connect_->setToolTip(QCoreApplication::translate("App", "При запуске подключаться с сохранёнными именем и паролем. Сначала подключись вручную и прими условия SDK. Отключение отменяет повторы до следующего запуска."));
-  auto_reconnect_ = new QCheckBox(QCoreApplication::translate("App", "Переподключаться автоматически"), connection);
+  form->addRow(QCoreApplication::translate("App", "Camera IP"), host_);
+  form->addRow(QCoreApplication::translate("App", "Model"), model_);
+  form->addRow(QCoreApplication::translate("App", "Username"), user_);
+  form->addRow(QCoreApplication::translate("App", "Password"), password_);
+  remember_ = new QCheckBox(QCoreApplication::translate("App", "Remember username and password"), connection); remember_->setObjectName("remember");
+  remember_->setToolTip(QCoreApplication::translate("App", "Store in an unencrypted file on this computer with 0600 permissions. Clearing the checkbox removes the saved fields."));
+  auto_liveview_ = new QCheckBox(QCoreApplication::translate("App", "Live View on connection"), connection);
+  auto_connect_ = new QCheckBox(QCoreApplication::translate("App", "Connect on startup"), connection); auto_connect_->setObjectName("auto_connect");
+  auto_connect_->setToolTip(QCoreApplication::translate("App", "Connect on startup using the saved username and password. First connect manually and accept the SDK terms. Disconnect cancels retries until the next launch."));
+  auto_reconnect_ = new QCheckBox(QCoreApplication::translate("App", "Reconnect automatically"), connection);
   form->addRow(remember_); form->addRow(auto_connect_); form->addRow(auto_liveview_); form->addRow(auto_reconnect_);
-  pages->addTab(connection, QCoreApplication::translate("App", "Подключение"));
+  pages->addTab(connection, QCoreApplication::translate("App", "Connection"));
   auto* files = new QWidget(pages); auto* files_layout = new QFormLayout(files);
   folder_ = new QLineEdit(files); folder_->setObjectName("photo_directory");
   auto* folder_row = new QHBoxLayout; folder_row->addWidget(folder_, 1);
-  browse_ = button(QCoreApplication::translate("App", "Обзор…"), files, [this] {
+  browse_ = button(QCoreApplication::translate("App", "Browse…"), files, [this] {
     if (card_.busy()) return;
-    const auto path = QFileDialog::getExistingDirectory(settings_dialog_, QCoreApplication::translate("App", "Каталог снимков"), folder_->text());
+    const auto path = QFileDialog::getExistingDirectory(settings_dialog_, QCoreApplication::translate("App", "Photo directory"), folder_->text());
     if (!path.isEmpty()) { folder_->setText(path); set_photo_directory(); save_settings(); }
   });
-  folder_row->addWidget(browse_); files_layout->addRow(QCoreApplication::translate("App", "Каталог фото"), folder_row);
-  files_layout->addRow(button(QCoreApplication::translate("App", "Открыть каталог фото"), files, [this] { QDesktopServices::openUrl(QUrl::fromLocalFile(folder_->text())); }));
-  auto* dates = new QLabel(QCoreApplication::translate("App", "При импорте файлы раскладываются по датам съёмки внутри выбранного каталога."), files); dates->setWordWrap(true); files_layout->addRow(dates);
-  pages->addTab(files, QCoreApplication::translate("App", "Каталог и файлы"));
+  folder_row->addWidget(browse_); files_layout->addRow(QCoreApplication::translate("App", "Photo folder"), folder_row);
+  files_layout->addRow(button(QCoreApplication::translate("App", "Open photo directory"), files, [this] { QDesktopServices::openUrl(QUrl::fromLocalFile(folder_->text())); }));
+  auto* dates = new QLabel(QCoreApplication::translate("App", "Imported files are organized by capture date within the selected directory."), files); dates->setWordWrap(true); files_layout->addRow(dates);
+  pages->addTab(files, QCoreApplication::translate("App", "Directory and files"));
   auto* preview = new QWidget(pages); auto* preview_layout = new QFormLayout(preview); preview_layout->setObjectName("preview_settings_form");
-  studio_ = new QCheckBox(QCoreApplication::translate("App", "Превью после спуска (без RAW)"), preview); studio_->setObjectName("studio_enabled");
-  studio_->setToolTip(QCoreApplication::translate("App", "Запрашивает сжатое превью последнего кадра с карты. Оригинал не загружается; разрешение определяет камера."));
-  review_seconds_ = new QSpinBox(preview); review_seconds_->setObjectName("review_seconds"); review_seconds_->setRange(2, 10); review_seconds_->setSuffix(QCoreApplication::translate("App", " с"));
+  studio_ = new QCheckBox(QCoreApplication::translate("App", "Preview after capture (no RAW)"), preview); studio_->setObjectName("studio_enabled");
+  studio_->setToolTip(QCoreApplication::translate("App", "Requests a compressed preview of the latest photo on the card. The original is not downloaded; resolution depends on the camera."));
+  review_seconds_ = new QSpinBox(preview); review_seconds_->setObjectName("review_seconds"); review_seconds_->setRange(2, 10); review_seconds_->setSuffix(QCoreApplication::translate("App", " s"));
   review_quality_ = new QComboBox(preview); review_quality_->setObjectName("review_quality");
-  review_quality_->addItem(QCoreApplication::translate("App", "Сжатое превью камеры"));
-  review_quality_->addItem(QCoreApplication::translate("App", "JPEG с карты · исходный размер"));
-  review_quality_->setToolTip(QCoreApplication::translate("App", "Для исходного размера включи JPEG или RAW+JPEG на камере. Передаётся только JPEG; скорость зависит от сети."));
+  review_quality_->addItem(QCoreApplication::translate("App", "Compressed camera preview"));
+  review_quality_->addItem(QCoreApplication::translate("App", "JPEG from card · original size"));
+  review_quality_->setToolTip(QCoreApplication::translate("App", "For original size, enable JPEG or RAW+JPEG on the camera. Only JPEG is transferred; speed depends on the network."));
   preview_layout->addRow(studio_);
-  preview_layout->addRow(QCoreApplication::translate("App", "Качество студийного кадра"), review_quality_);
-  preview_layout->addRow(QCoreApplication::translate("App", "Время показа"), review_seconds_);
-  pages->addTab(preview, QCoreApplication::translate("App", "Предпросмотр"));
-  hold_ = new QCheckBox(QCoreApplication::translate("App", "Удерживать кадр"), this); hold_->setObjectName("review_hold"); hold_->setEnabled(false); hold_->hide();
-  auto* saved = new QLabel(QCoreApplication::translate("App", "Изменения сохраняются автоматически."), settings_dialog_); layout->addWidget(saved);
+  preview_layout->addRow(QCoreApplication::translate("App", "Studio review quality"), review_quality_);
+  preview_layout->addRow(QCoreApplication::translate("App", "Review duration"), review_seconds_);
+  pages->addTab(preview, QCoreApplication::translate("App", "Preview"));
+  hold_ = new QCheckBox(QCoreApplication::translate("App", "Hold photo"), this); hold_->setObjectName("review_hold"); hold_->setEnabled(false); hold_->hide();
+  auto* saved = new QLabel(QCoreApplication::translate("App", "Changes are saved automatically."), settings_dialog_); layout->addWidget(saved);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, settings_dialog_); layout->addWidget(buttons);
   connect(buttons, &QDialogButtonBox::rejected, settings_dialog_, &QDialog::reject);
   connect(settings_dialog_, &QDialog::finished, this, [this] {
@@ -344,13 +344,13 @@ void MainWindow::load_settings() {
   loading_ = false;
 }
 void MainWindow::save_settings() {
-  if (!loading_ && !settings_.save(values())) statusBar()->showMessage(QCoreApplication::translate("App", "Не удалось сохранить настройки: ") + settings_.path());
+  if (!loading_ && !settings_.save(values())) statusBar()->showMessage(QCoreApplication::translate("App", "Could not save settings: ") + settings_.path());
 }
 void MainWindow::connect_on_startup() {
   if (!auto_connect_->isChecked() || session_.active()) return;
   const auto v = values();
   if (!v.remember_credentials || v.user.isEmpty() || v.password.isEmpty() || !v.sdk_terms_accepted) {
-    const auto message = QCoreApplication::translate("App", "Для автоподключения сохрани имя и пароль и подключись вручную один раз.");
+    const auto message = QCoreApplication::translate("App", "To connect at startup, save your username and password and connect manually once.");
     state_->setText(message); statusBar()->showMessage(message); return;
   }
   connect_camera(true);
@@ -363,48 +363,45 @@ void MainWindow::connect_camera(bool automatic) {
   };
   QHostAddress address;
   if (!address.setAddress(v.host) || address.protocol() != QAbstractSocket::IPv4Protocol || v.model.isEmpty()) {
-    failed(QCoreApplication::translate("App", "Подключение"), QCoreApplication::translate("App", "Введи IPv4 камеры и модель (например a6700).")); return;
+    failed(QCoreApplication::translate("App", "Connection"), QCoreApplication::translate("App", "Enter the camera IPv4 address and model (e.g. a6700).")); return;
   }
   if (v.folder.isEmpty() || !QDir().mkpath(v.folder)) {
-    failed(QCoreApplication::translate("App", "Каталог"), QCoreApplication::translate("App", "Не удалось создать каталог снимков.")); return;
+    failed(QCoreApplication::translate("App", "Directory"), QCoreApplication::translate("App", "Could not create the photo directory.")); return;
   }
   if (!settings_.load().sdk_terms_accepted) {
     if (automatic) {
-      const auto message = QCoreApplication::translate("App", "Для автоподключения сохрани имя и пароль и подключись вручную один раз.");
+      const auto message = QCoreApplication::translate("App", "To connect at startup, save your username and password and connect manually once.");
       state_->setText(message); statusBar()->showMessage(message); return;
     }
     QMessageBox terms(this);
-    terms.setWindowTitle(QCoreApplication::translate("App", "Условия использования Sony SDK"));
+    terms.setWindowTitle(QCoreApplication::translate("App", "Sony SDK terms of use"));
     terms.setTextFormat(Qt::RichText);
-    terms.setText(QCoreApplication::translate("App", "SonShell Remote — независимое приложение. Поддержку приложения предоставляет проект, а не Sony.<br><br>"
-        "Sony требует согласия с условиями SDK, включая положения об исключении гарантии камеры при управлении через SDK "
-        "(с оговорками для отдельных стран) и запреты военного использования и использования с вооружением.<br><br>"
-        "Прочитай полные <a href=\"https://support.d-imaging.sony.co.jp/app/sdk/licenseagreement/en.html\">условия Sony</a> перед подключением."));
-    auto* accept = terms.addButton(QCoreApplication::translate("App", "Принимаю условия Sony"), QMessageBox::AcceptRole);
-    terms.addButton(QCoreApplication::translate("App", "Отмена"), QMessageBox::RejectRole);
+    terms.setText(QCoreApplication::translate("App", "SonShell Remote is an independent application. Application support is provided by this project, not Sony.<br><br>Sony requires agreement to the SDK terms, including camera warranty exclusions when controlled through the SDK (with exceptions for some countries) and restrictions on military and weapons use.<br><br>Read the full <a href=\"https://support.d-imaging.sony.co.jp/app/sdk/licenseagreement/en.html\">Sony terms</a> before connecting."));
+    auto* accept = terms.addButton(QCoreApplication::translate("App", "Accept Sony terms"), QMessageBox::AcceptRole);
+    terms.addButton(QCoreApplication::translate("App", "Cancel"), QMessageBox::RejectRole);
     const auto local_license = QDir(QCoreApplication::applicationDirPath()).filePath("../share/doc/sonshell-remote/sony-sdk-license.html");
     if (QFileInfo::exists(local_license)) {
-      auto* read = terms.addButton(QCoreApplication::translate("App", "Открыть полный текст"), QMessageBox::ActionRole);
+      auto* read = terms.addButton(QCoreApplication::translate("App", "Open full text"), QMessageBox::ActionRole);
       connect(read, &QAbstractButton::clicked, &terms, [local_license] { QDesktopServices::openUrl(QUrl::fromLocalFile(local_license)); });
     }
     terms.exec();
     if (terms.clickedButton() != accept) return;
     auto accepted = values(); accepted.sdk_terms_accepted = true;
-    if (!settings_.save(accepted)) { statusBar()->showMessage(QCoreApplication::translate("App", "Не удалось сохранить принятие условий")); return; }
+    if (!settings_.save(accepted)) { statusBar()->showMessage(QCoreApplication::translate("App", "Could not save acceptance of terms")); return; }
   }
   save_settings(); set_photo_directory();
   session_.start({QFileInfo(binary_).absoluteFilePath(), v.host, v.model, v.user, v.password, QDir(v.folder).absolutePath(), v.auto_reconnect});
 }
 void MainWindow::send(const QString& command) {
-  if (!session_.send_command(command)) statusBar()->showMessage(QCoreApplication::translate("App", "Команда не отправлена: камера не подключена"), 3000);
+  if (!session_.send_command(command)) statusBar()->showMessage(QCoreApplication::translate("App", "Command not sent: camera is not connected"), 3000);
 }
 void MainWindow::open_photo() {
-  if (photo_.isNull()) { statusBar()->showMessage(QCoreApplication::translate("App", "Выбери готовый снимок в галерее"), 3000); return; }
+  if (photo_.isNull()) { statusBar()->showMessage(QCoreApplication::translate("App", "Select an available photo in the gallery"), 3000); return; }
   if (!photo_window_) {
     photo_window_ = new ImageViewer(this);
     photo_window_->setWindowFlags(Qt::Window);
     photo_window_->setAttribute(Qt::WA_DeleteOnClose);
-    photo_window_->setWindowTitle(QCoreApplication::translate("App", "Фотография · SonShell Remote"));
+    photo_window_->setWindowTitle(QCoreApplication::translate("App", "Photo · SonShell Remote"));
     photo_window_->setObjectName("photo_window");
     photo_window_->set_navigation_enabled(true);
     connect(photo_window_, &ImageViewer::navigate_requested, gallery_, &GalleryWidget::navigate);
@@ -427,7 +424,7 @@ void MainWindow::set_photo_directory() {
   const auto path = folder_->text().trimmed();
   if (QDir(path).absolutePath() != photos_.directory()) {
     review_.cancel(); photo_ = {}; photo_path_.clear(); decode_pending_ = false;
-    MediaResult empty; empty.source = QCoreApplication::translate("App", "Выбери снимок в галерее"); gallery_->show_photo(empty);
+    MediaResult empty; empty.source = QCoreApplication::translate("App", "Select a photo in the gallery"); gallery_->show_photo(empty);
     if (photo_window_) photo_window_->close();
   }
   photos_.set_directory(path); card_.set_directory(path);
@@ -452,22 +449,22 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::create_menus() {
-  auto* settings = menuBar()->addMenu(QCoreApplication::translate("App", "Настройки"));
+  auto* settings = menuBar()->addMenu(QCoreApplication::translate("App", "Settings"));
   auto add_settings = [this, settings](const QString& label, const QString& name, int page) {
     auto* action = settings->addAction(label); action->setObjectName(name);
     connect(action, &QAction::triggered, this, [this, page] { show_settings(page); });
     return action;
   };
-  add_settings(QCoreApplication::translate("App", "Подключение…"), "settings_connection", 0)->setShortcut(QKeySequence("Ctrl+,"));
-  add_settings(QCoreApplication::translate("App", "Каталог и файлы…"), "settings_files", 1);
-  add_settings(QCoreApplication::translate("App", "Предпросмотр…"), "settings_preview", 2);
+  add_settings(QCoreApplication::translate("App", "Connection…"), "settings_connection", 0)->setShortcut(QKeySequence("Ctrl+,"));
+  add_settings(QCoreApplication::translate("App", "Directory and files…"), "settings_files", 1);
+  add_settings(QCoreApplication::translate("App", "Preview…"), "settings_preview", 2);
   settings->addSeparator();
-  auto* journal = settings->addAction(QCoreApplication::translate("App", "Журнал соединения")); journal->setObjectName("settings_log");
+  auto* journal = settings->addAction(QCoreApplication::translate("App", "Connection log")); journal->setObjectName("settings_log");
   journal->setCheckable(true); connect(journal, &QAction::toggled, log_, &QWidget::setVisible);
-  auto* languages = settings->addMenu(QCoreApplication::translate("App", "Язык · Language"));
+  auto* languages = settings->addMenu(QCoreApplication::translate("App", "Language"));
   auto* group = new QActionGroup(this);
-  for (const auto& code : {QString("ru"), QString("en")}) {
-    auto* action = languages->addAction(code == "ru" ? QString::fromUtf8("Русский") : QString("English"));
+  for (const auto& code : {QString("en"), QString("ru")}) {
+    auto* action = languages->addAction(code == "ru" ? QCoreApplication::translate("App", "Russian") : QString("English"));
     action->setObjectName("language_" + code); action->setCheckable(true); group->addAction(action);
     action->setChecked(language_ == code);
     connect(action, &QAction::triggered, this, [this, code] {
@@ -475,17 +472,17 @@ void MainWindow::create_menus() {
       if (!settings_.save(values())) {
         language_ = old;
         if (auto* previous = findChild<QAction*>("language_" + old)) previous->setChecked(true);
-        statusBar()->showMessage(QCoreApplication::translate("App", "Не удалось сохранить настройки: ") + settings_.path());
+        statusBar()->showMessage(QCoreApplication::translate("App", "Could not save settings: ") + settings_.path());
         return;
       }
-      statusBar()->showMessage(QCoreApplication::translate("App", "Язык изменится при следующем запуске · Language changes on next launch"));
+      statusBar()->showMessage(QCoreApplication::translate("App", "Language changes on next launch"));
     });
   }
-  auto* help = menuBar()->addMenu(QCoreApplication::translate("App", "Справка"));
-  auto* guide = help->addAction(QCoreApplication::translate("App", "Руководство и клавиши · F1")); guide->setObjectName("help_action");
+  auto* help = menuBar()->addMenu(QCoreApplication::translate("App", "Help"));
+  auto* guide = help->addAction(QCoreApplication::translate("App", "User guide and keys · F1")); guide->setObjectName("help_action");
   guide->setShortcut(Qt::Key_F1); guide->setShortcutContext(Qt::ApplicationShortcut);
   connect(guide, &QAction::triggered, this, &MainWindow::show_help);
-  auto* about = help->addAction(QCoreApplication::translate("App", "О программе")); about->setObjectName("about_action");
+  auto* about = help->addAction(QCoreApplication::translate("App", "About")); about->setObjectName("about_action");
   connect(about, &QAction::triggered, this, [this] {
     if (!about_) { about_ = new AboutDialog(this); about_->setAttribute(Qt::WA_DeleteOnClose); }
     about_->show(); about_->raise(); about_->activateWindow();
