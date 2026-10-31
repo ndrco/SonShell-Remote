@@ -24,3 +24,6 @@ __pycache__/
 # Local development notes are not published.
 /AGENTS*.md
 /docs/AUDIT_2026-10-31*.md
+
+/docs/PUBLISHING*.md
+/docs/ROADMAP*.md

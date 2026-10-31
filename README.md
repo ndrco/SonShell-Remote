@@ -24,7 +24,6 @@ amd64; аппаратные проверки выполнялись на Sony IL
 - [Сборка и запуск](docs/BUILD.md)
 - [Установка на чистую Ubuntu](docs/INSTALL.md)
 - [Руководство и клавиши](docs/USER_GUIDE.md)
-- [План развития](docs/ROADMAP.md)
 - [Архитектура](docs/ARCHITECTURE.md)
 - [Проверки](docs/TESTING.md)
 - [Изменения](CHANGELOG.md)
@@ -100,7 +99,6 @@ sudo apt install ./sonshell-remote_0.8.3-1ubuntu24.04_amd64.deb
 - Управление одной камерой по IPv4/Wi-Fi/LAN. USB, обнаружение и несколько камер
   в GUI пока не реализованы.
 
-[Возможности и оставшиеся задачи](docs/ROADMAP.md).
 
 ## Структура
 
