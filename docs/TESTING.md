@@ -834,3 +834,9 @@ fresh-runtime-0.8.0.log and upgrade-0.8.0.log. No private data/SDK added to Git.
   build-clean/verify-release-0.8.4-final.log, fresh-runtime-0.8.4-final.log,
   upgrade-0.8.4-final.log. No host configuration or camera files changed;
   no new physical-camera acceptance run. Gitleaks history scan found no secrets.
+
+- Public release: https://github.com/ndrco/SonShell-Remote/releases/tag/v0.8.4 .
+  GitHub confirmed Latest, draft=false and the three uploaded assets. The public
+  DEB was downloaded again and its SHA256 matched the verified package. Both
+  README languages, the original screenshot and excluded-file absence were
+  checked against the public repository.

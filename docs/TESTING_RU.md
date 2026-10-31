@@ -833,3 +833,8 @@ fresh-runtime-0.8.0.log и upgrade-0.8.0.log. Приватные данные/SD
   build-clean/verify-release-0.8.4-final.log, fresh-runtime-0.8.4-final.log,
   upgrade-0.8.4-final.log. Настройки хоста и файлы камеры не менялись;
   новой аппаратной приёмки не было. Gitleaks не нашёл секретов в истории.
+
+- Публичный релиз: https://github.com/ndrco/SonShell-Remote/releases/tag/v0.8.4 .
+  GitHub подтвердил Latest, draft=false и три вложения. Опубликованный DEB
+  скачан повторно, SHA256 совпал с проверенным пакетом. Проверены оба README,
+  исходный скриншот и отсутствие исключённых файлов в публичном репозитории.
